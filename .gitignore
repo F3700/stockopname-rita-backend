@@ -1,0 +1,19 @@
+# Environment
+.env
+.env.*
+
+# Build
+/bin/
+/build/
+
+# Test
+*.test
+*.out
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
