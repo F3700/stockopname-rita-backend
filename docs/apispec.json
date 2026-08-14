@@ -1,0 +1,232 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Rita Stock Opname API",
+    "version": "1.0.0",
+    "description": "REST API untuk mendukung proses stock opname, pengelolaan produk, dan pemantauan hasil stock opname."
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8080",
+      "description": "Local Development"
+    },
+    {
+      "url": "https://albertt....",
+      "description": "Hosted Development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "Products",
+      "description": "Endpoint untuk pengelolaan data produk"
+    },
+    {
+      "name": "Stock Opname Session",
+      "description": "Endpoint untuk proses stock opname"
+    }
+  ],
+  "paths": {
+    "/products": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get products",
+        "description": "Retrieve a list of products, optionally filtered by their last update timestamp.",
+        "parameters": [
+          {
+            "name": "updated_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-08-14T10:00:00Z"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Products retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/so-sessions/join": {
+      "post": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Join a stock opname session",
+        "description": "Join an inspector or scanner to an existing stock opname session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sesi_code": {
+                    "type": "string",
+                    "example": "SO-2026-06-03-01"
+                  },
+                  "coor_code": {
+                    "type": "string",
+                    "example": "KOOR1"
+                  },
+                  "inspector_code": {
+                    "type": "string",
+                    "example": "INSPECTOR1"
+                  },
+                  "rak": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": ["RAK1", "RAK2"]
+                  }
+                },
+                "required": ["sesi_code", "coor_code", "inspector_code", "rak"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Join session successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Successfully joined the stock opname session."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "inspector_id": {
+                          "type": "integer",
+                          "example": 132
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Product": {
+        "type": "object",
+        "required": [
+          "id",
+          "barcode",
+          "name",
+          "buy_price",
+          "sell_price",
+          "date_created",
+          "date_updated",
+          "category_name",
+          "department_code"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "buy_price": {
+            "type": "number",
+            "format": "double",
+            "example": 9.99
+          },
+          "sell_price": {
+            "type": "number",
+            "format": "double",
+            "example": 19.99
+          },
+          "date_created": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-01T12:00:00Z"
+          },
+          "date_updated": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2023-01-02T12:00:00Z"
+          },
+          "category_name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "department_code": {
+            "type": "string",
+            "example": "NSTL"
+          }
+        }
+      },
+      "InternalServerErrorResponse": {
+        "type": "object",
+        "properties": {
+          "message": {
+            "type": "string",
+            "example": "Failed: Internal server error"
+          },
+          "data": {
+            "type": "string",
+            "example": ""
+          }
+        }
+      }
+    },
+    "responses": {
+      "InternalServerError": {
+        "description": "Internal server error",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalServerErrorResponse"
+            }
+          }
+        }
+      }
+    },
+    "parameters": {},
+    "securitySchemes": {}
+  }
+}
