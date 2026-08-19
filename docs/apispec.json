@@ -140,7 +140,74 @@
           }
         }
       }
+    },
+    "/so-sessions/rak": {
+      "post": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Post SO products by racks for a stock opname session",
+        "description": "Post the products associated with specific racks for a given stock opname session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rak_id": {
+                    "type": "string",
+                    "example": "12323"
+                  },
+                  "so_products": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "product_id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "example": 10
+                        }
+                      },
+                      "required": ["product_id", "quantity"]
+                    }
+                  }
+                },
+                "required": ["rak_id", "so_products"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Racks posted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Racks posted successfully."
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
     }
+
   },
   "components": {
     "schemas": {
