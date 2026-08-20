@@ -651,6 +651,80 @@
                         "inspector_id": {
                           "type": "integer",
                           "example": 132
+                        },
+                        "rak": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "RAK1"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/so-sessions/join/rak": {
+      "post": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Create a rack for a stock opname session by inspector id",
+        "description": "Create a new rack for a stock opname session associated with a specific inspector.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "inspector_id": {
+                    "type": "integer",
+                    "example": 132
+                  }
+                },
+                "required": ["inspector_id"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rack created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack created successfully."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "name": {
+                          "type": "string",
+                          "example": "RAK1"
                         }
                       }
                     }
@@ -678,8 +752,8 @@
                 "type": "object",
                 "properties": {
                   "rak_id": {
-                    "type": "string",
-                    "example": "12323"
+                    "type": "integer",
+                    "example": 12323
                   },
                   "so_products": {
                     "type": "array",
