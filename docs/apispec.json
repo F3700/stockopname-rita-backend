@@ -70,6 +70,191 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
+      },
+      "post": {
+        "tags": ["Products"],
+        "summary": "Create a new product",
+        "description": "Create a new product with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "$ref": "#/components/schemas/CreateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Product created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Product created successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/products/{id}": {
+      "patch": {
+        "tags": ["Products"],
+        "summary": "Update an existing product",
+        "description": "Update the details of an existing product.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProductRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Product updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Product updated successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Product"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Products"],
+        "summary": "Delete a product",
+        "description": "Delete an existing product by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Product deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Product deleted successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/products/deleted": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get deleted products",
+        "description": "Retrieve a list of products that have been deleted, optionally filtered by their last update timestamp.",
+        "parameters": [
+          {
+            "name": "updated_after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "example": "2026-08-14T10:00:00Z"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Deleted products retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/DeletedProduct"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
       }
     },
     "/so-sessions/join": {
@@ -207,7 +392,6 @@
         }
       }
     }
-
   },
   "components": {
     "schemas": {
@@ -264,6 +448,88 @@
           "department_code": {
             "type": "string",
             "example": "NSTL"
+          }
+        }
+      },
+      "CreateProductRequest": {
+        "type": "object",
+        "required": [
+          "barcode",
+          "name",
+          "buy_price",
+          "sell_price",
+          "category_name",
+          "department_code"
+        ],
+        "properties": {
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "buy_price": {
+            "type": "number",
+            "format": "double",
+            "example": 9.99
+          },
+          "sell_price": {
+            "type": "number",
+            "format": "double",
+            "example": 19.99
+          },
+          "category_name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "department_code": {
+            "type": "string",
+            "example": "NSTL"
+          }
+        }
+      },
+      "UpdateProductRequest": {
+        "type": "object",
+        "properties": {
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "buy_price": {
+            "type": "number",
+            "format": "double",
+            "example": 9.99
+          },
+          "sell_price": {
+            "type": "number",
+            "format": "double",
+            "example": 19.99
+          },
+          "category_name": {
+            "type": "string",
+            "example": "Diary"
+          },
+          "department_code": {
+            "type": "string",
+            "example": "NSTL"
+          }
+        }
+      },
+      "DeletedProduct": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
