@@ -696,9 +696,13 @@
                   "inspector_id": {
                     "type": "integer",
                     "example": 132
+                  },
+                  "rak_name": {
+                    "type": "string",
+                    "example": "RAK1"
                   }
                 },
-                "required": ["inspector_id"]
+                "required": ["inspector_id", "rak_name"]
               }
             }
           }
@@ -721,10 +725,6 @@
                         "id": {
                           "type": "integer",
                           "example": 1
-                        },
-                        "name": {
-                          "type": "string",
-                          "example": "RAK1"
                         }
                       }
                     }
