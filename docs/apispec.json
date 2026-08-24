@@ -29,6 +29,10 @@
       "description": "Endpoint untuk pengelolaan data kategori produk"
     },
     {
+      "name": "Deleted Products",
+      "description": "Endpoint untuk pengelolaan data produk yang telah dihapus"
+    },
+    {
       "name": "Stock Opname Session",
       "description": "Endpoint untuk proses stock opname"
     }
@@ -220,7 +224,7 @@
     },
     "/products/deleted": {
       "get": {
-        "tags": ["Products"],
+        "tags": ["Deleted Products"],
         "summary": "Get deleted products",
         "description": "Retrieve a list of products that have been deleted, optionally filtered by their last update timestamp.",
         "parameters": [
@@ -893,13 +897,13 @@
             "format": "double",
             "example": 19.99
           },
-          "category_name": {
-            "type": "string",
-            "example": "Diary"
+          "category_id": {
+            "type": "integer",
+            "example": 1
           },
-          "department_code": {
-            "type": "string",
-            "example": "NSTL"
+          "department_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
