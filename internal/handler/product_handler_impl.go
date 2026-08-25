@@ -39,8 +39,7 @@ func (p *ProductHandlerImpl) CreateProduct(writer http.ResponseWriter, req *http
 		Data:    productCreateResponse,
 	}
 
-	err = helper.ResponseJson(writer, http.StatusCreated, response)
-	if err != nil {
+	if err := helper.ResponseJson(writer, http.StatusCreated, response); err != nil {
 		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
 		return
 	}
@@ -48,15 +47,80 @@ func (p *ProductHandlerImpl) CreateProduct(writer http.ResponseWriter, req *http
 
 // DeleteProduct implements [ProductHandler].
 func (p *ProductHandlerImpl) DeleteProduct(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	panic("unimplemented")
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid product ID", err)
+		return
+	}
+
+	if err := p.ProductService.Delete(req.Context(), id); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete product", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Product deleted successfully",
+		Data:    nil,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
+		return
+	}
 }
 
 // GetProducts implements [ProductHandler].
 func (p *ProductHandlerImpl) GetProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	panic("unimplemented")
+	date, err := helper.ParseDate(req.URL.Query().Get("updated_after"))
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid date format", err)
+		return
+	}
+
+	products, err := p.ProductService.FindAll(req.Context(), date)
+	if err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to fetch products", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Products fetched successfully",
+		Data:    products,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
+		return
+	}
 }
 
 // UpdateProduct implements [ProductHandler].
 func (p *ProductHandlerImpl) UpdateProduct(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	panic("unimplemented")
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid product ID", err)
+		return
+	}
+
+	productUpdateRequest := dto.ProductUpdateRequest{}
+	if err := helper.ReadFromRequestBody(req, &productUpdateRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	productResponse, err := p.ProductService.Update(req.Context(), id, productUpdateRequest)
+	if err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update product", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Product updated successfully",
+		Data:    productResponse,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
+		return
+	}
 }

@@ -9,7 +9,16 @@ type ProductCreateRequest struct {
 	DepartmentID int     `json:"department_id" validate:"required"`
 }
 
-type ProductCreateResponse struct {
+type ProductUpdateRequest struct {
+	Barcode      *string  `json:"barcode"`
+	Name         *string  `json:"name"`
+	BuyPrice     *float64 `json:"buy_price"`
+	SellPrice    *float64 `json:"sell_price"`
+	CategoryID   *int     `json:"category_id"`
+	DepartmentID *int     `json:"department_id"`
+}
+
+type ProductResponse struct {
 	Id             int     `json:"id"`
 	Barcode        string  `json:"barcode"`
 	Name           string  `json:"name"`

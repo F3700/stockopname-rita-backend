@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"stockopname-rita-backend/internal/model"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -20,12 +21,113 @@ func NewProductRepository(pool *pgxpool.Pool) ProductRepository {
 
 // Delete implements [ProductRepository].
 func (p *ProductRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int) error {
-	panic("unimplemented")
+	const SQL = "DELETE FROM product WHERE product_id = $1"
+
+	_, err := tx.Exec(ctx, SQL, id)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // FindAll implements [ProductRepository].
 func (p *ProductRepositoryImpl) FindAll(ctx context.Context) ([]*model.Product, error) {
-	panic("unimplemented")
+	const SQL = `
+		SELECT
+			p.product_id,
+			p.product_barcode,
+			p.product_name,
+			p.product_buyprice,
+			p.product_sellprice,
+			p.product_createdat,
+			p.product_updatedat,
+			c.category_name,
+			d.department_code
+		FROM product p
+		JOIN category c
+			ON c.category_id = p.product_category_id
+		JOIN department d
+			ON d.department_id = p.product_department_id
+	`
+
+	var products []*model.Product
+
+	rows, err := p.pool.Query(ctx, SQL)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var product model.Product
+		err := rows.Scan(
+			&product.ProductID,
+			&product.ProductBarcode,
+			&product.ProductName,
+			&product.ProductBuyPrice,
+			&product.ProductSellPrice,
+			&product.ProductCreatedat,
+			&product.ProductUpdatedat,
+			&product.ProductCategoryName,
+			&product.ProductDepartmentCode,
+		)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, &product)
+	}
+
+	return products, nil
+}
+
+func (p *ProductRepositoryImpl) FindAllUpdatedAfter(ctx context.Context, date time.Time) ([]*model.Product, error) {
+	const SQL = `
+		SELECT
+			p.product_id,
+			p.product_barcode,
+			p.product_name,
+			p.product_buyprice,
+			p.product_sellprice,
+			p.product_createdat,
+			p.product_updatedat,
+			c.category_name,
+			d.department_code
+		FROM product p
+		JOIN category c
+			ON c.category_id = p.product_category_id
+		JOIN department d
+			ON d.department_id = p.product_department_id
+		WHERE p.product_updatedat > $1
+	`
+
+	var products []*model.Product
+
+	rows, err := p.pool.Query(ctx, SQL, date)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var product model.Product
+		err := rows.Scan(
+			&product.ProductID,
+			&product.ProductBarcode,
+			&product.ProductName,
+			&product.ProductBuyPrice,
+			&product.ProductSellPrice,
+			&product.ProductCreatedat,
+			&product.ProductUpdatedat,
+			&product.ProductCategoryName,
+			&product.ProductDepartmentCode,
+		)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, &product)
+	}
+
+	return products, nil
 }
 
 // Save implements [ProductRepository].
@@ -41,7 +143,13 @@ func (p *ProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, product *mo
 
 // Update implements [ProductRepository].
 func (p *ProductRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, product *model.Product) error {
-	panic("unimplemented")
+	const SQL = "UPDATE product SET product_barcode = $1, product_name = $2, product_buyprice = $3, product_sellprice = $4, product_updatedat = NOW(), product_category_id = $5, product_department_id = $6 WHERE product_id = $7"
+
+	_, err := tx.Exec(ctx, SQL, product.ProductBarcode, product.ProductName, product.ProductBuyPrice, product.ProductSellPrice, product.ProductCategoryID, product.ProductDepartmentID, product.ProductID)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (p *ProductRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error) {
@@ -54,6 +162,8 @@ func (p *ProductRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int)
             p.product_sellprice,
             p.product_createdat,
             p.product_updatedat,
+			p.product_category_id,
+			p.product_department_id,
             c.category_name,
             d.department_code
         FROM product p
@@ -74,6 +184,8 @@ func (p *ProductRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int)
 		&product.ProductSellPrice,
 		&product.ProductCreatedat,
 		&product.ProductUpdatedat,
+		&product.ProductCategoryID,
+		&product.ProductDepartmentID,
 		&product.ProductCategoryName,
 		&product.ProductDepartmentCode,
 	)

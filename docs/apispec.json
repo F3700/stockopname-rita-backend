@@ -52,7 +52,7 @@
               "type": "string",
               "format": "date-time"
             },
-            "example": "2026-08-14T10:00:00Z"
+            "example": "2026-08-24T21:58:28+07:00"
           }
         ],
         "responses": {
@@ -928,13 +928,13 @@
             "format": "double",
             "example": 19.99
           },
-          "category_name": {
-            "type": "string",
-            "example": "Diary"
+          "category_id": {
+            "type": "integer",
+            "example": 1
           },
-          "department_code": {
-            "type": "string",
-            "example": "NSTL"
+          "department_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },

@@ -17,8 +17,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router := httprouter.New()
 
-	// router.GET("/products", handler.GetProducts)
 	router.POST("/products", handler.CreateProduct)
+	router.GET("/products", handler.GetProducts)
+	router.PATCH("/products/:id", handler.UpdateProduct)
+	router.DELETE("/products/:id", handler.DeleteProduct)
 
 	return router
 }
