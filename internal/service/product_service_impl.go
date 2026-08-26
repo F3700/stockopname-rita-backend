@@ -56,7 +56,11 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 		return dto.ProductResponse{}, fmt.Errorf("find created product id %d: %w", product.ProductID, err)
 	}
 
-	response := dto.ProductResponse{
+	if err := tx.Commit(ctx); err != nil {
+		return dto.ProductResponse{}, err
+	}
+
+	return dto.ProductResponse{
 		Id:             productResult.ProductID,
 		Barcode:        productResult.ProductBarcode,
 		Name:           productResult.ProductName,
@@ -66,13 +70,7 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 		DateUpdated:    productResult.ProductUpdatedat.Format(time.RFC3339),
 		CategoryName:   productResult.ProductCategoryName,
 		DepartmentCode: productResult.ProductDepartmentCode,
-	}
-
-	if err := tx.Commit(ctx); err != nil {
-		return dto.ProductResponse{}, err
-	}
-
-	return response, nil
+	}, nil
 }
 
 // Delete implements [ProductService].

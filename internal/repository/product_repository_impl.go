@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"fmt"
 	"stockopname-rita-backend/internal/model"
 	"time"
 
@@ -23,9 +24,12 @@ func NewProductRepository(pool *pgxpool.Pool) ProductRepository {
 func (p *ProductRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int) error {
 	const SQL = "DELETE FROM product WHERE product_id = $1"
 
-	_, err := tx.Exec(ctx, SQL, id)
+	res, err := tx.Exec(ctx, SQL, id)
 	if err != nil {
 		return err
+	}
+	if res.RowsAffected() == 0 {
+		return fmt.Errorf("product with ID %d not found", id)
 	}
 	return nil
 }
