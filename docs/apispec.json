@@ -222,7 +222,7 @@
         }
       }
     },
-    "/products/deleted": {
+    "/deleted/products": {
       "get": {
         "tags": ["Deleted Products"],
         "summary": "Get deleted products",
@@ -256,6 +256,36 @@
                       "items": {
                         "$ref": "#/components/schemas/DeletedProduct"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Deleted Products"],
+        "summary": "Delete all deleted products",
+        "description": "Permanently delete all products that have been marked as deleted.",
+        "responses": {
+          "200": {
+            "description": "All deleted products removed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "All deleted products removed successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
                     }
                   }
                 }

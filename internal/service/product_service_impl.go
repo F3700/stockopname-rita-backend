@@ -13,16 +13,18 @@ import (
 )
 
 type ProductServiceImpl struct {
-	ProductRepository repository.ProductRepository
-	Pool              *pgxpool.Pool
-	Validator         *validator.Validate
+	ProductRepository        repository.ProductRepository
+	DeletedProductRepository repository.DeletedProductRepository
+	Pool                     *pgxpool.Pool
+	Validator                *validator.Validate
 }
 
-func NewProductService(productRepository repository.ProductRepository, pool *pgxpool.Pool, validator *validator.Validate) ProductService {
+func NewProductService(productRepository repository.ProductRepository, deletedProductRepository repository.DeletedProductRepository, pool *pgxpool.Pool, validator *validator.Validate) ProductService {
 	return &ProductServiceImpl{
-		ProductRepository: productRepository,
-		Pool:              pool,
-		Validator:         validator,
+		ProductRepository:        productRepository,
+		DeletedProductRepository: deletedProductRepository,
+		Pool:                     pool,
+		Validator:                validator,
 	}
 }
 
@@ -85,7 +87,10 @@ func (p *ProductServiceImpl) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("delete product id %d: %w", id, err)
 	}
 
-	//tambahin id yang udah di delete ke table deleted product
+	//tambahin id yang udah di delete ke table deleted product pake repository deleted product
+	if err := p.DeletedProductRepository.Save(ctx, tx, id); err != nil {
+		return fmt.Errorf("save deleted product: %w", err)
+	}
 
 	if err := tx.Commit(ctx); err != nil {
 		return fmt.Errorf("commit transaction: %w", err)

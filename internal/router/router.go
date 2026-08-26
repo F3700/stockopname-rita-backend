@@ -1,7 +1,7 @@
 package router
 
 import (
-	"net/http"
+	apidocs "stockopname-rita-backend/docs"
 	"stockopname-rita-backend/internal/handler"
 	"stockopname-rita-backend/internal/repository"
 	"stockopname-rita-backend/internal/service"
@@ -9,12 +9,15 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/julienschmidt/httprouter"
-	v5 "github.com/swaggest/swgui/v5"
 )
 
 func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Router {
+	deletedProductRepository := repository.NewDeletedProductRepository(pool)
+	deletedProductService := service.NewDeletedProductService(deletedProductRepository)
+	deletedProductHandler := handler.NewDeletedProductHandler(deletedProductService)
+
 	productRepository := repository.NewProductRepository(pool)
-	productService := service.NewProductService(productRepository, pool, validate)
+	productService := service.NewProductService(productRepository, deletedProductRepository, pool, validate)
 	productHandler := handler.NewProductHandler(productService)
 
 	departmentRepository := repository.NewDepartmentRepositoryImpl(pool)
@@ -26,6 +29,9 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
 	router := httprouter.New()
+
+	// API docs.
+	apidocs.RegisterRoutes(router)
 
 	router.POST("/products", productHandler.CreateProduct)
 	router.GET("/products", productHandler.GetProducts)
@@ -42,19 +48,8 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.PATCH("/categories/:id", categoryHandler.UpdateCategory)
 	router.DELETE("/categories/:id", categoryHandler.DeleteCategory)
 
-	//API DOCS
-	router.GET("/docs/apispec.json", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		http.ServeFile(w, r, "./docs/apispec.json")
-	})
-	router.Handler(
-		http.MethodGet,
-		"/docs",
-		v5.New(
-			"Rita Stock Opname API",
-			"/docs/apispec.json",
-			"/docs/",
-		),
-	)
+	router.GET("/deleted/products", deletedProductHandler.GetDeletedProducts)
+	router.DELETE("/deleted/products", deletedProductHandler.DeleteDeletedProducts)
 
 	return router
 }
