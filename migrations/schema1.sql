@@ -8,7 +8,7 @@ CREATE TABLE department (
 
 CREATE TABLE category (
     category_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    category_name VARCHAR(100) NOT NULL,
+    category_name VARCHAR(100) NOT NULL UNIQUE,
     category_desc TEXT
 );
 

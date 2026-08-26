@@ -21,6 +21,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	departmentService := service.NewDepartmentService(departmentRepository, pool, validate)
 	departmentHandler := handler.NewDepartmentHandler(departmentService)
 
+	categoryRepository := repository.NewCategoryRepositoryImpl(pool)
+	categoryService := service.NewCategoryService(categoryRepository, pool, validate)
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+
 	router := httprouter.New()
 
 	router.POST("/products", productHandler.CreateProduct)
@@ -32,6 +36,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/departments", departmentHandler.GetDepartments)
 	router.PATCH("/departments/:id", departmentHandler.UpdateDepartment)
 	router.DELETE("/departments/:id", departmentHandler.DeleteDepartment)
+
+	router.POST("/categories", categoryHandler.CreateCategory)
+	router.GET("/categories", categoryHandler.GetCategories)
+	router.PATCH("/categories/:id", categoryHandler.UpdateCategory)
+	router.DELETE("/categories/:id", categoryHandler.DeleteCategory)
 
 	//API DOCS
 	router.GET("/docs/apispec.json", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
