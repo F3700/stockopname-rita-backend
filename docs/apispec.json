@@ -33,8 +33,28 @@
       "description": "Endpoint untuk pengelolaan data produk yang telah dihapus"
     },
     {
+      "name": "Stock Opname Session for Mobile",
+      "description": "Endpoint untuk proses stock opname melalui aplikasi mobile"
+    },
+    {
       "name": "Stock Opname Session",
-      "description": "Endpoint untuk proses stock opname"
+      "description": "Endpoint untuk pengelolaan sesi stock opname"
+    },
+    {
+      "name": "Stock Opname Coordinator",
+      "description": "Endpoint untuk pengelolaan koordinator stock opname"
+    },
+    {
+      "name": "Stock Opname Inspector",
+      "description": "Endpoint untuk pengelolaan inspector stock opname"
+    },
+    {
+      "name": "Stock Opname Racks",
+      "description": "Endpoint untuk pengelolaan rak stock opname"
+    },
+    {
+      "name": "Stock Opname Result Items",
+      "description": "Endpoint untuk pengelolaan hasil stock opname"
     }
   ],
   "paths": {
@@ -630,9 +650,9 @@
         }
       }
     },
-    "/so-sessions/join": {
+    "/stockopname/sessions/join": {
       "post": {
-        "tags": ["Stock Opname Session"],
+        "tags": ["Stock Opname Session for Mobile"],
         "summary": "Join a stock opname session",
         "description": "Join an inspector or scanner to an existing stock opname session.",
         "requestBody": {
@@ -715,9 +735,9 @@
         }
       }
     },
-    "/so-sessions/join/rak": {
+    "/stockopname/sessions/join/rak": {
       "post": {
-        "tags": ["Stock Opname Session"],
+        "tags": ["Stock Opname Session for Mobile"],
         "summary": "Create a rack for a stock opname session by inspector id",
         "description": "Create a new rack for a stock opname session associated with a specific inspector.",
         "requestBody": {
@@ -773,9 +793,9 @@
         }
       }
     },
-    "/so-sessions/rak": {
+    "/stockopname/sessions/rak": {
       "post": {
-        "tags": ["Stock Opname Session"],
+        "tags": ["Stock Opname Session for Mobile"],
         "summary": "Post SO products by racks for a stock opname session",
         "description": "Post the products associated with specific racks for a given stock opname session.",
         "requestBody": {
@@ -827,6 +847,769 @@
                     "data": {
                       "type": "string",
                       "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions": {
+      "post": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Create a new stock opname session",
+        "description": "Create a new stock opname session with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSessionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stock opname session created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session created successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Get all stock opname sessions",
+        "description": "Retrieve a list of all stock opname sessions.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "SO-14-08-2026-01"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname sessions retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Session"
+                      }
+                    },
+                    "pagination": {
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "total_pages": {
+                          "type": "integer",
+                          "example": 5
+                        },
+                        "total_items": {
+                          "type": "integer",
+                          "example": 50
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Get a specific stock opname session",
+        "description": "Retrieve details of a specific stock opname session by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session retrieved successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/complete": {
+      "patch": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Complete a stock opname session",
+        "description": "Mark a stock opname session as completed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock opname session completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session completed successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/cancel": {
+      "patch": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Cancel a stock opname session",
+        "description": "Mark a stock opname session as canceled.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock opname session canceled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname session canceled successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Session"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/coordinators": {
+      "get": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Get coordinators for a stock opname session",
+        "description": "Retrieve a list of coordinators",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinators retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Coordinator"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/coordinators/{id}": {
+      "get": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Get a specific coordinator for a stock opname session",
+        "description": "Retrieve details of a specific coordinator by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator retrieved successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Coordinator"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/coordinators/{id}/cancel": {
+      "patch": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Cancel a coordinator for a stock opname session",
+        "description": "Mark a coordinator as canceled for a specific stock opname session.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coordinator canceled successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator canceled successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Coordinator"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/coordinators/{id}/complete": {
+      "patch": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Complete a coordinator for a stock opname session",
+        "description": "Mark a coordinator as completed for a specific stock opname session.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Coordinator completed successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator completed successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Coordinator"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/inspectors": {
+      "get": {
+        "tags": ["Stock Opname Inspector"],
+        "summary": "Get all inspectors for a stock opname session",
+        "description": "Retrieve a list of all inspectors for a specific stock opname session.",
+        "parameters": [
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of inspectors retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Inspectors retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Inspector"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/racks/progress": {
+      "get": {
+        "tags": ["Stock Opname Racks"],
+        "summary": "Get progress of racks for a specific session or coordinator",
+        "description": "Retrieve the progress of racks for a specific stock opname session or coordinator.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Rack progress retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack progress retrieved successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "rackAssigned": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "rackCompleted": {
+                          "type": "integer",
+                          "example": 5
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/results": {
+      "get": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Get all stock opname result items for a specific session or coordinator",
+        "description": "Retrieve a list of all stock opname result items.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "example": "Product A"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of stock opname result items retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result items retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/StockOpnameResultItem"
+                      }
+                    },
+                    "pagination":{
+                      "type": "object",
+                      "properties": {
+                        "page": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "limit": {
+                          "type": "integer",
+                          "example": 10
+                        },
+                        "totalItems": {
+                          "type": "integer",
+                          "example": 100
+                        },
+                        "totalPages": {
+                          "type": "integer",
+                          "example": 10
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/results/{id}": {
+      "get": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Get a specific stock opname result item by its ID",
+        "description": "Retrieve details of a specific stock opname result item by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock opname result item retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item retrieved successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StockOpnameResultItem"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Delete a specific stock opname result item by its ID",
+        "description": "Delete a specific stock opname result item by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Stock opname result item deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item deleted successfully"
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "patch": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Update a specific stock opname result item by its ID",
+        "description": "Update a quantity of a specific stock opname result item by its ID.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateStockOpnameResultItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock opname result item updated successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item updated successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/StockOpnameResultItem"
                     }
                   }
                 }
@@ -1077,6 +1860,168 @@
           "description": {
             "type": "string",
             "example": "Category for diary products"
+          }
+        }
+      },
+      "Session": {
+        "type": "object",
+        "required": [
+          "id",
+          "location",
+          "code",
+          "status",
+          "startedat",
+          "endedat"
+        ],
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "SO-14-08-2026-01"
+          },
+          "location": {
+            "type": "string",
+            "example": "Location 1"
+          },
+          "status": {
+            "type": "string",
+            "example": "IN_PROGRESS"
+          },
+          "startedat": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-14T10:00:00Z"
+          },
+          "endedat": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-14T10:00:00Z"
+          }
+        }
+      },
+      "CreateSessionRequest": {
+        "type": "object",
+        "required": ["sesi_code", "location", "coor_code"],
+        "properties": {
+          "sesi_code": {
+            "type": "string",
+            "example": "SO-14-08-2026-01"
+          },
+          "location": {
+            "type": "string",
+            "example": "Location 1"
+          },
+          "coor_code": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "example": ["COOR1", "COOR2", "COOR3"]
+          }
+        }
+      },
+      "Coordinator": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "COOR1"
+          },
+          "inspector": {
+            "type": "integer",
+            "example": 8
+          },
+          "rackAssigned": {
+            "type": "integer",
+            "example": 5
+          },
+          "rackCompleted": {
+            "type": "integer",
+            "example": 3
+          },
+          "status": {
+            "type": "string",
+            "example": "IN_PROGRESS"
+          }
+        }
+      },
+      "Inspector": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "code": {
+            "type": "string",
+            "example": "INSPECTOR1"
+          },
+          "rackAssigned": {
+            "type": "integer",
+            "example": 5
+          },
+          "rackCompleted": {
+            "type": "integer",
+            "example": 3
+          },
+          "totalItems": {
+            "type": "integer",
+            "example": 100
+          }
+        }
+      },
+      "StockOpnameResultItem": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "barcode": {
+            "type": "string",
+            "example": "1234567890123"
+          },
+          "product_name": {
+            "type": "string",
+            "example": "Product A"
+          },
+          "quantity": {
+            "type": "integer",
+            "example": 10
+          },
+          "rak_code": {
+            "type": "string",
+            "example": "RAK-001"
+          },
+          "inspector_code": { 
+            "type": "string",
+            "example": "INSPECTOR1"
+          },
+          "coordinator_code": {
+            "type": "string",
+            "example": "COOR1"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "example": "2026-08-14T10:00:00Z"
+          }
+        }
+      },
+      "UpdateStockOpnameResultItemRequest": {
+        "type": "object",
+        "required": ["quantity"],
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "example": 15000
           }
         }
       },
