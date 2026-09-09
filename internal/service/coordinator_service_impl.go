@@ -21,30 +21,19 @@ func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepositor
 	}
 }
 
-// Cancel implements [CoordinatorService].
-func (c *CoordinatorServiceImpl) Cancel(ctx context.Context, id int) error {
+func (c *CoordinatorServiceImpl) Update(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error {
 	tx, err := c.Pool.Begin(ctx)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback(ctx)
 
-	if err := c.CoordinatorRepository.Cancel(ctx, tx, id); err != nil {
-		return err
+	coordinatorModel := &model.Coordinator{
+		CoorID:     id,
+		CoorStatus: req.Status,
 	}
 
-	return tx.Commit(ctx)
-}
-
-// Complete implements [CoordinatorService].
-func (c *CoordinatorServiceImpl) Complete(ctx context.Context, id int) error {
-	tx, err := c.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	if err := c.CoordinatorRepository.Complete(ctx, tx, id); err != nil {
+	if err := c.CoordinatorRepository.Update(ctx, tx, coordinatorModel); err != nil {
 		return err
 	}
 

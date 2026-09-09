@@ -20,45 +20,26 @@ func NewCoordinatorHandler(coordinatorService service.CoordinatorService) Coordi
 	}
 }
 
-// CancelCoordinator implements [CoordinatorHandler].
-func (c *CoordinatorHandlerImpl) CancelCoordinator(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+func (c *CoordinatorHandlerImpl) UpdateCoordinator(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	id, err := helper.ParseIntParam(params, "id")
 	if err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid coordinator ID", err)
 		return
 	}
 
-	if err := c.CoordinatorService.Cancel(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to cancel coordinator", err)
+	var updateReq dto.UpdateCoordinatorRequest
+	if err := helper.ReadFromRequestBody(req, &updateReq); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := c.CoordinatorService.Update(req.Context(), id, &updateReq); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update coordinator", err)
 		return
 	}
 
 	response := dto.Response{
-		Message: "Coordinator canceled successfully",
-		Data:    nil,
-	}
-
-	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to send response", err)
-		return
-	}
-}
-
-// CompleteCoordinator implements [CoordinatorHandler].
-func (c *CoordinatorHandlerImpl) CompleteCoordinator(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	id, err := helper.ParseIntParam(params, "id")
-	if err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid coordinator ID", err)
-		return
-	}
-
-	if err := c.CoordinatorService.Complete(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to complete coordinator", err)
-		return
-	}
-
-	response := dto.Response{
-		Message: "Coordinator completed successfully",
+		Message: "Coordinator updated successfully",
 		Data:    nil,
 	}
 

@@ -12,6 +12,5 @@ type CoordinatorRepository interface {
 	FindAllSummary(ctx context.Context, tx pgx.Tx) ([]*model.CoordinatorSummary, error)
 	FindBySesiIdSummary(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.CoordinatorSummary, error)
 	FindByIdSummary(ctx context.Context, tx pgx.Tx, id int) (*model.CoordinatorSummary, error)
-	Complete(ctx context.Context, tx pgx.Tx, id int) error
-	Cancel(ctx context.Context, tx pgx.Tx, id int) error
+	Update(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error
 }

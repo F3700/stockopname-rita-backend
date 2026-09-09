@@ -15,36 +15,18 @@ func NewCoordinatorRepository() CoordinatorRepository {
 	return &CoordinatorRepositoryImpl{}
 }
 
-// Cancel implements [CoordinatorRepository].
-func (c *CoordinatorRepositoryImpl) Cancel(ctx context.Context, tx pgx.Tx, id int) error {
+func (c *CoordinatorRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error {
 	const SQL = `
 		UPDATE coordinator
-		SET coor_status = 'CANCELLED'
-		WHERE coor_id = $1
+		SET coor_status = $1
+		WHERE coor_id = $2
 	`
-	result, err := tx.Exec(ctx, SQL, id)
+	result, err := tx.Exec(ctx, SQL, coordinator.CoorStatus, coordinator.CoorID)
 	if err != nil {
 		return err
 	}
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("coordinator with id %d not found", id)
-	}
-	return err
-}
-
-// Complete implements [CoordinatorRepository].
-func (c *CoordinatorRepositoryImpl) Complete(ctx context.Context, tx pgx.Tx, id int) error {
-	const SQL = `
-		UPDATE coordinator
-		SET coor_status = 'COMPLETED'
-		WHERE coor_id = $1
-	`
-	result, err := tx.Exec(ctx, SQL, id)
-	if err != nil {
-		return err
-	}
-	if result.RowsAffected() == 0 {
-		return fmt.Errorf("coordinator with id %d not found", id)
+		return fmt.Errorf("coordinator with id %d not found", coordinator.CoorID)
 	}
 	return err
 }

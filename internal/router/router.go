@@ -57,8 +57,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
-	router.PATCH("/stockopname/coordinators/:id/cancel", coordinatorHandler.CancelCoordinator)
-	router.PATCH("/stockopname/coordinators/:id/complete", coordinatorHandler.CompleteCoordinator)
+	router.PATCH("/stockopname/coordinators/:id", coordinatorHandler.UpdateCoordinator)
 
 	return router
 }

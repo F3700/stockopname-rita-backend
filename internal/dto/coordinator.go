@@ -13,3 +13,7 @@ type CreateCoordinatorRequest struct {
 	Code   string `json:"code" validate:"required"`
 	SesiId int    `json:"sesiId" validate:"required"`
 }
+
+type UpdateCoordinatorRequest struct {
+	Status string `json:"status" validate:"required"`
+}

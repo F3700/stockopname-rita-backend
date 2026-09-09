@@ -8,6 +8,5 @@ import (
 type CoordinatorService interface {
 	FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
 	FindAllSummary(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
-	Cancel(ctx context.Context, id int) error
-	Complete(ctx context.Context, id int) error
+	Update(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error
 }

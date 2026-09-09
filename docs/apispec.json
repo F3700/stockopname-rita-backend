@@ -1024,13 +1024,11 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
-      }
-    },
-    "/stockopname/sessions/{id}/complete": {
+      },
       "patch": {
         "tags": ["Stock Opname Session"],
-        "summary": "Complete a stock opname session",
-        "description": "Mark a stock opname session as completed.",
+        "summary": "Update a stock opname session",
+        "description": "Update the details of an existing stock opname session.",
         "parameters": [
           {
             "name": "id",
@@ -1042,51 +1040,19 @@
             "example": 1
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Stock opname session completed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Stock opname session completed successfully"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Session"
-                    }
-                  }
-                }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSessionRequest"
               }
             }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
           }
-        }
-      }
-    },
-    "/stockopname/sessions/{id}/cancel": {
-      "patch": {
-        "tags": ["Stock Opname Session"],
-        "summary": "Cancel a stock opname session",
-        "description": "Mark a stock opname session as canceled.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 1
-          }
-        ],
+        },
         "responses": {
           "200": {
-            "description": "Stock opname session canceled successfully",
+            "description": "Stock opname session updated successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -1094,7 +1060,7 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "example": "Stock opname session canceled successfully"
+                      "example": "Stock opname session updated successfully"
                     },
                     "data": {
                       "$ref": "#/components/schemas/Session"
@@ -1195,13 +1161,11 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
-      }
-    },
-    "/stockopname/coordinators/{id}/cancel": {
+      },
       "patch": {
         "tags": ["Stock Opname Coordinator"],
-        "summary": "Cancel a coordinator for a stock opname session",
-        "description": "Mark a coordinator as canceled for a specific stock opname session.",
+        "summary": "Update a coordinator for a stock opname session",
+        "description": "Update the details of an existing coordinator.",
         "parameters": [
           {
             "name": "id",
@@ -1213,52 +1177,19 @@
             "example": 1
           }
         ],
-        "responses": {
-          "200": {
-            "description": "Coordinator canceled successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Coordinator canceled successfully"
-                    },
-                    "data": {
-                      "type": "string",
-                      "example": ""
-                    }
-                  }
-                }
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCoordinatorRequest"
               }
             }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
           }
-        }
-      }
-    },
-    "/stockopname/coordinators/{id}/complete": {
-      "patch": {
-        "tags": ["Stock Opname Coordinator"],
-        "summary": "Complete a coordinator for a stock opname session",
-        "description": "Mark a coordinator as completed for a specific stock opname session.",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 1
-          }
-        ],
+        },
         "responses": {
           "200": {
-            "description": "Coordinator completed successfully",
+            "description": "Coordinator updated successfully",
             "content": {
               "application/json": {
                 "schema": {
@@ -1266,11 +1197,10 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "example": "Coordinator completed successfully"
+                      "example": "Coordinator updated successfully"
                     },
                     "data": {
-                      "type": "string",
-                      "example": ""
+                      "$ref": "#/components/schemas/Coordinator"
                     }
                   }
                 }
@@ -2024,6 +1954,24 @@
           "quantity": {
             "type": "integer",
             "example": 15000
+          }
+        }
+      },
+      "UpdateCoordinatorRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
+          }
+        }
+      },
+      "UpdateSessionRequest": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "example": "COMPLETED"
           }
         }
       },
