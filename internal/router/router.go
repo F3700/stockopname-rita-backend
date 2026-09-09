@@ -64,7 +64,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.PATCH("/stockopname/coordinators/:id", coordinatorHandler.UpdateCoordinator)
 
 	router.POST("/stockopname/sessions", sesiHandler.CreateSesi)
-	// router.GET("/stockopname/sessions", sesiHandler.GetSesi)
+	router.GET("/stockopname/sessions", sesiHandler.GetAllSesi)
 	router.GET("/stockopname/sessions/:id", sesiHandler.GetSesiById)
 	router.PATCH("/stockopname/sessions/:id", sesiHandler.UpdateSesi)
 	router.DELETE("/stockopname/sessions/:id", sesiHandler.DeleteSesi)

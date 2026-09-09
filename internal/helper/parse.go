@@ -2,6 +2,7 @@ package helper
 
 import (
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -27,6 +28,18 @@ func ParseIntParam(params httprouter.Params, key string) (int, error) {
 	value, err := strconv.Atoi(valueStr)
 	if err != nil {
 		return 0, fmt.Errorf("invalid parameter format: %s", key)
+	}
+	return value, nil
+}
+
+func ParseIntQueryNotNull(req *http.Request, key string) (int, error) {
+	valueStr := req.URL.Query().Get(key)
+	if valueStr == "" {
+		return 0, fmt.Errorf("missing query parameter: %s", key)
+	}
+	value, err := strconv.Atoi(valueStr)
+	if err != nil {
+		return 0, fmt.Errorf("invalid query parameter format: %s", key)
 	}
 	return value, nil
 }

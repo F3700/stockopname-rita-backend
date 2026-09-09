@@ -31,9 +31,35 @@ func (s *SesiRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 	return err
 }
 
-// FindAll implements [SesiRepository].
-func (s *SesiRepositoryImpl) FindAll(ctx context.Context, tx pgx.Tx) ([]*model.Sesi, error) {
-	panic("unimplemented")
+func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, tx pgx.Tx, limit int, offset int, search string) ([]*model.Sesi, int, error) {
+	const SQL = `
+		SELECT sesi_id, sesi_location, sesi_code, sesi_status, sesi_startedat, sesi_endedat
+		FROM sesi
+		WHERE sesi_location ILIKE $3 OR sesi_code ILIKE $3
+		ORDER BY sesi_id DESC
+		LIMIT $1 OFFSET $2
+	`
+	rows, err := tx.Query(ctx, SQL, limit, offset, "%"+search+"%")
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	sesiModels, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.Sesi])
+	if err != nil {
+		return nil, 0, err
+	}
+
+	var total int
+	if err = tx.QueryRow(ctx, `
+        SELECT COUNT(*)
+        FROM sesi
+        WHERE sesi_location ILIKE $1 OR sesi_code ILIKE $1
+    `, "%"+search+"%").Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return sesiModels, total, nil
 }
 
 // FindById implements [SesiRepository].

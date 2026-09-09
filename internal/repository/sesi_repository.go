@@ -9,7 +9,7 @@ import (
 
 type SesiRepository interface {
 	FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error)
-	FindAll(ctx context.Context, tx pgx.Tx) ([]*model.Sesi, error)
+	FindAllInPageSearch(ctx context.Context, tx pgx.Tx, limit int, offset int, search string) ([]*model.Sesi, int, error)
 	Save(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error
 	Update(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error
 	Delete(ctx context.Context, tx pgx.Tx, id int) error

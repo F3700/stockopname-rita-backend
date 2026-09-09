@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/model"
@@ -141,4 +142,37 @@ func (s *SesiServiceImpl) Update(ctx context.Context, id int, req dto.UpdateSesi
 	}
 
 	return nil
+}
+
+func (s *SesiServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.SesiResponse, error) {
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	offset := (pagination.Page - 1) * pagination.Limit
+
+	sesiModels, total, err := s.SesiRepository.FindAllInPageSearch(ctx, tx, pagination.Limit, offset, search)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find all sesi: %w", err)
+	}
+
+	var sesiResponses []dto.SesiResponse
+	for _, sesiModel := range sesiModels {
+		sesiResponse := dto.SesiResponse{
+			ID:        sesiModel.SesiID,
+			Location:  sesiModel.SesiLocation,
+			Code:      sesiModel.SesiCode,
+			Status:    sesiModel.SesiStatus,
+			StartDate: sesiModel.SesiStartedAt.Format(time.RFC3339),
+			EndDate:   helper.ParseDateNullable(&sesiModel.SesiEndedAt.Time),
+		}
+		sesiResponses = append(sesiResponses, sesiResponse)
+	}
+
+	pagination.TotalItems = total
+	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
+
+	return sesiResponses, nil
 }

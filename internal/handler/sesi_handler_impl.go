@@ -70,7 +70,41 @@ func (s *SesiHandlerImpl) DeleteSesi(writer http.ResponseWriter, req *http.Reque
 
 // GetAllSesi implements [SesiHandler].
 func (s *SesiHandlerImpl) GetAllSesi(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	panic("unimplemented")
+	page, err := helper.ParseIntQueryNotNull(req, "page")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
+		return
+	}
+
+	limit, err := helper.ParseIntQueryNotNull(req, "limit")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
+	search := req.URL.Query().Get("search")
+
+	pagination := &dto.Pagination{
+		Page:  page,
+		Limit: limit,
+	}
+
+	sesiResponses, err := s.SesiService.FindAll(req.Context(), pagination, search)
+	if err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get all sesi", err)
+		return
+	}
+
+	response := dto.ResponsePagination{
+		Message:    "Sesi retrieved successfully",
+		Data:       sesiResponses,
+		Pagination: pagination,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
 }
 
 // GetSesiById implements [SesiHandler].
