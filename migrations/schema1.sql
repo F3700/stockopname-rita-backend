@@ -67,6 +67,13 @@ CREATE TABLE coordinator (
     coor_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     coor_code VARCHAR(10) NOT NULL,
     coor_sesi_id INTEGER NOT NULL,
+    coor_status VARCHAR(20) NOT NULL
+        CHECK (coor_status IN (
+            'IN_PROGRESS',
+            'IN_REVIEW',
+            'COMPLETED',
+            'CANCELLED'
+        )),
 
     CONSTRAINT fk_coordinator_sesi
         FOREIGN KEY (coor_sesi_id)

@@ -28,6 +28,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	categoryService := service.NewCategoryService(categoryRepository, pool, validate)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
+	coordinatorRepository := repository.NewCoordinatorRepository()
+	coordinatorService := service.NewCoordinatorService(coordinatorRepository, pool)
+	coordinatorHandler := handler.NewCoordinatorHandler(coordinatorService)
+
 	router := httprouter.New()
 
 	// API docs.
@@ -50,6 +54,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.GET("/deleted/products", deletedProductHandler.GetDeletedProducts)
 	router.DELETE("/deleted/products", deletedProductHandler.DeleteDeletedProducts)
+
+	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
+	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
+	router.PATCH("/stockopname/coordinators/:id/cancel", coordinatorHandler.CancelCoordinator)
+	router.PATCH("/stockopname/coordinators/:id/complete", coordinatorHandler.CompleteCoordinator)
 
 	return router
 }

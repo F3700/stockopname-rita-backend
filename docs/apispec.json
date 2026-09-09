@@ -1226,7 +1226,8 @@
                       "example": "Coordinator canceled successfully"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Coordinator"
+                      "type": "string",
+                      "example": ""
                     }
                   }
                 }
@@ -1268,7 +1269,8 @@
                       "example": "Coordinator completed successfully"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Coordinator"
+                      "type": "string",
+                      "example": ""
                     }
                   }
                 }
