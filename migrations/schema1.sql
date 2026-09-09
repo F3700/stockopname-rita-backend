@@ -154,3 +154,29 @@ CREATE TABLE deleted_product (
     product_id INTEGER NOT NULL PRIMARY KEY,
     deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+
+
+CREATE OR REPLACE FUNCTION sync_sesi_endedat()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF NEW.sesi_status = 'IN_PROGRESS' THEN
+        NEW.sesi_endedat := NULL;
+
+    ELSE
+        NEW.sesi_endedat := NOW();
+
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+
+
+CREATE TRIGGER trg_sync_sesi_endedat
+BEFORE UPDATE OF sesi_status ON sesi
+FOR EACH ROW
+EXECUTE FUNCTION sync_sesi_endedat();

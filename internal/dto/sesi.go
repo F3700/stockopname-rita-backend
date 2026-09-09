@@ -10,7 +10,11 @@ type SesiResponse struct {
 }
 
 type CreateSesiRequest struct {
-	Code        string   `json:"sesi_code"`
-	Location    string   `json:"location"`
-	Coordinator []string `json:"coor_code"`
+	Code        string   `json:"sesi_code" validate:"required"`
+	Location    string   `json:"location" validate:"required"`
+	Coordinator []string `json:"coor_code" validate:"required"`
+}
+
+type UpdateSesiRequest struct {
+	Status string `json:"status"`
 }

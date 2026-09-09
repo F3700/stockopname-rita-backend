@@ -1,0 +1,129 @@
+package handler
+
+import (
+	"net/http"
+	"stockopname-rita-backend/internal/dto"
+	"stockopname-rita-backend/internal/helper"
+	"stockopname-rita-backend/internal/service"
+
+	"github.com/julienschmidt/httprouter"
+)
+
+type SesiHandlerImpl struct {
+	SesiService service.SesiService
+}
+
+func NewSesiHandler(sesiService service.SesiService) SesiHandler {
+	return &SesiHandlerImpl{
+		SesiService: sesiService,
+	}
+}
+
+// CreateSesi implements [SesiHandler].
+func (s *SesiHandlerImpl) CreateSesi(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	sesiCreateRequest := dto.CreateSesiRequest{}
+	if err := helper.ReadFromRequestBody(req, &sesiCreateRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	sesiResponse, err := s.SesiService.Create(req.Context(), sesiCreateRequest)
+	if err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create sesi", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Sesi created successfully",
+		Data:    sesiResponse,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusCreated, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
+}
+
+// DeleteSesi implements [SesiHandler].
+func (s *SesiHandlerImpl) DeleteSesi(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid parameter", err)
+		return
+	}
+
+	if err := s.SesiService.Delete(req.Context(), id); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete sesi", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Sesi deleted successfully",
+		Data:    nil,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
+}
+
+// GetAllSesi implements [SesiHandler].
+func (s *SesiHandlerImpl) GetAllSesi(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	panic("unimplemented")
+}
+
+// GetSesiById implements [SesiHandler].
+func (s *SesiHandlerImpl) GetSesiById(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid parameter", err)
+		return
+	}
+
+	sesiResponse, err := s.SesiService.FindById(req.Context(), id)
+	if err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get sesi", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Sesi retrieved successfully",
+		Data:    sesiResponse,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
+}
+
+// UpdateSesi implements [SesiHandler].
+func (s *SesiHandlerImpl) UpdateSesi(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid parameter", err)
+		return
+	}
+
+	sesiUpdateRequest := dto.UpdateSesiRequest{}
+	if err := helper.ReadFromRequestBody(req, &sesiUpdateRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := s.SesiService.Update(req.Context(), id, sesiUpdateRequest); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update sesi", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Sesi updated successfully",
+		Data:    nil,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
+}

@@ -1063,7 +1063,8 @@
                       "example": "Stock opname session updated successfully"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Session"
+                      "type": "string",
+                      "example": ""
                     }
                   }
                 }
@@ -1200,7 +1201,8 @@
                       "example": "Coordinator updated successfully"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Coordinator"
+                      "type": "string",
+                      "example": ""
                     }
                   }
                 }

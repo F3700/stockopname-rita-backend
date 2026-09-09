@@ -1,12 +1,16 @@
 package model
 
-import "time"
+import (
+	"time"
+
+	"github.com/jackc/pgx/v5/pgtype"
+)
 
 type Sesi struct {
-	SesiID        string    `json:"sesi_id"`
-	SesiLocation  string    `json:"sesi_location"`
-	SesiCode      string    `json:"sesi_code"`
-	SesiStatus    string    `json:"sesi_status"`
-	SesiStartedAt time.Time `json:"sesi_startedat"`
-	SesiEndedAt   time.Time `json:"sesi_endedat"`
+	SesiID        int                `json:"sesi_id"`
+	SesiLocation  string             `json:"sesi_location"`
+	SesiCode      string             `json:"sesi_code"`
+	SesiStatus    string             `json:"sesi_status"`
+	SesiStartedAt time.Time          `json:"sesi_startedat"`
+	SesiEndedAt   pgtype.Timestamptz `json:"sesi_endedat"`
 }

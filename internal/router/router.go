@@ -32,6 +32,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	coordinatorService := service.NewCoordinatorService(coordinatorRepository, pool)
 	coordinatorHandler := handler.NewCoordinatorHandler(coordinatorService)
 
+	sesiRepository := repository.NewSesiRepository()
+	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, pool, validate)
+	sesiHandler := handler.NewSesiHandler(sesiService)
+
 	router := httprouter.New()
 
 	// API docs.
@@ -58,6 +62,12 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
 	router.PATCH("/stockopname/coordinators/:id", coordinatorHandler.UpdateCoordinator)
+
+	router.POST("/stockopname/sessions", sesiHandler.CreateSesi)
+	// router.GET("/stockopname/sessions", sesiHandler.GetSesi)
+	router.GET("/stockopname/sessions/:id", sesiHandler.GetSesiById)
+	router.PATCH("/stockopname/sessions/:id", sesiHandler.UpdateSesi)
+	router.DELETE("/stockopname/sessions/:id", sesiHandler.DeleteSesi)
 
 	return router
 }

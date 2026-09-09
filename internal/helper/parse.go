@@ -30,3 +30,10 @@ func ParseIntParam(params httprouter.Params, key string) (int, error) {
 	}
 	return value, nil
 }
+
+func ParseDateNullable(endDate *time.Time) string {
+	if endDate == nil {
+		return ""
+	}
+	return endDate.Format(time.RFC3339)
+}
