@@ -76,3 +76,16 @@ func (i *InspectorRepositoryImpl) FindByCoorId(ctx context.Context, coordinatorI
 
 	return inspectors, nil
 }
+
+func (i *InspectorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error {
+	const SQL = `
+		INSERT INTO inspector (inspector_code, inspector_coor_id)
+		VALUES ($1, $2)
+		RETURNING inspector_id
+	`
+	err := i.Pool.QueryRow(ctx, SQL, inspector.InspectorCode, inspector.CoordinatorID).Scan(&inspector.InspectorID)
+	if err != nil {
+		return err
+	}
+	return nil
+}

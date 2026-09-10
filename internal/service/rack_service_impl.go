@@ -3,16 +3,21 @@ package service
 import (
 	"context"
 	"stockopname-rita-backend/internal/dto"
+	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RackServiceImpl struct {
 	RackRepository repository.RackRepository
+	Pool           *pgxpool.Pool
 }
 
-func NewRackService(rackRepository repository.RackRepository) *RackServiceImpl {
+func NewRackService(rackRepository repository.RackRepository, pool *pgxpool.Pool) *RackServiceImpl {
 	return &RackServiceImpl{
 		RackRepository: rackRepository,
+		Pool:           pool,
 	}
 }
 
@@ -49,4 +54,32 @@ func (r *RackServiceImpl) FindProgress(ctx context.Context, coordinatorId *int, 
 		})
 	}
 	return responses, nil
+}
+
+func (r *RackServiceImpl) CreateRack(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error) {
+	tx, err := r.Pool.Begin(ctx)
+	if err != nil {
+		return dto.RackResponse{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	rack := &model.Rack{
+		RackName:    request.RackName,
+		InspectorID: request.InspectorID,
+	}
+
+	if err := r.RackRepository.Save(ctx, tx, rack); err != nil {
+		return dto.RackResponse{}, err
+	}
+
+	response := dto.RackResponse{
+		RackID:   rack.RackID,
+		RackName: rack.RackName,
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return dto.RackResponse{}, err
+	}
+
+	return response, nil
 }

@@ -23,7 +23,8 @@ func (r *RackRepositoryImpl) FindAll(ctx context.Context, inspectorId *int, coor
 	const SQL = `
 		SELECT
 			r.rak_id AS RackID,
-			r.rak_name AS RackName
+			r.rak_name AS RackName,
+			r.rak_inspector_id AS InspectorID
 
 		FROM rak r
 
@@ -96,4 +97,17 @@ func (r *RackRepositoryImpl) FindProgress(ctx context.Context, coordinatorId *in
 	}
 
 	return progress, nil
+}
+
+func (r *RackRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, rack *model.Rack) error {
+	const SQL = `
+		INSERT INTO rak (rak_name, rak_inspector_id)
+		VALUES ($1, $2)
+		RETURNING rak_id
+	`
+	err := r.Pool.QueryRow(ctx, SQL, rack.RackName, rack.InspectorID).Scan(&rack.RackID)
+	if err != nil {
+		return err
+	}
+	return nil
 }

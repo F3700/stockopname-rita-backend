@@ -9,4 +9,5 @@ import (
 type RackHandler interface {
 	GetRackProgress(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	GetRacks(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
+	CreateRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 }

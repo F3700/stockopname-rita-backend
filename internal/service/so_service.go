@@ -11,4 +11,5 @@ type StockOpnameService interface {
 	Delete(ctx context.Context, id int) error
 	FindById(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
+	CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error
 }

@@ -12,4 +12,5 @@ type StockOpnameHandler interface {
 	CreateStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	UpdateStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	DeleteStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
+	CreateStockOpnameByRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 }

@@ -186,3 +186,26 @@ func (s *StockOpnameHandlerImpl) UpdateStockOpname(writer http.ResponseWriter, r
 		return
 	}
 }
+
+func (s *StockOpnameHandlerImpl) CreateStockOpnameByRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	soByRackRequest := dto.CreateStockOpnameByRackRequest{}
+	if err := helper.ReadFromRequestBody(req, &soByRackRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	if err := s.StockOpnameService.CreateByRack(req.Context(), soByRackRequest); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create stock opname by rack", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Stock opname by rack created successfully",
+		Data:    nil,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
+}

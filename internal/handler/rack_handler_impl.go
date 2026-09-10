@@ -113,3 +113,27 @@ func (r *RackHandlerImpl) GetRacks(writer http.ResponseWriter, req *http.Request
 		return
 	}
 }
+
+func (r *RackHandlerImpl) CreateRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	var rackRequest dto.CreateRackRequest
+	if err := helper.ReadFromRequestBody(req, &rackRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	rack, err := r.RackService.CreateRack(req.Context(), rackRequest)
+	if err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Error occurred while creating rack", err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Rack created successfully",
+		Data:    rack,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusCreated, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Error occurred while sending response", err)
+		return
+	}
+}

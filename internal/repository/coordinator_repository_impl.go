@@ -164,3 +164,24 @@ func (c *CoordinatorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, coordin
 	_, err := tx.Exec(ctx, SQL, coordinator.CoorCode, coordinator.CoorSesiID, coordinator.CoorStatus)
 	return err
 }
+
+func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {
+	const SQL = `
+		SELECT
+			c.coor_id       AS id,
+			c.coor_code     AS code,
+			c.coor_sesi_id  AS sesi_id,
+			c.coor_status   AS status
+		FROM coordinator c
+		JOIN sesi s ON s.sesi_id = c.coor_sesi_id
+		WHERE s.sesi_code = $1
+		AND c.coor_code = $2;
+	`
+	row := tx.QueryRow(ctx, SQL, sesiCode, coorCode)
+	var coordinator model.Coordinator
+	err := row.Scan(&coordinator.CoorID, &coordinator.CoorCode, &coordinator.CoorSesiID, &coordinator.CoorStatus)
+	if err != nil {
+		return nil, err
+	}
+	return &coordinator, nil
+}

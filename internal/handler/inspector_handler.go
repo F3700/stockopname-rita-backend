@@ -8,4 +8,5 @@ import (
 
 type InspectorHandler interface {
 	GetInspectors(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
+	CreateInspector(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 }

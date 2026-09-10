@@ -181,3 +181,28 @@ func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.Upd
 		UpdatedAt:       result.UpdatedAt.Format(time.RFC3339),
 	}, nil
 }
+
+func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
+	if err := s.Validator.Struct(req); err != nil {
+		return err
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	for _, item := range req.Items {
+		modelSO := &model.StockOpname{
+			StockOpnameQuantity:  item.Quantity,
+			StockOpnameProductID: item.ProductID,
+			StockOpnameRakID:     req.RackID,
+		}
+		if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
+			return err
+		}
+	}
+
+	return tx.Commit(ctx)
+}

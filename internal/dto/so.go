@@ -20,3 +20,8 @@ type CreateStockOpnameRequest struct {
 type UpdateStockOpnameRequest struct {
 	Quantity int `json:"quantity" validate:"required"`
 }
+
+type CreateStockOpnameByRackRequest struct {
+	RackID int                        `json:"rak_id" validate:"required"`
+	Items  []CreateStockOpnameRequest `json:"so_products" validate:"required"`
+}

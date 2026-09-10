@@ -5,15 +5,23 @@ import (
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type InspectorServiceImpl struct {
-	InspectorRepository repository.InspectorRepository
+	InspectorRepository   repository.InspectorRepository
+	CoordinatorRepository repository.CoordinatorRepository
+	RackRepository        repository.RackRepository
+	Pool                  *pgxpool.Pool
 }
 
-func NewInspectorService(inspectorRepository repository.InspectorRepository) *InspectorServiceImpl {
+func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, pool *pgxpool.Pool) *InspectorServiceImpl {
 	return &InspectorServiceImpl{
-		InspectorRepository: inspectorRepository,
+		InspectorRepository:   inspectorRepository,
+		CoordinatorRepository: coordinatorRepository,
+		RackRepository:        rackRepository,
+		Pool:                  pool,
 	}
 }
 
@@ -47,4 +55,55 @@ func (i *InspectorServiceImpl) FindAllSummary(ctx context.Context, coorId *int) 
 	}
 
 	return inspectorResponses, nil
+}
+
+func (i *InspectorServiceImpl) CreateInspector(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error) {
+	tx, err := i.Pool.Begin(ctx)
+	if err != nil {
+		return dto.InspectorJoinResponse{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	coordinator, err := i.CoordinatorRepository.FindBySesiAndCoorCode(ctx, tx, request.SesiCode, request.CoorCode)
+	if err != nil {
+		return dto.InspectorJoinResponse{}, err
+	}
+
+	inspectorModel := model.Inspector{
+		InspectorCode: request.InspectorCode,
+		CoordinatorID: coordinator.CoorID,
+	}
+
+	if err := i.InspectorRepository.Save(ctx, tx, &inspectorModel); err != nil {
+		return dto.InspectorJoinResponse{}, err
+	}
+
+	var rakResponses []dto.RackResponse
+
+	for _, rak := range request.Rak {
+		rackModel := model.Rack{
+			RackName:    rak,
+			InspectorID: inspectorModel.InspectorID,
+		}
+		if err := i.RackRepository.Save(ctx, tx, &rackModel); err != nil {
+			return dto.InspectorJoinResponse{}, err
+		}
+		rakResponse := dto.RackResponse{
+			RackID:   rackModel.RackID,
+			RackName: rackModel.RackName,
+		}
+		rakResponses = append(rakResponses, rakResponse)
+	}
+
+	inspectorJoinResponse := dto.InspectorJoinResponse{
+		InspectorID: inspectorModel.InspectorID,
+		Rak:         rakResponses,
+	}
+
+	err = tx.Commit(ctx)
+	if err != nil {
+		return dto.InspectorJoinResponse{}, err
+	}
+
+	return inspectorJoinResponse, nil
 }

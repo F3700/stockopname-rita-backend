@@ -33,10 +33,6 @@
       "description": "Endpoint untuk pengelolaan data produk yang telah dihapus"
     },
     {
-      "name": "Stock Opname Session for Mobile",
-      "description": "Endpoint untuk proses stock opname melalui aplikasi mobile"
-    },
-    {
       "name": "Stock Opname Session",
       "description": "Endpoint untuk pengelolaan sesi stock opname"
     },
@@ -650,215 +646,6 @@
         }
       }
     },
-    "/stockopname/sessions/join": {
-      "post": {
-        "tags": ["Stock Opname Session for Mobile"],
-        "summary": "Join a stock opname session",
-        "description": "Join an inspector or scanner to an existing stock opname session.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "sesi_code": {
-                    "type": "string",
-                    "example": "SO-2026-06-03-01"
-                  },
-                  "coor_code": {
-                    "type": "string",
-                    "example": "KOOR1"
-                  },
-                  "inspector_code": {
-                    "type": "string",
-                    "example": "INSPECTOR1"
-                  },
-                  "rak": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "example": ["RAK1", "RAK2"]
-                  }
-                },
-                "required": ["sesi_code", "coor_code", "inspector_code", "rak"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Join session successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Successfully joined the stock opname session."
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "inspector_id": {
-                          "type": "integer",
-                          "example": 132
-                        },
-                        "rak": {
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "id": {
-                                "type": "integer",
-                                "example": 1
-                              },
-                              "name": {
-                                "type": "string",
-                                "example": "RAK1"
-                              }
-                            }
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/stockopname/sessions/join/rak": {
-      "post": {
-        "tags": ["Stock Opname Session for Mobile"],
-        "summary": "Create a rack for a stock opname session by inspector id",
-        "description": "Create a new rack for a stock opname session associated with a specific inspector.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "inspector_id": {
-                    "type": "integer",
-                    "example": 132
-                  },
-                  "rak_name": {
-                    "type": "string",
-                    "example": "RAK1"
-                  }
-                },
-                "required": ["inspector_id", "rak_name"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Rack created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Rack created successfully."
-                    },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "integer",
-                          "example": 1
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/stockopname/sessions/rak": {
-      "post": {
-        "tags": ["Stock Opname Session for Mobile"],
-        "summary": "Post SO products by racks for a stock opname session",
-        "description": "Post the products associated with specific racks for a given stock opname session.",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "rak_id": {
-                    "type": "integer",
-                    "example": 12323
-                  },
-                  "so_products": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "product_id": {
-                          "type": "integer",
-                          "example": 1
-                        },
-                        "quantity": {
-                          "type": "integer",
-                          "example": 10
-                        }
-                      },
-                      "required": ["product_id", "quantity"]
-                    }
-                  }
-                },
-                "required": ["rak_id", "so_products"]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Racks posted successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Racks posted successfully."
-                    },
-                    "data": {
-                      "type": "string",
-                      "example": ""
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
     "/stockopname/sessions": {
       "post": {
         "tags": ["Stock Opname Session"],
@@ -1258,6 +1045,89 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
+      },
+      "post": {
+        "tags": ["Stock Opname Inspector"],
+        "summary": "Create a new inspector for a stock opname session",
+        "description": "Create a new inspector for a specific stock opname session and coordinator.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "sesi_code": {
+                    "type": "string",
+                    "example": "SO-2026-06-03-01"
+                  },
+                  "coor_code": {
+                    "type": "string",
+                    "example": "KOOR1"
+                  },
+                  "inspector_code": {
+                    "type": "string",
+                    "example": "INSPECTOR1"
+                  },
+                  "rak": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": ["RAK1", "RAK2"]
+                  }
+                },
+                "required": ["sesi_code", "coor_code", "inspector_code", "rak"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inspector created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Successfully created the inspector for the stock opname session."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "inspector_id": {
+                          "type": "integer",
+                          "example": 132
+                        },
+                        "rak": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "RAK1"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
       }
     },
     "/stockopname/racks": {
@@ -1310,6 +1180,62 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Rack"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "post": {
+        "tags": ["Stock Opname Racks"],
+        "summary": "Create a rack for a stock opname session by inspector id",
+        "description": "Create a new rack for a stock opname session associated with a specific inspector.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "inspector_id": {
+                    "type": "integer",
+                    "example": 132
+                  },
+                  "rak_name": {
+                    "type": "string",
+                    "example": "RAK1"
+                  }
+                },
+                "required": ["inspector_id", "rak_name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Rack created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack created successfully."
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "integer",
+                          "example": 1
+                        }
                       }
                     }
                   }
@@ -1651,6 +1577,72 @@
                     },
                     "data": {
                       "$ref": "#/components/schemas/StockOpnameResultItem"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/results/racks":{
+      "post": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Create SO products by racks for a stock opname session",
+        "description": "Post the products associated with specific racks for a given stock opname session.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "rak_id": {
+                    "type": "integer",
+                    "example": 12323
+                  },
+                  "so_products": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "product_id": {
+                          "type": "integer",
+                          "example": 1
+                        },
+                        "quantity": {
+                          "type": "integer",
+                          "example": 10
+                        }
+                      },
+                      "required": ["product_id", "quantity"]
+                    }
+                  }
+                },
+                "required": ["rak_id", "so_products"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Racks posted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Racks posted successfully."
+                    },
+                    "data": {
+                      "type": "string",
+                      "example": ""
                     }
                   }
                 }

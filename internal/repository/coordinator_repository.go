@@ -13,4 +13,5 @@ type CoordinatorRepository interface {
 	FindBySesiIdSummary(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.CoordinatorSummary, error)
 	FindByIdSummary(ctx context.Context, tx pgx.Tx, id int) (*model.CoordinatorSummary, error)
 	Update(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error
+	FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error)
 }

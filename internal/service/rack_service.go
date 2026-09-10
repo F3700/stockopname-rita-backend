@@ -8,4 +8,5 @@ import (
 type RackService interface {
 	FindAllSummary(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error)
 	FindProgress(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackProgressResponse, error)
+	CreateRack(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error)
 }

@@ -36,13 +36,13 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, pool, validate)
 	sesiHandler := handler.NewSesiHandler(sesiService)
 
-	inspectorRepository := repository.NewInspectorRepository(pool)
-	inspectorService := service.NewInspectorService(inspectorRepository)
-	inspectorHandler := handler.NewInspectorHandler(inspectorService)
-
 	rackRepository := repository.NewRackRepository(pool)
-	rackService := service.NewRackService(rackRepository)
+	rackService := service.NewRackService(rackRepository, pool)
 	rackHandler := handler.NewRackHandler(rackService)
+
+	inspectorRepository := repository.NewInspectorRepository(pool)
+	inspectorService := service.NewInspectorService(inspectorRepository, coordinatorRepository, rackRepository, pool)
+	inspectorHandler := handler.NewInspectorHandler(inspectorService)
 
 	stockOpnameRepository := repository.NewStockOpnameRepository()
 	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, pool, validate)
@@ -82,15 +82,18 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.DELETE("/stockopname/sessions/:id", sesiHandler.DeleteSesi)
 
 	router.GET("/stockopname/inspectors", inspectorHandler.GetInspectors)
+	router.POST("/stockopname/inspectors", inspectorHandler.CreateInspector)
 
 	router.GET("/stockopname/racks/progress", rackHandler.GetRackProgress)
 	router.GET("/stockopname/racks", rackHandler.GetRacks)
+	router.POST("/stockopname/racks", rackHandler.CreateRack)
 
 	router.GET("/stockopname/results", stockOpnameHandler.GetAllStockOpname)
 	router.GET("/stockopname/results/:id", stockOpnameHandler.GetStockOpnameById)
 	router.POST("/stockopname/results", stockOpnameHandler.CreateStockOpname)
 	router.PATCH("/stockopname/results/:id", stockOpnameHandler.UpdateStockOpname)
 	router.DELETE("/stockopname/results/:id", stockOpnameHandler.DeleteStockOpname)
+	router.POST("/stockopname/results/racks", stockOpnameHandler.CreateStockOpnameByRack)
 
 	return router
 }
