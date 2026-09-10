@@ -1260,6 +1260,69 @@
         }
       }
     },
+    "/stockopname/racks": {
+      "get": {
+        "tags": ["Stock Opname Racks"],
+        "summary": "Get all racks for a specific session, coordinator, or inspector",
+        "description": "Retrieve a list of all racks for a specific stock opname type.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          },
+          {
+            "name": "inspectorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of racks retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Rack progress retrieved successfully"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/Rack"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/stockopname/racks/progress": {
       "get": {
         "tags": ["Stock Opname Racks"],
@@ -1307,6 +1370,10 @@
                         "rackCompleted": {
                           "type": "integer",
                           "example": 5
+                        },
+                        "total_items": {
+                          "type": "integer",
+                          "example": 100
                         }
                       }
                     }
@@ -1391,7 +1458,7 @@
                         "$ref": "#/components/schemas/StockOpnameResultItem"
                       }
                     },
-                    "pagination":{
+                    "pagination": {
                       "type": "object",
                       "properties": {
                         "page": {
@@ -1934,7 +2001,7 @@
             "type": "string",
             "example": "RAK-001"
           },
-          "inspector_code": { 
+          "inspector_code": {
             "type": "string",
             "example": "INSPECTOR1"
           },
@@ -1974,6 +2041,19 @@
           "status": {
             "type": "string",
             "example": "COMPLETED"
+          }
+        }
+      },
+      "Rack": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "example": 1
+          },
+          "name": {
+            "type": "string",
+            "example": "Rack A"
           }
         }
       },
