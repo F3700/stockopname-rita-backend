@@ -44,6 +44,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	rackService := service.NewRackService(rackRepository)
 	rackHandler := handler.NewRackHandler(rackService)
 
+	stockOpnameRepository := repository.NewStockOpnameRepository()
+	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, pool, validate)
+	stockOpnameHandler := handler.NewStockOpnameHandler(stockOpnameService)
+
 	router := httprouter.New()
 
 	// API docs.
@@ -81,6 +85,12 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.GET("/stockopname/racks/progress", rackHandler.GetRackProgress)
 	router.GET("/stockopname/racks", rackHandler.GetRacks)
+
+	router.GET("/stockopname/results", stockOpnameHandler.GetAllStockOpname)
+	router.GET("/stockopname/results/:id", stockOpnameHandler.GetStockOpnameById)
+	router.POST("/stockopname/results", stockOpnameHandler.CreateStockOpname)
+	router.PATCH("/stockopname/results/:id", stockOpnameHandler.UpdateStockOpname)
+	router.DELETE("/stockopname/results/:id", stockOpnameHandler.DeleteStockOpname)
 
 	return router
 }

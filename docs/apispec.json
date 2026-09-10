@@ -1488,6 +1488,46 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
+      },
+      "post": {
+        "tags": ["Stock Opname Result Items"],
+        "summary": "Create a new stock opname result item",
+        "description": "Create a new stock opname result item with the provided details.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateStockOpnameResultItemRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Stock opname result item created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Stock opname result item created successfully"
+                    },
+                    "data": {
+                      "type":"string",
+                      "example": ""
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
       }
     },
     "/stockopname/results/{id}": {
@@ -1997,7 +2037,7 @@
             "type": "integer",
             "example": 10
           },
-          "rak_code": {
+          "rak_name": {
             "type": "string",
             "example": "RAK-001"
           },
@@ -2005,7 +2045,7 @@
             "type": "string",
             "example": "INSPECTOR1"
           },
-          "coordinator_code": {
+          "coor_code": {
             "type": "string",
             "example": "COOR1"
           },
@@ -2054,6 +2094,28 @@
           "name": {
             "type": "string",
             "example": "Rack A"
+          }
+        }
+      },
+      "CreateStockOpnameResultItemRequest": {
+        "type": "object",
+        "required": [
+          "quantity",
+          "rak_id",
+          "product_id"
+        ],
+        "properties": {
+          "quantity": {
+            "type": "integer",
+            "example": 10
+          },
+          "rak_id": {
+            "type": "integer",
+            "example": 1
+          },
+          "product_id": {
+            "type": "integer",
+            "example": 1
           }
         }
       },
