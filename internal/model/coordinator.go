@@ -15,3 +15,8 @@ type CoordinatorSummary struct {
 	RackCompleted int
 	Status        string
 }
+
+type CoordinatorReport struct {
+	CoordinatorSummary
+	SessionCode string
+}

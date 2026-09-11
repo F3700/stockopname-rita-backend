@@ -864,6 +864,30 @@
         }
       }
     },
+    "/stockopname/sessions/{id}/pdf": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Generate a stock opname session PDF report",
+        "description": "Generate an inline PDF report containing session details, coordinators, and stock opname results.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF report generated successfully",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
     "/stockopname/coordinators": {
       "get": {
         "tags": ["Stock Opname Coordinator"],
@@ -906,6 +930,30 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        }
+      }
+    },
+    "/stockopname/coordinators/{id}/pdf": {
+      "get": {
+        "tags": ["Stock Opname Coordinator"],
+        "summary": "Generate a coordinator PDF report",
+        "description": "Generate an inline PDF report containing coordinator details, inspectors, and stock opname results.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF report generated successfully",
+            "content": { "application/pdf": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -2126,6 +2174,16 @@
       }
     },
     "responses": {
+      "BadRequest": {
+        "description": "Bad request",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/InternalServerErrorResponse"
+            }
+          }
+        }
+      },
       "InternalServerError": {
         "description": "Internal server error",
         "content": {

@@ -107,3 +107,19 @@ func (c *CoordinatorServiceImpl) FindByIdSummary(ctx context.Context, id int) (*
 		Status:        coordinator.Status,
 	}, nil
 }
+
+func (c *CoordinatorServiceImpl) FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error) {
+	tx, err := c.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback(ctx)
+	report, err := c.CoordinatorRepository.FindByIdReport(ctx, tx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &dto.CoordinatorReportResponse{Coordinator: dto.CoordinatorResponse{ID: report.ID, Code: report.Code, Inspector: report.Inspector, RackAssigned: report.RackAssigned, RackCompleted: report.RackCompleted, Status: report.Status}, SessionCode: report.SessionCode}, nil
+}

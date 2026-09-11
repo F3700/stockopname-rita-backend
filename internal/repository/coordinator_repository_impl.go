@@ -110,6 +110,28 @@ func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, tx pgx.
 	return &coordinatorSummary, nil
 }
 
+func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, tx pgx.Tx, id int) (*model.CoordinatorReport, error) {
+	const SQL = `
+		SELECT c.coor_id, c.coor_code, c.coor_status, s.sesi_code,
+			COUNT(DISTINCT i.inspector_id), COUNT(DISTINCT r.rak_id),
+			COUNT(DISTINCT r.rak_id) FILTER (WHERE so.stock_opname_id IS NOT NULL),
+			COUNT(DISTINCT i.inspector_id)
+		FROM coordinator c
+		JOIN sesi s ON s.sesi_id = c.coor_sesi_id
+		LEFT JOIN inspector i ON i.inspector_coor_id = c.coor_id
+		LEFT JOIN rak r ON r.rak_inspector_id = i.inspector_id
+		LEFT JOIN stock_opname so ON so.stock_opname_rak_id = r.rak_id
+		WHERE c.coor_id = $1
+		GROUP BY c.coor_id, c.coor_code, c.coor_status, s.sesi_code
+	`
+	var report model.CoordinatorReport
+	err := tx.QueryRow(ctx, SQL, id).Scan(&report.ID, &report.Code, &report.Status, &report.SessionCode, &report.Inspector, &report.RackAssigned, &report.RackCompleted, &report.Inspector)
+	if err != nil {
+		return nil, err
+	}
+	return &report, nil
+}
+
 // FindBySesiId implements [CoordinatorRepository].
 func (c *CoordinatorRepositoryImpl) FindBySesiIdSummary(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.CoordinatorSummary, error) {
 	const SQL = `
