@@ -11,6 +11,7 @@ import (
 	"github.com/joho/godotenv"
 
 	"stockopname-rita-backend/internal/database"
+	"stockopname-rita-backend/internal/middleware"
 	"stockopname-rita-backend/internal/router"
 )
 
@@ -37,6 +38,8 @@ func main() {
 
 	r := router.NewRouter(validate, pool)
 
+	middleware := middleware.CORS(r)
+
 	fmt.Println("Server is running on", addr)
-	log.Fatal(http.ListenAndServe(addr, r))
+	log.Fatal(http.ListenAndServe(addr, middleware))
 }
