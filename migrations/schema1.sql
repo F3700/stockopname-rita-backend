@@ -174,9 +174,40 @@ END;
 $$ LANGUAGE plpgsql;
 
 
-
-
 CREATE TRIGGER trg_sync_sesi_endedat
 BEFORE UPDATE OF sesi_status ON sesi
 FOR EACH ROW
 EXECUTE FUNCTION sync_sesi_endedat();
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION update_sesi_status(
+    p_sesi_id INTEGER,
+    p_status VARCHAR
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    UPDATE sesi
+    SET sesi_status = p_status
+    WHERE sesi_id = p_sesi_id;
+
+    IF p_status = 'COMPLETED' THEN
+        UPDATE coordinator
+        SET coor_status = 'COMPLETED'
+        WHERE coor_sesi_id = p_sesi_id
+          AND coor_status IN ('IN_PROGRESS', 'IN_REVIEW');
+
+    ELSIF p_status = 'CANCELLED' THEN
+        UPDATE coordinator
+        SET coor_status = 'CANCELLED'
+        WHERE coor_sesi_id = p_sesi_id
+          AND coor_status IN ('IN_PROGRESS', 'IN_REVIEW');
+    END IF;
+END;
+$$;

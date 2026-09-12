@@ -98,11 +98,9 @@ func (s *SesiRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, sesi *model.Se
 // Update implements [SesiRepository].
 func (s *SesiRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error {
 	const SQL = `
-		UPDATE sesi
-		SET sesi_status = $1
-		WHERE sesi_id = $2
+		SELECT update_sesi_status($1, $2)
 	`
-	result, err := tx.Exec(ctx, SQL, sesi.SesiStatus, sesi.SesiID)
+	result, err := tx.Exec(ctx, SQL, sesi.SesiID, sesi.SesiStatus)
 	if err != nil {
 		return err
 	}
