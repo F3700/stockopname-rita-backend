@@ -1,4 +1,4 @@
-FROM golang:1.26.5 AS builder
+FROM docker.io/library/golang:1.26.5 AS builder
 
 WORKDIR /app
 
