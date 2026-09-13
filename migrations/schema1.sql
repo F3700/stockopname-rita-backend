@@ -65,7 +65,7 @@ CREATE TABLE sesi (
 
 CREATE TABLE coordinator (
     coor_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    coor_code VARCHAR(10) NOT NULL,
+    coor_code VARCHAR(20) NOT NULL,
     coor_sesi_id INTEGER NOT NULL,
     coor_status VARCHAR(20) NOT NULL
         CHECK (coor_status IN (
@@ -87,7 +87,7 @@ CREATE TABLE coordinator (
 
 CREATE TABLE inspector (
     inspector_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    inspector_code VARCHAR(10) NOT NULL,
+    inspector_code VARCHAR(20) NOT NULL,
     inspector_startedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     inspector_endedat TIMESTAMPTZ,
     inspector_coor_id INTEGER NOT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE inspector (
 
 CREATE TABLE rak (
     rak_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    rak_name VARCHAR(100) NOT NULL,
+    rak_name VARCHAR(15) NOT NULL,
     rak_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     rak_inspector_id INTEGER NOT NULL,
 
