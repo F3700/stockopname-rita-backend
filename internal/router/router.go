@@ -57,6 +57,8 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.POST("/products", productHandler.CreateProduct)
 	router.GET("/products", productHandler.GetProducts)
+	router.GET("/products/last-session", productHandler.GetProductsLastSession)
+	router.GET("/products/sync", productHandler.SyncProducts)
 	router.PATCH("/products/:id", productHandler.UpdateProduct)
 	router.DELETE("/products/:id", productHandler.DeleteProduct)
 

@@ -34,7 +34,7 @@ func (c *CoordinatorHandlerImpl) UpdateCoordinator(writer http.ResponseWriter, r
 	}
 
 	if err := c.CoordinatorService.Update(req.Context(), id, &updateReq); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update coordinator", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -59,7 +59,7 @@ func (c *CoordinatorHandlerImpl) GetCoordinatorById(writer http.ResponseWriter, 
 
 	coordinator, err := c.CoordinatorService.FindByIdSummary(req.Context(), id)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to retrieve coordinator", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -90,7 +90,7 @@ func (c *CoordinatorHandlerImpl) GetCoordinators(writer http.ResponseWriter, req
 
 	coordinators, err := c.CoordinatorService.FindAllSummary(req.Context(), sesiID)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to retrieve coordinators", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

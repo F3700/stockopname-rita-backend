@@ -22,7 +22,7 @@ func (h *ReportHandler) SessionPDF(writer http.ResponseWriter, req *http.Request
 	}
 	data, filename, err := h.Service.SessionPDF(req.Context(), id)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to generate session PDF", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 	writePDF(writer, filename, data)
@@ -36,7 +36,7 @@ func (h *ReportHandler) CoordinatorPDF(writer http.ResponseWriter, req *http.Req
 	}
 	data, filename, err := h.Service.CoordinatorPDF(req.Context(), id)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to generate coordinator PDF", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 	writePDF(writer, filename, data)

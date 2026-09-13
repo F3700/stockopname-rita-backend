@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
@@ -23,12 +23,12 @@ func (c *CoordinatorRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, coord
 	`
 	result, err := tx.Exec(ctx, SQL, coordinator.CoorStatus, coordinator.CoorID)
 	if err != nil {
-		return err
+		return model.MapPgError("Coordinator", err)
 	}
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("coordinator with id %d not found", coordinator.CoorID)
+		return &model.NotFoundError{Resource: "Coordinator", ID: coordinator.CoorID}
 	}
-	return err
+	return nil
 }
 
 // FindAll implements [CoordinatorRepository].
@@ -105,6 +105,9 @@ func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, tx pgx.
 	var coordinatorSummary model.CoordinatorSummary
 	err := row.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.Inspector, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
+		}
 		return nil, err
 	}
 	return &coordinatorSummary, nil
@@ -184,7 +187,10 @@ func (c *CoordinatorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, coordin
 		VALUES ($1, $2, $3)
 	`
 	_, err := tx.Exec(ctx, SQL, coordinator.CoorCode, coordinator.CoorSesiID, coordinator.CoorStatus)
-	return err
+	if err != nil {
+		return model.MapPgError("Coordinator", err)
+	}
+	return nil
 }
 
 func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {

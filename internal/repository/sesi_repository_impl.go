@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
@@ -23,12 +23,12 @@ func (s *SesiRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 	`
 	res, err := tx.Exec(ctx, SQL, id)
 	if err != nil {
-		return err
+		return model.MapPgError("Session", err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("sesi with id %d not found", id)
+		return &model.NotFoundError{Resource: "Session", ID: id}
 	}
-	return err
+	return nil
 }
 
 func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, tx pgx.Tx, limit int, offset int, search string) ([]*model.Sesi, int, error) {
@@ -73,7 +73,10 @@ func (s *SesiRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int) (*
 	err := tx.QueryRow(ctx, SQL, id).Scan(&sesi.SesiID, &sesi.SesiLocation, &sesi.SesiCode, &sesi.SesiStatus, &sesi.SesiStartedAt, &sesi.SesiEndedAt)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to find sesi with id %d: %w", id, err)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Session", ID: id}
+		}
+		return nil, err
 	}
 	return &sesi, nil
 }
@@ -89,7 +92,7 @@ func (s *SesiRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, sesi *model.Se
 
 	err := row.Scan(&sesi.SesiID, &sesi.SesiStartedAt, &sesi.SesiEndedAt)
 	if err != nil {
-		return err
+		return model.MapPgError("Session", err)
 	}
 
 	return nil
@@ -102,10 +105,10 @@ func (s *SesiRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, sesi *model.
 	`
 	result, err := tx.Exec(ctx, SQL, sesi.SesiID, sesi.SesiStatus)
 	if err != nil {
-		return err
+		return model.MapPgError("Session", err)
 	}
 	if result.RowsAffected() == 0 {
-		return fmt.Errorf("sesi with id %d not found", sesi.SesiID)
+		return &model.NotFoundError{Resource: "Session", ID: sesi.SesiID}
 	}
 	return nil
 }

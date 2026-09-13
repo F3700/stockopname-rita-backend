@@ -30,7 +30,7 @@ func (s *StockOpnameHandlerImpl) CreateStockOpname(writer http.ResponseWriter, r
 
 	StockOpnameResponse, err := s.StockOpnameService.Create(req.Context(), StockOpnameRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create stock opname", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -54,7 +54,7 @@ func (s *StockOpnameHandlerImpl) DeleteStockOpname(writer http.ResponseWriter, r
 	}
 
 	if err := s.StockOpnameService.Delete(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete stock opname", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -115,7 +115,7 @@ func (s *StockOpnameHandlerImpl) GetAllStockOpname(writer http.ResponseWriter, r
 
 	stockOpnames, err := s.StockOpnameService.FindAll(req.Context(), pagination, search, coorId, sesiId)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get all stock opname", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -141,7 +141,7 @@ func (s *StockOpnameHandlerImpl) GetStockOpnameById(writer http.ResponseWriter, 
 
 	stockOpnameResponse, err := s.StockOpnameService.FindById(req.Context(), id)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get stock opname", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -172,7 +172,7 @@ func (s *StockOpnameHandlerImpl) UpdateStockOpname(writer http.ResponseWriter, r
 
 	stockOpnameResponse, err := s.StockOpnameService.Update(req.Context(), id, soUpdateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update stock opname", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -195,7 +195,7 @@ func (s *StockOpnameHandlerImpl) CreateStockOpnameByRack(writer http.ResponseWri
 	}
 
 	if err := s.StockOpnameService.CreateByRack(req.Context(), soByRackRequest); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create stock opname by rack", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

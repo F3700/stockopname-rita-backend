@@ -29,3 +29,11 @@ type ProductResponse struct {
 	CategoryName   string  `json:"category_name"`
 	DepartmentCode string  `json:"department_code"`
 }
+
+type ProductLastSessionResponse struct {
+	Id               int    `json:"id"`
+	Barcode          string `json:"barcode"`
+	Name             string `json:"name"`
+	LastSessionDate  string `json:"last_session_date"`
+	LastSessionCode  string `json:"last_session_code"`
+}

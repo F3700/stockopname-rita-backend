@@ -30,7 +30,7 @@ func (p *ProductHandlerImpl) CreateProduct(writer http.ResponseWriter, req *http
 
 	productCreateResponse, err := p.ProductService.Create(req.Context(), productCreateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create product", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -54,7 +54,7 @@ func (p *ProductHandlerImpl) DeleteProduct(writer http.ResponseWriter, req *http
 	}
 
 	if err := p.ProductService.Delete(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete product", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -71,21 +71,112 @@ func (p *ProductHandlerImpl) DeleteProduct(writer http.ResponseWriter, req *http
 
 // GetProducts implements [ProductHandler].
 func (p *ProductHandlerImpl) GetProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	page, err := helper.ParseIntQueryNotNull(req, "page")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
+		return
+	}
+
+	limit, err := helper.ParseIntQueryNotNull(req, "limit")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
+	search := req.URL.Query().Get("search")
+
+	pagination := &dto.Pagination{
+		Page:  page,
+		Limit: limit,
+	}
+
+	products, err := p.ProductService.FindAll(req.Context(), pagination, search)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.ResponsePagination{
+		Message:    "Products fetched successfully",
+		Data:       products,
+		Pagination: pagination,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
+		return
+	}
+}
+
+// GetProductsLastSession implements [ProductHandler].
+func (p *ProductHandlerImpl) GetProductsLastSession(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	limit := 20
+	if l := req.URL.Query().Get("limit"); l != "" {
+		parsed, err := helper.ParseIntQueryNotNull(req, "limit")
+		if err != nil {
+			helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+			return
+		}
+		limit = parsed
+	}
+
+	products, err := p.ProductService.FindAllLastSession(req.Context(), limit)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Products last session retrieved successfully",
+		Data:    products,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
+		return
+	}
+}
+
+// SyncProducts implements [ProductHandler].
+func (p *ProductHandlerImpl) SyncProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	page, err := helper.ParseIntQueryNotNull(req, "page")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
+		return
+	}
+
+	limit, err := helper.ParseIntQueryNotNull(req, "limit")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
 	date, err := helper.ParseDate(req.URL.Query().Get("updated_after"))
 	if err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid date format", err)
 		return
 	}
 
-	products, err := p.ProductService.FindAll(req.Context(), date)
-	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to fetch products", err)
+	if date == nil {
+		helper.WriteError(writer, http.StatusBadRequest, "updated_after parameter is required", nil)
 		return
 	}
 
-	response := dto.Response{
-		Message: "Products fetched successfully",
-		Data:    products,
+	pagination := &dto.Pagination{
+		Page:  page,
+		Limit: limit,
+	}
+
+	products, err := p.ProductService.FindAllUpdatedAfter(req.Context(), pagination, *date)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.ResponsePagination{
+		Message:    "Products synced successfully",
+		Data:       products,
+		Pagination: pagination,
 	}
 
 	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
@@ -110,7 +201,7 @@ func (p *ProductHandlerImpl) UpdateProduct(writer http.ResponseWriter, req *http
 
 	productResponse, err := p.ProductService.Update(req.Context(), id, productUpdateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update product", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

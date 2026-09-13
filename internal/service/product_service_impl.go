@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
@@ -100,40 +101,17 @@ func (p *ProductServiceImpl) Delete(ctx context.Context, id int) error {
 }
 
 // FindAll implements [ProductService].
-func (p *ProductServiceImpl) FindAll(ctx context.Context, date *time.Time) ([]dto.ProductResponse, error) {
-	if date != nil {
-		products, err := p.ProductRepository.FindAllUpdatedAfter(ctx, *date)
-		if err != nil {
-			return nil, fmt.Errorf("find all updated after %v: %w", date, err)
-		}
+func (p *ProductServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
+	offset := (pagination.Page - 1) * pagination.Limit
 
-		var responses []dto.ProductResponse
-		for _, product := range products {
-			response := dto.ProductResponse{
-				Id:             product.ProductID,
-				Barcode:        product.ProductBarcode,
-				Name:           product.ProductName,
-				BuyPrice:       product.ProductBuyPrice,
-				SellPrice:      product.ProductSellPrice,
-				DateCreated:    product.ProductCreatedat.Format(time.RFC3339),
-				DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
-				CategoryName:   product.ProductCategoryName,
-				DepartmentCode: product.ProductDepartmentCode,
-			}
-			responses = append(responses, response)
-		}
-
-		return responses, nil
-	}
-
-	products, err := p.ProductRepository.FindAll(ctx)
+	products, total, err := p.ProductRepository.FindAllInPageSearch(ctx, pagination.Limit, offset, search)
 	if err != nil {
-		return nil, fmt.Errorf("find all: %w", err)
+		return nil, fmt.Errorf("find all products: %w", err)
 	}
 
 	var responses []dto.ProductResponse
 	for _, product := range products {
-		response := dto.ProductResponse{
+		responses = append(responses, dto.ProductResponse{
 			Id:             product.ProductID,
 			Barcode:        product.ProductBarcode,
 			Name:           product.ProductName,
@@ -143,9 +121,41 @@ func (p *ProductServiceImpl) FindAll(ctx context.Context, date *time.Time) ([]dt
 			DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
 			CategoryName:   product.ProductCategoryName,
 			DepartmentCode: product.ProductDepartmentCode,
-		}
-		responses = append(responses, response)
+		})
 	}
+
+	pagination.TotalItems = total
+	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
+
+	return responses, nil
+}
+
+// FindAllUpdatedAfter implements [ProductService].
+func (p *ProductServiceImpl) FindAllUpdatedAfter(ctx context.Context, pagination *dto.Pagination, date time.Time) ([]dto.ProductResponse, error) {
+	offset := (pagination.Page - 1) * pagination.Limit
+
+	products, total, err := p.ProductRepository.FindAllUpdatedAfter(ctx, date, pagination.Limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("find all updated after %v: %w", date, err)
+	}
+
+	var responses []dto.ProductResponse
+	for _, product := range products {
+		responses = append(responses, dto.ProductResponse{
+			Id:             product.ProductID,
+			Barcode:        product.ProductBarcode,
+			Name:           product.ProductName,
+			BuyPrice:       product.ProductBuyPrice,
+			SellPrice:      product.ProductSellPrice,
+			DateCreated:    product.ProductCreatedat.Format(time.RFC3339),
+			DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
+			CategoryName:   product.ProductCategoryName,
+			DepartmentCode: product.ProductDepartmentCode,
+		})
+	}
+
+	pagination.TotalItems = total
+	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
 
 	return responses, nil
 }
@@ -208,4 +218,30 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 	}
 
 	return response, nil
+}
+
+// FindAllLastSession implements [ProductService].
+func (p *ProductServiceImpl) FindAllLastSession(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error) {
+	results, err := p.ProductRepository.FindAllLastSession(ctx, limit)
+	if err != nil {
+		return nil, fmt.Errorf("find all last session: %w", err)
+	}
+
+	var responses []dto.ProductLastSessionResponse
+	for _, item := range results {
+		var lastSessionDate string
+		if item.LastSessionDate != nil {
+			lastSessionDate = item.LastSessionDate.Format(time.RFC3339)
+		}
+
+		responses = append(responses, dto.ProductLastSessionResponse{
+			Id:              item.Id,
+			Barcode:         item.Barcode,
+			Name:            item.Name,
+			LastSessionDate: lastSessionDate,
+			LastSessionCode: item.LastSessionCode,
+		})
+	}
+
+	return responses, nil
 }

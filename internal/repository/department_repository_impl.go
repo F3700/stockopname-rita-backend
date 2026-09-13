@@ -2,7 +2,7 @@ package repository
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
@@ -25,10 +25,10 @@ func (d *DepartmentRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int
 
 	res, err := tx.Exec(ctx, SQL, id)
 	if err != nil {
-		return err
+		return model.MapPgError("Department", err)
 	}
 	if res.RowsAffected() == 0 {
-		return fmt.Errorf("department with ID %d not found", id)
+		return &model.NotFoundError{Resource: "Department", ID: id}
 	}
 	return nil
 }
@@ -67,6 +67,49 @@ func (d *DepartmentRepositoryImpl) FindAll(ctx context.Context) ([]*model.Depart
 	return departments, nil
 }
 
+// FindAllInPageSearch implements [DepartmentRepository].
+func (d *DepartmentRepositoryImpl) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Department, int, error) {
+	const SQL = `
+		SELECT
+			department_id,
+			department_code,
+			department_name,
+			department_desc
+		FROM department
+		WHERE department_code ILIKE $1 OR department_name ILIKE $1
+		ORDER BY department_id DESC
+		LIMIT $2 OFFSET $3
+	`
+	rows, err := d.pool.Query(ctx, SQL, "%"+search+"%", limit, offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var departments []*model.Department
+	for rows.Next() {
+		var department model.Department
+		err := rows.Scan(
+			&department.DepartmentID,
+			&department.DepartmentCode,
+			&department.DepartmentName,
+			&department.DepartmentDesc,
+		)
+		if err != nil {
+			return nil, 0, err
+		}
+		departments = append(departments, &department)
+	}
+
+	var total int
+	countSQL := `SELECT COUNT(*) FROM department WHERE department_code ILIKE $1 OR department_name ILIKE $1`
+	if err := d.pool.QueryRow(ctx, countSQL, "%"+search+"%").Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return departments, total, nil
+}
+
 // FindById implements [DepartmentRepository].
 func (d *DepartmentRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Department, error) {
 	const SQL = `
@@ -87,6 +130,9 @@ func (d *DepartmentRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id i
 		&department.DepartmentDesc,
 	)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Department", ID: id}
+		}
 		return nil, err
 	}
 	return &department, nil
@@ -101,7 +147,7 @@ func (d *DepartmentRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, departme
 	`
 	err := tx.QueryRow(ctx, SQL, department.DepartmentCode, department.DepartmentName, department.DepartmentDesc).Scan(&department.DepartmentID)
 	if err != nil {
-		return err
+		return model.MapPgError("Department", err)
 	}
 	return nil
 }

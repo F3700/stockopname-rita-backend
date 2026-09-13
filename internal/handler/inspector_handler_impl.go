@@ -36,7 +36,7 @@ func (i *InspectorHandlerImpl) GetInspectors(writer http.ResponseWriter, req *ht
 
 	inspectors, err := i.InspectorService.FindAllSummary(req.Context(), coorId)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to retrieve inspectors", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -60,7 +60,7 @@ func (i *InspectorHandlerImpl) CreateInspector(writer http.ResponseWriter, req *
 
 	inspector, err := i.InspectorService.CreateInspector(req.Context(), inspectorRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create inspector", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

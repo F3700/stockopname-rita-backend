@@ -85,7 +85,7 @@ func (i *InspectorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, inspector
 	`
 	err := i.Pool.QueryRow(ctx, SQL, inspector.InspectorCode, inspector.CoordinatorID).Scan(&inspector.InspectorID)
 	if err != nil {
-		return err
+		return model.MapPgError("Inspector", err)
 	}
 	return nil
 }

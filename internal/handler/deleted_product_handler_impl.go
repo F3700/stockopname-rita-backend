@@ -22,7 +22,7 @@ func NewDeletedProductHandler(deletedProductService service.DeletedProductServic
 // DeleteDeletedProduct implements [DeletedProductHandler].
 func (d *DeletedProductHandlerImpl) DeleteDeletedProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if err := d.DeletedProductService.Delete(req.Context()); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "failed to delete deleted products", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 	response := dto.Response{
@@ -46,7 +46,7 @@ func (d *DeletedProductHandlerImpl) GetDeletedProducts(writer http.ResponseWrite
 
 	deletedProducts, err := d.DeletedProductService.FindAll(req.Context(), updatedAfter)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "failed to get deleted products", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

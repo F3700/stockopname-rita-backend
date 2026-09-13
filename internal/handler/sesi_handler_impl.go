@@ -29,7 +29,7 @@ func (s *SesiHandlerImpl) CreateSesi(writer http.ResponseWriter, req *http.Reque
 
 	sesiResponse, err := s.SesiService.Create(req.Context(), sesiCreateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create sesi", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -53,7 +53,7 @@ func (s *SesiHandlerImpl) DeleteSesi(writer http.ResponseWriter, req *http.Reque
 	}
 
 	if err := s.SesiService.Delete(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete sesi", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -91,7 +91,7 @@ func (s *SesiHandlerImpl) GetAllSesi(writer http.ResponseWriter, req *http.Reque
 
 	sesiResponses, err := s.SesiService.FindAll(req.Context(), pagination, search)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get all sesi", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (s *SesiHandlerImpl) GetSesiById(writer http.ResponseWriter, req *http.Requ
 
 	sesiResponse, err := s.SesiService.FindById(req.Context(), id)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get sesi", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -147,7 +147,7 @@ func (s *SesiHandlerImpl) UpdateSesi(writer http.ResponseWriter, req *http.Reque
 	}
 
 	if err := s.SesiService.Update(req.Context(), id, sesiUpdateRequest); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update sesi", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

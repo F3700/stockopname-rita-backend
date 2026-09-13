@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
@@ -77,8 +78,10 @@ func (c *CategoryServiceImpl) Delete(ctx context.Context, id int) error {
 }
 
 // FindAll implements [CategoryService].
-func (c *CategoryServiceImpl) FindAll(ctx context.Context) ([]dto.CategoryResponse, error) {
-	categories, err := c.CategoryRepository.FindAll(ctx)
+func (c *CategoryServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.CategoryResponse, error) {
+	offset := (pagination.Page - 1) * pagination.Limit
+
+	categories, total, err := c.CategoryRepository.FindAllInPageSearch(ctx, pagination.Limit, offset, search)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find all categories: %w", err)
 	}
@@ -91,6 +94,9 @@ func (c *CategoryServiceImpl) FindAll(ctx context.Context) ([]dto.CategoryRespon
 			CategoryDescription: category.CategoryDescription,
 		})
 	}
+
+	pagination.TotalItems = total
+	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
 
 	return responses, nil
 }

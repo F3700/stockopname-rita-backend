@@ -47,7 +47,7 @@ func (r *RackHandlerImpl) GetRackProgress(writer http.ResponseWriter, req *http.
 
 	progress, err := r.RackService.FindProgress(req.Context(), coorId, sesiId)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Error occurred while fetching rack progress", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -99,7 +99,7 @@ func (r *RackHandlerImpl) GetRacks(writer http.ResponseWriter, req *http.Request
 
 	racks, err := r.RackService.FindAllSummary(req.Context(), inspectorId, coordinatorId, sessionId)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Error occurred while fetching racks", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -123,7 +123,7 @@ func (r *RackHandlerImpl) CreateRack(writer http.ResponseWriter, req *http.Reque
 
 	rack, err := r.RackService.CreateRack(req.Context(), rackRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Error occurred while creating rack", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

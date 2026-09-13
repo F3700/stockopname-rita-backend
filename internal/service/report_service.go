@@ -131,12 +131,21 @@ func label(pdf *gofpdf.Fpdf, key, value string) {
 	pdf.SetFont("Arial", "", 9)
 	pdf.MultiCell(0, 6, value, "", "L", false)
 }
-func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string) {
-	width := 180.0 / float64(len(headers))
+func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float64) {
+	cols := len(headers)
+	colWidths := make([]float64, cols)
+	if len(widths) == cols {
+		copy(colWidths, widths)
+	} else {
+		even := 180.0 / float64(cols)
+		for i := range colWidths {
+			colWidths[i] = even
+		}
+	}
 	drawHeader := func() {
 		pdf.SetFont("Arial", "B", 8)
-		for _, header := range headers {
-			pdf.CellFormat(width, 7, header, "1", 0, "L", true, 0, "")
+		for i, header := range headers {
+			pdf.CellFormat(colWidths[i], 7, header, "1", 0, "L", true, 0, "")
 		}
 		pdf.Ln(-1)
 	}
@@ -146,7 +155,7 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string) {
 		lineCounts := make([]int, len(row))
 		rowHeight := 6.0
 		for index, value := range row {
-			lineCounts[index] = len(pdf.SplitLines([]byte(value), width-2))
+			lineCounts[index] = len(pdf.SplitLines([]byte(value), colWidths[index]-2))
 			if float64(lineCounts[index])*6 > rowHeight {
 				rowHeight = float64(lineCounts[index]) * 6
 			}
@@ -158,10 +167,13 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string) {
 		}
 		startX, startY := pdf.GetXY()
 		for index, value := range row {
-			x := startX + float64(index)*width
+			x := startX
+			for j := 0; j < index; j++ {
+				x += colWidths[j]
+			}
 			pdf.SetXY(x, startY)
-			pdf.MultiCell(width, 6, value, "1", "L", false)
-			pdf.SetXY(x+width, startY)
+			pdf.MultiCell(colWidths[index], 6, value, "1", "L", false)
+			pdf.SetXY(x+colWidths[index], startY)
 		}
 		pdf.SetXY(startX, startY+rowHeight)
 	}
@@ -174,7 +186,7 @@ func resultTable(pdf *gofpdf.Fpdf, results []dto.StockOpnameResponse) {
 			rows = append(rows, []string{result.Barcode, result.Name, result.RackName, result.InspectorCode, fmt.Sprint(result.Quantity)})
 		}
 		return rows
-	}())
+	}(), 30, 70, 30, 30, 20)
 }
 func footer(pdf *gofpdf.Fpdf) {
 	pdf.Ln(4)

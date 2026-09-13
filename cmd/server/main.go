@@ -37,8 +37,8 @@ func main() {
 
 	r := router.NewRouter(validate, pool)
 
-	middleware := middleware.CORS(r)
+	m := middleware.Recovery(middleware.CORS(r))
 
 	fmt.Println("Server is running on", addr)
-	log.Fatal(http.ListenAndServe(addr, middleware))
+	log.Fatal(http.ListenAndServe(addr, m))
 }

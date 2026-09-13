@@ -20,3 +20,11 @@ type StockOpnameSummary struct {
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
+
+type ProductLastSession struct {
+	Id              int        `json:"id"`
+	Barcode         string     `json:"barcode"`
+	Name            string     `json:"name"`
+	LastSessionDate *time.Time `json:"last_session_date"`
+	LastSessionCode string     `json:"last_session_code"`
+}

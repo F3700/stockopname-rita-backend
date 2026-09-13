@@ -30,7 +30,7 @@ func (c *CategoryHandlerImpl) CreateCategory(writer http.ResponseWriter, req *ht
 
 	categoryCreateResponse, err := c.CategoryService.Create(req.Context(), categoryCreateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create category", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -54,7 +54,7 @@ func (c *CategoryHandlerImpl) DeleteCategory(writer http.ResponseWriter, req *ht
 	}
 
 	if err := c.CategoryService.Delete(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete category", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -71,15 +71,35 @@ func (c *CategoryHandlerImpl) DeleteCategory(writer http.ResponseWriter, req *ht
 
 // GetCategories implements [CategoryHandler].
 func (c *CategoryHandlerImpl) GetCategories(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	categories, err := c.CategoryService.FindAll(req.Context())
+	page, err := helper.ParseIntQueryNotNull(req, "page")
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to get categories", err)
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
 		return
 	}
 
-	response := dto.Response{
-		Message: "Categories retrieved successfully",
-		Data:    categories,
+	limit, err := helper.ParseIntQueryNotNull(req, "limit")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
+	search := req.URL.Query().Get("search")
+
+	pagination := &dto.Pagination{
+		Page:  page,
+		Limit: limit,
+	}
+
+	categories, err := c.CategoryService.FindAll(req.Context(), pagination, search)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.ResponsePagination{
+		Message:    "Categories retrieved successfully",
+		Data:       categories,
+		Pagination: pagination,
 	}
 
 	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
@@ -104,7 +124,7 @@ func (c *CategoryHandlerImpl) UpdateCategory(writer http.ResponseWriter, req *ht
 
 	categoryUpdateResponse, err := c.CategoryService.Update(req.Context(), id, categoryUpdateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update category", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

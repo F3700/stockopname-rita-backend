@@ -30,7 +30,7 @@ func (d *DepartmentHandlerImpl) CreateDepartment(writer http.ResponseWriter, req
 
 	departmentCreateResponse, err := d.DepartmentService.Create(req.Context(), departmentCreateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to create department", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -54,7 +54,7 @@ func (d *DepartmentHandlerImpl) DeleteDepartment(writer http.ResponseWriter, req
 	}
 
 	if err := d.DepartmentService.Delete(req.Context(), id); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to delete department", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 
@@ -71,15 +71,35 @@ func (d *DepartmentHandlerImpl) DeleteDepartment(writer http.ResponseWriter, req
 
 // GetDepartments implements [DepartmentHandler].
 func (d *DepartmentHandlerImpl) GetDepartments(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	departments, err := d.DepartmentService.FindAll(req.Context())
+	page, err := helper.ParseIntQueryNotNull(req, "page")
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to retrieve departments", err)
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
 		return
 	}
 
-	response := dto.Response{
-		Message: "Departments retrieved successfully",
-		Data:    departments,
+	limit, err := helper.ParseIntQueryNotNull(req, "limit")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
+	search := req.URL.Query().Get("search")
+
+	pagination := &dto.Pagination{
+		Page:  page,
+		Limit: limit,
+	}
+
+	departments, err := d.DepartmentService.FindAll(req.Context(), pagination, search)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.ResponsePagination{
+		Message:    "Departments retrieved successfully",
+		Data:       departments,
+		Pagination: pagination,
 	}
 
 	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
@@ -104,7 +124,7 @@ func (d *DepartmentHandlerImpl) UpdateDepartment(writer http.ResponseWriter, req
 
 	departmentUpdateResponse, err := d.DepartmentService.Update(req.Context(), id, departmentUpdateRequest)
 	if err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to update department", err)
+		helper.WriteServiceError(writer, err)
 		return
 	}
 

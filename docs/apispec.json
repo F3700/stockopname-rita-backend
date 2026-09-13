@@ -58,17 +58,28 @@
       "get": {
         "tags": ["Products"],
         "summary": "Get products",
-        "description": "Retrieve a list of products, optionally filtered by their last update timestamp.",
+        "description": "Retrieve a paginated list of products with optional search.",
         "parameters": [
           {
-            "name": "updated_after",
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 10
+          },
+          {
+            "name": "search",
             "in": "query",
             "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-08-24T21:58:28+07:00"
+            "schema": { "type": "string" },
+            "example": "laptop"
           }
         ],
         "responses": {
@@ -79,24 +90,19 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Products retrieved successfully"
-                    },
+                    "message": { "type": "string", "example": "Products fetched successfully" },
                     "data": {
                       "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Product"
-                      }
-                    }
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "post": {
@@ -121,14 +127,53 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Product created successfully"
-                    },
+                    "message": { "type": "string", "example": "Product created successfully" },
+                    "data": { "$ref": "#/components/schemas/Product" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/products/last-session": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Get products with last session info",
+        "description": "Retrieve products with their last stock opname session date and code.",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "default": 20 },
+            "example": 20
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Products last session retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Products last session retrieved successfully" },
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/Product"
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer", "example": 1 },
+                          "barcode": { "type": "string", "example": "1234567890123" },
+                          "name": { "type": "string", "example": "Product A" },
+                          "last_session_date": { "type": "string", "format": "date-time", "example": "2026-09-10T14:30:00+07:00" },
+                          "last_session_code": { "type": "string", "example": "SO-10-09-2026-01" }
+                        }
                       }
                     }
                   }
@@ -136,9 +181,59 @@
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/products/sync": {
+      "get": {
+        "tags": ["Products"],
+        "summary": "Sync products by update timestamp",
+        "description": "Retrieve a paginated list of products updated after a specific timestamp, used for data synchronization.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 50
+          },
+          {
+            "name": "updated_after",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string", "format": "date-time" },
+            "example": "2026-08-24T21:58:28+07:00"
           }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": { "type": "string", "example": "Products synced successfully" },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Product" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -152,9 +247,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer"
-            },
+            "schema": { "type": "integer" },
             "example": 1
           }
         ],
@@ -162,9 +255,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateProductRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/UpdateProductRequest" }
             }
           }
         },
@@ -176,24 +267,17 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Product updated successfully"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Product"
-                      }
-                    }
+                    "message": { "type": "string", "example": "Product updated successfully" },
+                    "data": { "$ref": "#/components/schemas/Product" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "delete": {
@@ -205,9 +289,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer"
-            },
+            "schema": { "type": "integer" },
             "example": 1
           }
         ],
@@ -219,22 +301,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Product deleted successfully"
-                    },
-                    "data": {
-                      "type": "string",
-                      "example": ""
-                    }
+                    "message": { "type": "string", "example": "Product deleted successfully" },
+                    "data": { "type": "string", "example": "" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -318,7 +394,30 @@
       "get": {
         "tags": ["Departments"],
         "summary": "Get all departments",
-        "description": "Retrieve a list of all departments.",
+        "description": "Retrieve a paginated list of departments with optional search.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "example": "IT"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -327,24 +426,19 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Departments retrieved successfully"
-                    },
+                    "message": { "type": "string", "example": "Departments retrieved successfully" },
                     "data": {
                       "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Department"
-                      }
-                    }
+                      "items": { "$ref": "#/components/schemas/Department" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "post": {
@@ -355,9 +449,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateDepartmentRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/CreateDepartmentRequest" }
             }
           }
         },
@@ -369,21 +461,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Department created successfully"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Department"
-                    }
+                    "message": { "type": "string", "example": "Department created successfully" },
+                    "data": { "$ref": "#/components/schemas/Department" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -447,9 +534,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer"
-            },
+            "schema": { "type": "integer" },
             "example": 1
           }
         ],
@@ -461,22 +546,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Department deleted successfully"
-                    },
-                    "data": {
-                      "type": "string",
-                      "example": ""
-                    }
+                    "message": { "type": "string", "example": "Department deleted successfully" },
+                    "data": { "type": "string", "example": "" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -484,7 +563,30 @@
       "get": {
         "tags": ["Categories"],
         "summary": "Get all categories",
-        "description": "Retrieve a list of all product categories.",
+        "description": "Retrieve a paginated list of product categories with optional search.",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 10
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "example": "elektronik"
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful response",
@@ -493,24 +595,19 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Categories retrieved successfully"
-                    },
+                    "message": { "type": "string", "example": "Categories retrieved successfully" },
                     "data": {
                       "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Category"
-                      }
-                    }
+                      "items": { "$ref": "#/components/schemas/Category" }
+                    },
+                    "pagination": { "$ref": "#/components/schemas/Pagination" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       },
       "post": {
@@ -521,9 +618,7 @@
           "required": true,
           "content": {
             "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateCategoryRequest"
-              }
+              "schema": { "$ref": "#/components/schemas/CreateCategoryRequest" }
             }
           }
         },
@@ -535,21 +630,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Category created successfully"
-                    },
-                    "data": {
-                      "$ref": "#/components/schemas/Category"
-                    }
+                    "message": { "type": "string", "example": "Category created successfully" },
+                    "data": { "$ref": "#/components/schemas/Category" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -613,9 +703,7 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": {
-              "type": "integer"
-            },
+            "schema": { "type": "integer" },
             "example": 1
           }
         ],
@@ -627,22 +715,16 @@
                 "schema": {
                   "type": "object",
                   "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Category deleted successfully"
-                    },
-                    "data": {
-                      "type": "string",
-                      "example": ""
-                    }
+                    "message": { "type": "string", "example": "Category deleted successfully" },
+                    "data": { "type": "string", "example": "" }
                   }
                 }
               }
             }
           },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -2164,11 +2246,32 @@
         "properties": {
           "message": {
             "type": "string",
-            "example": "Failed: Internal server error"
+            "example": "Internal server error"
           },
           "data": {
             "type": "string",
             "example": ""
+          }
+        }
+      },
+      "Pagination": {
+        "type": "object",
+        "properties": {
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "limit": {
+            "type": "integer",
+            "example": 10
+          },
+          "total_pages": {
+            "type": "integer",
+            "example": 5
+          },
+          "total_items": {
+            "type": "integer",
+            "example": 50
           }
         }
       }
@@ -2180,6 +2283,46 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/InternalServerErrorResponse"
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Category with ID 999 not found"
+                },
+                "data": {
+                  "type": "string",
+                  "example": ""
+                }
+              }
+            }
+          }
+        }
+      },
+      "Conflict": {
+        "description": "Resource conflict",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Category conflict: Category name already exists"
+                },
+                "data": {
+                  "type": "string",
+                  "example": ""
+                }
+              }
             }
           }
         }

@@ -211,3 +211,53 @@ BEGIN
     END IF;
 END;
 $$;
+
+
+
+
+
+
+
+CREATE OR REPLACE FUNCTION sync_coordinator_status()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    UPDATE coordinator c
+    SET coor_status = 'IN_REVIEW'
+    WHERE c.coor_id = (
+        SELECT i.inspector_coor_id
+        FROM rak r
+        JOIN inspector i
+            ON i.inspector_id = r.rak_inspector_id
+        WHERE r.rak_id = NEW.stock_opname_rak_id
+    )
+    AND c.coor_status = 'IN_PROGRESS'
+    AND EXISTS (
+    SELECT 1
+    FROM rak r
+    JOIN inspector i
+        ON i.inspector_id = r.rak_inspector_id
+    WHERE i.inspector_coor_id = c.coor_id
+    )
+    AND NOT EXISTS (
+        SELECT 1
+        FROM rak r
+        JOIN inspector i
+            ON i.inspector_id = r.rak_inspector_id
+        WHERE i.inspector_coor_id = c.coor_id
+        AND NOT EXISTS (
+            SELECT 1
+            FROM stock_opname so
+            WHERE so.stock_opname_rak_id = r.rak_id
+        )
+    );
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+CREATE TRIGGER trg_sync_coordinator_status
+AFTER INSERT ON stock_opname
+FOR EACH ROW
+EXECUTE FUNCTION sync_coordinator_status();

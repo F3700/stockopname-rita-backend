@@ -22,13 +22,13 @@ func (s *StockOpnameRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id in
 	`
 	res, err := tx.Exec(ctx, SQL, id)
 	if err != nil {
-		return err
+		return model.MapPgError("Stock Opname", err)
 	}
 
 	if res.RowsAffected() == 0 {
-		return pgx.ErrNoRows
+		return &model.NotFoundError{Resource: "Stock Opname", ID: id}
 	}
-	return err
+	return nil
 }
 
 // FindAll implements [StockOpnameRepository].
@@ -141,7 +141,10 @@ func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOp
 		RETURNING stock_opname_id
 	`
 	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameProductID, stockOpname.StockOpnameRakID).Scan(&stockOpname.StockOpnameID)
-	return err
+	if err != nil {
+		return model.MapPgError("Stock Opname", err)
+	}
+	return nil
 }
 
 // Update implements [StockOpnameRepository].
@@ -153,11 +156,11 @@ func (s *StockOpnameRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, stock
 	`
 	res, err := tx.Exec(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameID)
 	if err != nil {
-		return err
+		return model.MapPgError("Stock Opname", err)
 	}
 
 	if res.RowsAffected() == 0 {
-		return pgx.ErrNoRows
+		return &model.NotFoundError{Resource: "Stock Opname", ID: stockOpname.StockOpnameID}
 	}
-	return err
+	return nil
 }

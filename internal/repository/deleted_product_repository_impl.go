@@ -82,5 +82,8 @@ func (d *DeletedProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, id i
 		VALUES ($1)
 	`
 	_, err := tx.Exec(ctx, SQL, id)
-	return err
+	if err != nil {
+		return model.MapPgError("Deleted Product", err)
+	}
+	return nil
 }
