@@ -205,8 +205,16 @@ type fakeStockOpnameService struct {
 	updateFunc     func(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error)
 	deleteFunc     func(ctx context.Context, id int) error
 	findByIdFn     func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
-	findAllFunc    func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
-	createByRackFn func(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error
+	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
+	createByRackFn       func(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error
+	findAllForExportFunc func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
+}
+
+func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+	if f.findAllForExportFunc == nil {
+		return nil, nil
+	}
+	return f.findAllForExportFunc(ctx, sesiId)
 }
 
 func (f *fakeStockOpnameService) Create(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
@@ -236,6 +244,7 @@ func (f *fakeStockOpnameService) CreateByRack(ctx context.Context, req dto.Creat
 type fakeReportService struct {
 	sessionPDFFunc     func(ctx context.Context, id int) ([]byte, string, error)
 	coordinatorPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
+	sessionExcelFunc   func(ctx context.Context, id int) ([]byte, string, error)
 }
 
 func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
@@ -244,6 +253,10 @@ func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, str
 
 func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error) {
 	return f.coordinatorPDFFunc(ctx, id)
+}
+
+func (f *fakeReportService) SessionExcel(ctx context.Context, id int) ([]byte, string, error) {
+	return f.sessionExcelFunc(ctx, id)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

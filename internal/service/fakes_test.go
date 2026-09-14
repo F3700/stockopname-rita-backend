@@ -273,6 +273,7 @@ type fakeStockOpnameRepository struct {
 	findAllFunc func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error)
 	updateFunc  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	deleteFunc  func(ctx context.Context, tx pgx.Tx, id int) error
+	findAllForExportFunc func(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error)
 }
 
 func (f *fakeStockOpnameRepository) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
@@ -293,6 +294,10 @@ func (f *fakeStockOpnameRepository) Update(ctx context.Context, tx pgx.Tx, stock
 
 func (f *fakeStockOpnameRepository) Delete(ctx context.Context, tx pgx.Tx, id int) error {
 	return f.deleteFunc(ctx, tx, id)
+}
+
+func (f *fakeStockOpnameRepository) FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
+	return f.findAllForExportFunc(ctx, sesiId)
 }
 
 type fakeSesiService struct {
@@ -352,7 +357,8 @@ func (f *fakeInspectorService) CreateInspector(ctx context.Context, request dto.
 }
 
 type fakeStockOpnameService struct {
-	findAllFunc func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
+	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
+	findAllForExportFunc func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
 }
 
 func (f *fakeStockOpnameService) Create(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
@@ -375,4 +381,8 @@ func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pa
 
 func (f *fakeStockOpnameService) CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
 	return nil
+}
+
+func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+	return f.findAllForExportFunc(ctx, sesiId)
 }
