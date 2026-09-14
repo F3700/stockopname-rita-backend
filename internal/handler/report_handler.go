@@ -63,6 +63,20 @@ func (h *ReportHandler) SessionExcel(writer http.ResponseWriter, req *http.Reque
 	writeFile(writer, filename, data, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 }
 
+func (h *ReportHandler) SessionDBF(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid session ID", err)
+		return
+	}
+	data, filename, err := h.Service.SessionDBF(req.Context(), id)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+	writeFile(writer, filename, data, "application/x-dbf")
+}
+
 func writeFile(writer http.ResponseWriter, filename string, data []byte, contentType string) {
 	writer.Header().Set("Content-Type", contentType)
 	writer.Header().Set("Content-Disposition", `attachment; filename="`+filename+`"`)

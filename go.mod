@@ -10,7 +10,9 @@ require (
 	github.com/pashagolub/pgxmock/v4 v4.9.0
 	github.com/phpdave11/gofpdf v1.0.0
 	github.com/swaggest/swgui v1.8.9
+	github.com/valentin-kaiser/go-dbase v1.14.4
 	github.com/xuri/excelize/v2 v2.11.0
+	golang.org/x/text v0.41.0
 )
 
 require (
@@ -30,8 +32,7 @@ require (
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
-	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sync v0.22.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
 	golang.org/x/tools/godoc v0.1.0-deprecated // indirect
 )

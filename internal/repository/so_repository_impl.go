@@ -186,7 +186,8 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			so.stock_opname_quantity AS quantity,
 			r.rak_name AS rackName,
 			i.inspector_code AS inspectorCode,
-			c.coor_code AS coordinatorCode
+			c.coor_code AS coordinatorCode,
+			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
 		JOIN product p
 			ON so.stock_opname_product_id = p.product_id

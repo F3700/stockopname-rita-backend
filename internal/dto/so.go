@@ -24,6 +24,7 @@ type StockOpnameExportResponse struct {
 	RackName        string  `json:"rak_name"`
 	InspectorCode   string  `json:"inspector_code"`
 	CoordinatorCode string  `json:"coor_code"`
+	UpdatedAt       string  `json:"updatedAt"`
 }
 
 type CreateStockOpnameRequest struct {

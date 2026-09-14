@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"stockopname-rita-backend/internal/model"
 )
@@ -15,7 +16,7 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 				t.Errorf("expected sesiId 1, got %d", sesiId)
 			}
 			return []*model.StockOpnameExport{
-				{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48, RackName: "R1", InspectorCode: "INSP-01", CoordinatorCode: "KOR-01"},
+				{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48, RackName: "R1", InspectorCode: "INSP-01", CoordinatorCode: "KOR-01", UpdatedAt: time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)},
 			}, nil
 		},
 	}, nil, newTestValidator(t))
@@ -36,6 +37,9 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	}
 	if got.Quantity != 48 || got.RackName != "R1" || got.InspectorCode != "INSP-01" || got.CoordinatorCode != "KOR-01" {
 		t.Errorf("unexpected response %+v", got)
+	}
+	if got.UpdatedAt != "2026-09-10T08:00:00Z" {
+		t.Errorf("unexpected updatedAt %q", got.UpdatedAt)
 	}
 }
 

@@ -245,6 +245,7 @@ type fakeReportService struct {
 	sessionPDFFunc     func(ctx context.Context, id int) ([]byte, string, error)
 	coordinatorPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
 	sessionExcelFunc   func(ctx context.Context, id int) ([]byte, string, error)
+	sessionDBFFunc     func(ctx context.Context, id int) ([]byte, string, error)
 }
 
 func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
@@ -257,6 +258,10 @@ func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 
 func (f *fakeReportService) SessionExcel(ctx context.Context, id int) ([]byte, string, error) {
 	return f.sessionExcelFunc(ctx, id)
+}
+
+func (f *fakeReportService) SessionDBF(ctx context.Context, id int) ([]byte, string, error) {
+	return f.sessionDBFFunc(ctx, id)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

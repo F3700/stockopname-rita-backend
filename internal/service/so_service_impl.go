@@ -219,6 +219,7 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId in
 			RackName:        export.RackName,
 			InspectorCode:   export.InspectorCode,
 			CoordinatorCode: export.CoordinatorCode,
+			UpdatedAt:       export.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 

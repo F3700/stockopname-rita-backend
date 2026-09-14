@@ -4,12 +4,16 @@ import (
 	"bytes"
 	"context"
 	_ "embed"
+	"encoding/binary"
 	"fmt"
+	"os"
 	"stockopname-rita-backend/internal/dto"
 	"time"
 
 	"github.com/phpdave11/gofpdf"
+	"github.com/valentin-kaiser/go-dbase/dbase"
 	"github.com/xuri/excelize/v2"
+	"golang.org/x/text/encoding/charmap"
 )
 
 //go:embed assets/logoritapasaraya_mini.png
@@ -21,6 +25,7 @@ type ReportService interface {
 	SessionPDF(ctx context.Context, id int) ([]byte, string, error)
 	CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error)
 	SessionExcel(ctx context.Context, id int) ([]byte, string, error)
+	SessionDBF(ctx context.Context, id int) ([]byte, string, error)
 }
 
 type ReportServiceImpl struct {
@@ -125,12 +130,12 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 	}
 	file.DeleteSheet("Sheet1")
 
-	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Inspector", "Coordinator", "Session Code"}
+	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Inspector", "Coordinator", "Session Code", "Updated At"}
 	if err := file.SetSheetRow(sheet, "A1", &headers); err != nil {
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.InspectorCode, export.CoordinatorCode, session.Code}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.InspectorCode, export.CoordinatorCode, session.Code, export.UpdatedAt}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -145,6 +150,163 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 		return nil, "", err
 	}
 	return buffer.Bytes(), fmt.Sprintf("%s.xlsx", session.Code), nil
+}
+
+// dbfExportRow is the row layout for the session DBF export. Field names
+// follow dBase limits (max 10 characters, uppercased by the library).
+type dbfExportRow struct {
+	Barcode   string  `dbase:"BARCODE"`
+	Product   string  `dbase:"PRODUCT"`
+	BuyPrice  float64 `dbase:"BUYPRICE"`
+	SellPrice float64 `dbase:"SELLPRICE"`
+	Quantity  int     `dbase:"QTY"`
+	Rak       string  `dbase:"RAK"`
+	Inspector string  `dbase:"INSPECTOR"`
+	CoorCode  string  `dbase:"COOR"`
+	SesiCode  string  `dbase:"SESI_CODE"`
+	Updated   string  `dbase:"UPDATED"`
+}
+
+func sessionDBFColumns() ([]*dbase.Column, error) {
+	specs := []struct {
+		name     string
+		dataType dbase.DataType
+		length   uint8
+		decimals uint8
+	}{
+		{"BARCODE", dbase.Character, 20, 0},
+		{"PRODUCT", dbase.Character, 150, 0},
+		{"BUYPRICE", dbase.Numeric, 15, 2},
+		{"SELLPRICE", dbase.Numeric, 15, 2},
+		{"QTY", dbase.Numeric, 10, 0},
+		{"RAK", dbase.Character, 15, 0},
+		{"INSPECTOR", dbase.Character, 20, 0},
+		{"COOR", dbase.Character, 20, 0},
+		{"SESI_CODE", dbase.Character, 20, 0},
+		{"UPDATED", dbase.Character, 25, 0},
+	}
+	columns := make([]*dbase.Column, 0, len(specs))
+	for _, spec := range specs {
+		column, err := dbase.NewColumn(spec.name, spec.dataType, spec.length, spec.decimals, false)
+		if err != nil {
+			return nil, err
+		}
+		columns = append(columns, column)
+	}
+	return columns, nil
+}
+
+func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, string, error) {
+	session, err := r.SesiService.FindById(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	exports, err := r.StockOpnameService.FindAllForExport(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	columns, err := sessionDBFColumns()
+	if err != nil {
+		return nil, "", err
+	}
+
+	// go-dbase only supports file-backed creation, so stage through a
+	// unique temp file which is removed before returning.
+	tmp, err := os.CreateTemp("", "stockopname-*.dbf")
+	if err != nil {
+		return nil, "", err
+	}
+	tmpName := tmp.Name()
+	_ = tmp.Close()
+	_ = os.Remove(tmpName)
+	defer func() { _ = os.Remove(tmpName) }()
+
+	// FoxBasePlus (0x03) emits a dBASE III file: the widest-supported
+	// variant for legacy readers and the surrounding retail toolchain.
+	// All field types used here (Character, Numeric) are dBASE III native.
+	table, err := dbase.NewTable(
+		dbase.FoxBasePlus,
+		&dbase.Config{
+			Filename:  tmpName,
+			Converter: dbase.NewDefaultConverter(charmap.Windows1252),
+		},
+		columns,
+		0,
+		nil,
+	)
+	if err != nil {
+		return nil, "", err
+	}
+
+	for _, export := range exports {
+		row, err := table.RowFromStruct(&dbfExportRow{
+			Barcode:   export.Barcode,
+			Product:   export.Name,
+			BuyPrice:  export.BuyPrice,
+			SellPrice: export.SellPrice,
+			Quantity:  export.Quantity,
+			Rak:       export.RackName,
+			Inspector: export.InspectorCode,
+			CoorCode:  export.CoordinatorCode,
+			SesiCode:  session.Code,
+			Updated:   export.UpdatedAt,
+		})
+		if err != nil {
+			_ = table.Close()
+			return nil, "", err
+		}
+		if err := row.Add(); err != nil {
+			_ = table.Close()
+			return nil, "", err
+		}
+	}
+
+	if err := table.Close(); err != nil {
+		return nil, "", err
+	}
+	raw, err := os.ReadFile(tmpName)
+	if err != nil {
+		return nil, "", err
+	}
+	data, err := compactDBFFile(raw, len(columns))
+	if err != nil {
+		return nil, "", err
+	}
+	return data, fmt.Sprintf("%s.dbf", session.Code), nil
+}
+
+// compactDBFFile rewrites a go-dbase generated file into strict dBase III
+// layout: the library computes a wrong first-row offset (296 + 32*fields,
+// leaving a zero gap after the field descriptors) and omits the 0x1A
+// end-of-file marker, which makes strict DBF readers reject the file.
+// This sets the header offset to 32 + 32*fields + 1, drops the gap and
+// appends the EOF marker. Row bytes themselves are untouched.
+func compactDBFFile(raw []byte, fieldCount int) ([]byte, error) {
+	if len(raw) < 32 {
+		return nil, fmt.Errorf("dbf file too short: %d bytes", len(raw))
+	}
+	headerLen := 32 + 32*fieldCount + 1
+	if len(raw) < headerLen {
+		return nil, fmt.Errorf("dbf file too short for %d fields: %d bytes", fieldCount, len(raw))
+	}
+	if raw[headerLen-1] != 0x0D {
+		return nil, fmt.Errorf("dbf header terminator missing at offset %d", headerLen-1)
+	}
+	rowLen := int(binary.LittleEndian.Uint16(raw[10:12]))
+	recordCount := int(binary.LittleEndian.Uint32(raw[4:8]))
+	claimedFirst := int(binary.LittleEndian.Uint16(raw[8:10]))
+	end := claimedFirst + recordCount*rowLen
+	if claimedFirst < headerLen || end > len(raw) {
+		return nil, fmt.Errorf("dbf record section out of bounds: first=%d end=%d size=%d", claimedFirst, end, len(raw))
+	}
+
+	fixed := make([]byte, 0, headerLen+recordCount*rowLen+1)
+	fixed = append(fixed, raw[:headerLen]...)
+	binary.LittleEndian.PutUint16(fixed[8:10], uint16(headerLen))
+	fixed = append(fixed, raw[claimedFirst:end]...)
+	fixed = append(fixed, 0x1A)
+	return fixed, nil
 }
 
 func newPDF(title string) *gofpdf.Fpdf {

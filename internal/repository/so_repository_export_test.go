@@ -4,18 +4,20 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/pashagolub/pgxmock/v4"
 )
 
-var exportColumns = []string{"id", "barcode", "name", "buyPrice", "sellPrice", "quantity", "rackName", "inspectorCode", "coordinatorCode"}
+var exportColumns = []string{"id", "barcode", "name", "buyPrice", "sellPrice", "quantity", "rackName", "inspectorCode", "coordinatorCode", "updatedAt"}
 
 func TestStockOpnameFindAllForExport(t *testing.T) {
 	mock := mustMockPool(t)
+	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("WHERE c.coor_sesi_id").WithArgs(1).WillReturnRows(
 		pgxmock.NewRows(exportColumns).
-			AddRow(1, "8991234567890", "Indomie", 2500.0, 3500.0, 48, "R1", "INSP-01", "KOR-01").
-			AddRow(2, "8991234567891", "Soto", 2500.0, 3500.0, 36, "R1", "INSP-01", "KOR-01"),
+			AddRow(1, "8991234567890", "Indomie", 2500.0, 3500.0, 48, "R1", "INSP-01", "KOR-01", updatedAt).
+			AddRow(2, "8991234567891", "Soto", 2500.0, 3500.0, 36, "R1", "INSP-01", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock)
@@ -32,6 +34,9 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	}
 	if got.BuyPrice != 2500.0 || got.SellPrice != 3500.0 {
 		t.Errorf("unexpected prices %+v", got)
+	}
+	if !got.UpdatedAt.Equal(updatedAt) {
+		t.Errorf("unexpected updatedAt %v", got.UpdatedAt)
 	}
 	if got.Quantity != 48 || got.RackName != "R1" || got.InspectorCode != "INSP-01" || got.CoordinatorCode != "KOR-01" {
 		t.Errorf("unexpected result %+v", got)

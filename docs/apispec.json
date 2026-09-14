@@ -974,7 +974,7 @@
       "get": {
         "tags": ["Stock Opname Session"],
         "summary": "Generate a stock opname session Excel report",
-        "description": "Generate a downloadable Excel report containing stock opname results with product prices, rack, inspector, coordinator, and session code.",
+        "description": "Generate a downloadable Excel report containing stock opname results with product prices, rack, inspector, coordinator, session code, and update timestamp.",
         "parameters": [
           {
             "name": "id",
@@ -988,6 +988,30 @@
           "200": {
             "description": "Excel report generated successfully",
             "content": { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { "schema": { "type": "string", "format": "binary" } } }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/dbf": {
+      "get": {
+        "tags": ["Stock Opname Session"],
+        "summary": "Generate a stock opname session DBF report",
+        "description": "Generate a downloadable dBASE III compatible DBF report containing stock opname results with product prices, rack, inspector, coordinator, session code, and update timestamp.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "DBF report generated successfully",
+            "content": { "application/x-dbf": { "schema": { "type": "string", "format": "binary" } } }
           },
           "400": { "$ref": "#/components/responses/BadRequest" },
           "500": { "$ref": "#/components/responses/InternalServerError" }

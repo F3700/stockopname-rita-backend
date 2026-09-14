@@ -85,6 +85,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/stockopname/sessions/:id", sesiHandler.GetSesiById)
 	router.GET("/stockopname/sessions/:id/pdf", reportHandler.SessionPDF)
 	router.GET("/stockopname/sessions/:id/excel", reportHandler.SessionExcel)
+	router.GET("/stockopname/sessions/:id/dbf", reportHandler.SessionDBF)
 	router.PATCH("/stockopname/sessions/:id", sesiHandler.UpdateSesi)
 	router.DELETE("/stockopname/sessions/:id", sesiHandler.DeleteSesi)
 
