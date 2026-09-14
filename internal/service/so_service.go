@@ -12,4 +12,5 @@ type StockOpnameService interface {
 	FindById(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
 	CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error
+	FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
 }

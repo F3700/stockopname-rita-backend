@@ -11,17 +11,16 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type SesiServiceImpl struct {
 	Validator             *validator.Validate
-	Pool                  *pgxpool.Pool
+	Pool                  repository.DBPool
 	SesiRepository        repository.SesiRepository
 	CoordinatorRepository repository.CoordinatorRepository
 }
 
-func NewSesiService(sesiRepository repository.SesiRepository, coordinatorRepository repository.CoordinatorRepository, pool *pgxpool.Pool, validate *validator.Validate) SesiService {
+func NewSesiService(sesiRepository repository.SesiRepository, coordinatorRepository repository.CoordinatorRepository, pool repository.DBPool, validate *validator.Validate) SesiService {
 	return &SesiServiceImpl{
 		Validator:             validate,
 		Pool:                  pool,

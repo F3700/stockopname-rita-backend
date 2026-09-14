@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ProductRepositoryImpl struct {
-	pool *pgxpool.Pool
+	pool DBPool
 }
 
-func NewProductRepository(pool *pgxpool.Pool) ProductRepository {
+func NewProductRepository(pool DBPool) ProductRepository {
 	return &ProductRepositoryImpl{
 		pool: pool,
 	}

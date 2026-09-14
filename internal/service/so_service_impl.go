@@ -9,16 +9,15 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type StockOpnameServiceImpl struct {
-	Pool                  *pgxpool.Pool
+	Pool                  repository.DBPool
 	StockOpnameRepository repository.StockOpnameRepository
 	Validator             *validator.Validate
 }
 
-func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, pool *pgxpool.Pool, validate *validator.Validate) StockOpnameService {
+func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, pool repository.DBPool, validate *validator.Validate) StockOpnameService {
 	return &StockOpnameServiceImpl{
 		Pool:                  pool,
 		StockOpnameRepository: stockOpnameRepository,
@@ -199,4 +198,30 @@ func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.Creat
 	}
 
 	return tx.Commit(ctx)
+}
+
+// FindAllForExport implements [StockOpnameService].
+func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+	exports, err := s.StockOpnameRepository.FindAllForExport(ctx, sesiId)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []dto.StockOpnameExportResponse
+	for _, export := range exports {
+		responses = append(responses, dto.StockOpnameExportResponse{
+			Id:              export.Id,
+			Barcode:         export.Barcode,
+			Name:            export.Name,
+			BuyPrice:        export.BuyPrice,
+			SellPrice:       export.SellPrice,
+			Quantity:        export.Quantity,
+			RackName:        export.RackName,
+			InspectorCode:   export.InspectorCode,
+			CoordinatorCode: export.CoordinatorCode,
+			UpdatedAt:       export.UpdatedAt.Format(time.RFC3339),
+		})
+	}
+
+	return responses, nil
 }

@@ -6,14 +6,13 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CoordinatorRepositoryImpl struct {
-	Pool *pgxpool.Pool
+	Pool DBPool
 }
 
-func NewCoordinatorRepository(pool *pgxpool.Pool) CoordinatorRepository {
+func NewCoordinatorRepository(pool DBPool) CoordinatorRepository {
 	return &CoordinatorRepositoryImpl{
 		Pool: pool,
 	}

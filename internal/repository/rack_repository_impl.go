@@ -5,14 +5,13 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RackRepositoryImpl struct {
-	Pool *pgxpool.Pool
+	Pool DBPool
 }
 
-func NewRackRepository(pool *pgxpool.Pool) RackRepository {
+func NewRackRepository(pool DBPool) RackRepository {
 	return &RackRepositoryImpl{
 		Pool: pool,
 	}

@@ -6,14 +6,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DeletedProductRepositoryImpl struct {
-	pool *pgxpool.Pool
+	pool DBPool
 }
 
-func NewDeletedProductRepository(pool *pgxpool.Pool) DeletedProductRepository {
+func NewDeletedProductRepository(pool DBPool) DeletedProductRepository {
 	return &DeletedProductRepositoryImpl{
 		pool: pool,
 	}
