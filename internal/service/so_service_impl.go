@@ -199,3 +199,28 @@ func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.Creat
 
 	return tx.Commit(ctx)
 }
+
+// FindAllForExport implements [StockOpnameService].
+func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+	exports, err := s.StockOpnameRepository.FindAllForExport(ctx, sesiId)
+	if err != nil {
+		return nil, err
+	}
+
+	var responses []dto.StockOpnameExportResponse
+	for _, export := range exports {
+		responses = append(responses, dto.StockOpnameExportResponse{
+			Id:              export.Id,
+			Barcode:         export.Barcode,
+			Name:            export.Name,
+			BuyPrice:        export.BuyPrice,
+			SellPrice:       export.SellPrice,
+			Quantity:        export.Quantity,
+			RackName:        export.RackName,
+			InspectorCode:   export.InspectorCode,
+			CoordinatorCode: export.CoordinatorCode,
+		})
+	}
+
+	return responses, nil
+}

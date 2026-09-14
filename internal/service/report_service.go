@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/phpdave11/gofpdf"
+	"github.com/xuri/excelize/v2"
 )
 
 //go:embed assets/logoritapasaraya_mini.png
@@ -19,6 +20,7 @@ var reportLocation = mustLoadReportLocation()
 type ReportService interface {
 	SessionPDF(ctx context.Context, id int) ([]byte, string, error)
 	CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error)
+	SessionExcel(ctx context.Context, id int) ([]byte, string, error)
 }
 
 type ReportServiceImpl struct {
@@ -104,6 +106,45 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
+}
+
+func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, string, error) {
+	session, err := r.SesiService.FindById(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	exports, err := r.StockOpnameService.FindAllForExport(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	file := excelize.NewFile()
+	sheet := "Results"
+	if _, err := file.NewSheet(sheet); err != nil {
+		return nil, "", err
+	}
+	file.DeleteSheet("Sheet1")
+
+	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Inspector", "Coordinator", "Session Code"}
+	if err := file.SetSheetRow(sheet, "A1", &headers); err != nil {
+		return nil, "", err
+	}
+	for i, export := range exports {
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.InspectorCode, export.CoordinatorCode, session.Code}
+		cell, err := excelize.CoordinatesToCellName(1, i+2)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := file.SetSheetRow(sheet, cell, &row); err != nil {
+			return nil, "", err
+		}
+	}
+
+	buffer, err := file.WriteToBuffer()
+	if err != nil {
+		return nil, "", err
+	}
+	return buffer.Bytes(), fmt.Sprintf("%s.xlsx", session.Code), nil
 }
 
 func newPDF(title string) *gofpdf.Fpdf {

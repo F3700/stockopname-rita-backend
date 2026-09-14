@@ -171,3 +171,45 @@ func (s *StockOpnameRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, stock
 	}
 	return nil
 }
+
+// FindAllForExport implements [StockOpnameRepository].
+// It returns the full denormalized result set of one session, including
+// product prices, for file exports. Unlike FindAll it needs no pagination.
+func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
+	const SQL = `
+		SELECT
+			so.stock_opname_id AS id,
+			p.product_barcode AS barcode,
+			p.product_name AS name,
+			p.product_buyprice AS buyPrice,
+			p.product_sellprice AS sellPrice,
+			so.stock_opname_quantity AS quantity,
+			r.rak_name AS rackName,
+			i.inspector_code AS inspectorCode,
+			c.coor_code AS coordinatorCode
+		FROM stock_opname so
+		JOIN product p
+			ON so.stock_opname_product_id = p.product_id
+		JOIN rak r
+			ON so.stock_opname_rak_id = r.rak_id
+		JOIN inspector i
+			ON r.rak_inspector_id = i.inspector_id
+		JOIN coordinator c
+			ON i.inspector_coor_id = c.coor_id
+		WHERE c.coor_sesi_id = $1
+		ORDER BY so.stock_opname_id;
+	`
+
+	rows, err := s.Pool.Query(ctx, SQL, sesiId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	exports, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.StockOpnameExport])
+	if err != nil {
+		return nil, err
+	}
+
+	return exports, nil
+}

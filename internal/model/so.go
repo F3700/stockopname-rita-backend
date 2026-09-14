@@ -28,3 +28,18 @@ type ProductLastSession struct {
 	LastSessionDate *time.Time `json:"last_session_date"`
 	LastSessionCode string     `json:"last_session_code"`
 }
+
+// StockOpnameExport is the denormalized row used for session exports.
+// It intentionally mirrors FindAll plus product prices and is separate from
+// StockOpnameSummary so the JSON API responses stay unchanged.
+type StockOpnameExport struct {
+	Id              int     `json:"id"`
+	Barcode         string  `json:"barcode"`
+	Name            string  `json:"product_name"`
+	BuyPrice        float64 `json:"buy_price"`
+	SellPrice       float64 `json:"sell_price"`
+	Quantity        int     `json:"quantity"`
+	RackName        string  `json:"rak_name"`
+	InspectorCode   string  `json:"inspector_code"`
+	CoordinatorCode string  `json:"coor_code"`
+}
