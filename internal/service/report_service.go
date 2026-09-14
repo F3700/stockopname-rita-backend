@@ -6,7 +6,7 @@ import (
 	_ "embed"
 	"encoding/binary"
 	"fmt"
-	"os"
+	"io"
 	"stockopname-rita-backend/internal/dto"
 	"time"
 
@@ -211,16 +211,16 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 		return nil, "", err
 	}
 
-	// go-dbase only supports file-backed creation, so stage through a
-	// unique temp file which is removed before returning.
-	tmp, err := os.CreateTemp("", "stockopname-*.dbf")
-	if err != nil {
-		return nil, "", err
-	}
-	tmpName := tmp.Name()
-	_ = tmp.Close()
-	_ = os.Remove(tmpName)
-	defer func() { _ = os.Remove(tmpName) }()
+	// go-dbase's UnixIO/Create uppercases the whole filesystem path
+	// (e.g. /tmp/x.dbf -> /TMP/X.DBF), which breaks on case-sensitive
+	// Linux filesystems (works on Windows because it is case-insensitive).
+	// Use an in-memory buffer via GenericIO so no temp file/dir is needed.
+	// This also keeps distroless containers working (no /tmp required).
+	// NOTE: dbase.NewBytesReadWriteSeeker can't be used here — it rejects
+	// Seek/Write beyond the current length, while DBF creation seeks to
+	// offset 32+ on an empty file (like a real sparse file would allow).
+	mem := newMemReadWriteSeeker()
+	memIO := dbase.GenericIO{Handle: mem}
 
 	// FoxBasePlus (0x03) emits a dBASE III file: the widest-supported
 	// variant for legacy readers and the surrounding retail toolchain.
@@ -228,12 +228,12 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 	table, err := dbase.NewTable(
 		dbase.FoxBasePlus,
 		&dbase.Config{
-			Filename:  tmpName,
+			Filename:  "stockopname.dbf",
 			Converter: dbase.NewDefaultConverter(charmap.Windows1252),
 		},
 		columns,
 		0,
-		nil,
+		memIO,
 	)
 	if err != nil {
 		return nil, "", err
@@ -265,10 +265,7 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 	if err := table.Close(); err != nil {
 		return nil, "", err
 	}
-	raw, err := os.ReadFile(tmpName)
-	if err != nil {
-		return nil, "", err
-	}
+	raw := mem.Data()
 	data, err := compactDBFFile(raw, len(columns))
 	if err != nil {
 		return nil, "", err
@@ -307,6 +304,71 @@ func compactDBFFile(raw []byte, fieldCount int) ([]byte, error) {
 	fixed = append(fixed, raw[claimedFirst:end]...)
 	fixed = append(fixed, 0x1A)
 	return fixed, nil
+}
+
+// memReadWriteSeeker is a file-like in-memory buffer with sparse-write
+// semantics (Seek beyond EOF + Write zero-extends, like os.File).
+// dbase.NewBytesReadWriteSeeker lacks this, so DBF creation fails with
+// "invalid seek position" when the library seeks to offset 32+ on day-zero.
+type memReadWriteSeeker struct {
+	data []byte
+	pos  int64
+}
+
+func newMemReadWriteSeeker() *memReadWriteSeeker {
+	return &memReadWriteSeeker{data: make([]byte, 0)}
+}
+
+func (m *memReadWriteSeeker) Read(p []byte) (int, error) {
+	if m.pos >= int64(len(m.data)) {
+		return 0, io.EOF
+	}
+	n := copy(p, m.data[m.pos:])
+	m.pos += int64(n)
+	return n, nil
+}
+
+func (m *memReadWriteSeeker) Write(p []byte) (int, error) {
+	if m.pos < 0 {
+		return 0, fmt.Errorf("negative seek position: %d", m.pos)
+	}
+	endPos := m.pos + int64(len(p))
+	if endPos > int64(len(m.data)) {
+		// Zero-extend like a real file (handles Seek past EOF).
+		ext := make([]byte, endPos-int64(len(m.data)))
+		m.data = append(m.data, ext...)
+	}
+	copy(m.data[m.pos:], p)
+	m.pos = endPos
+	return len(p), nil
+}
+
+func (m *memReadWriteSeeker) Seek(offset int64, whence int) (int64, error) {
+	var newPos int64
+	switch whence {
+	case io.SeekStart:
+		newPos = offset
+	case io.SeekCurrent:
+		newPos = m.pos + offset
+	case io.SeekEnd:
+		newPos = int64(len(m.data)) + offset
+	default:
+		return 0, fmt.Errorf("invalid whence value: %d", whence)
+	}
+	if newPos < 0 {
+		return 0, fmt.Errorf("negative seek position: %d", newPos)
+	}
+	m.pos = newPos
+	return newPos, nil
+}
+
+func (m *memReadWriteSeeker) Close() error { return nil }
+
+// Data returns a copy of the buffered bytes.
+func (m *memReadWriteSeeker) Data() []byte {
+	out := make([]byte, len(m.data))
+	copy(out, m.data)
+	return out
 }
 
 func newPDF(title string) *gofpdf.Fpdf {
