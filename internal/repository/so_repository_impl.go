@@ -6,14 +6,13 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type StockOpnameRepositoryImpl struct {
-	Pool *pgxpool.Pool
+	Pool DBPool
 }
 
-func NewStockOpnameRepository(pool *pgxpool.Pool) StockOpnameRepository {
+func NewStockOpnameRepository(pool DBPool) StockOpnameRepository {
 	return &StockOpnameRepositoryImpl{
 		Pool: pool,
 	}

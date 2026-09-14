@@ -9,16 +9,15 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type StockOpnameServiceImpl struct {
-	Pool                  *pgxpool.Pool
+	Pool                  repository.DBPool
 	StockOpnameRepository repository.StockOpnameRepository
 	Validator             *validator.Validate
 }
 
-func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, pool *pgxpool.Pool, validate *validator.Validate) StockOpnameService {
+func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, pool repository.DBPool, validate *validator.Validate) StockOpnameService {
 	return &StockOpnameServiceImpl{
 		Pool:                  pool,
 		StockOpnameRepository: stockOpnameRepository,

@@ -9,16 +9,15 @@ import (
 	"stockopname-rita-backend/internal/repository"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CategoryServiceImpl struct {
 	CategoryRepository repository.CategoryRepository
-	Pool               *pgxpool.Pool
+	Pool               repository.DBPool
 	Validator          *validator.Validate
 }
 
-func NewCategoryService(categoryRepository repository.CategoryRepository, pool *pgxpool.Pool, validator *validator.Validate) CategoryService {
+func NewCategoryService(categoryRepository repository.CategoryRepository, pool repository.DBPool, validator *validator.Validate) CategoryService {
 	return &CategoryServiceImpl{
 		CategoryRepository: categoryRepository,
 		Pool:               pool,

@@ -5,14 +5,13 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type InspectorRepositoryImpl struct {
-	Pool *pgxpool.Pool
+	Pool DBPool
 }
 
-func NewInspectorRepository(pool *pgxpool.Pool) InspectorRepository {
+func NewInspectorRepository(pool DBPool) InspectorRepository {
 	return &InspectorRepositoryImpl{
 		Pool: pool,
 	}

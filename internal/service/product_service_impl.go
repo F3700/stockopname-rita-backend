@@ -10,17 +10,16 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type ProductServiceImpl struct {
 	ProductRepository        repository.ProductRepository
 	DeletedProductRepository repository.DeletedProductRepository
-	Pool                     *pgxpool.Pool
+	Pool                     repository.DBPool
 	Validator                *validator.Validate
 }
 
-func NewProductService(productRepository repository.ProductRepository, deletedProductRepository repository.DeletedProductRepository, pool *pgxpool.Pool, validator *validator.Validate) ProductService {
+func NewProductService(productRepository repository.ProductRepository, deletedProductRepository repository.DeletedProductRepository, pool repository.DBPool, validator *validator.Validate) ProductService {
 	return &ProductServiceImpl{
 		ProductRepository:        productRepository,
 		DeletedProductRepository: deletedProductRepository,

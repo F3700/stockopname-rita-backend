@@ -6,14 +6,13 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DepartmentRepositoryImpl struct {
-	pool *pgxpool.Pool
+	pool DBPool
 }
 
-func NewDepartmentRepositoryImpl(pool *pgxpool.Pool) DepartmentRepository {
+func NewDepartmentRepositoryImpl(pool DBPool) DepartmentRepository {
 	return &DepartmentRepositoryImpl{
 		pool: pool,
 	}
