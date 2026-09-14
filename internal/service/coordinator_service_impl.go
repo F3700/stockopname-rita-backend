@@ -5,16 +5,14 @@ import (
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CoordinatorServiceImpl struct {
 	CoordinatorRepository repository.CoordinatorRepository
-	Pool                  *pgxpool.Pool
+	Pool                  repository.DBPool
 }
 
-func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepository, pool *pgxpool.Pool) CoordinatorService {
+func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepository, pool repository.DBPool) CoordinatorService {
 	return &CoordinatorServiceImpl{
 		CoordinatorRepository: coordinatorRepository,
 		Pool:                  pool,

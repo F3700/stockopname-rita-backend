@@ -9,16 +9,15 @@ import (
 	"stockopname-rita-backend/internal/repository"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type DepartmentServiceImpl struct {
 	DepartmentRepository repository.DepartmentRepository
-	Pool                 *pgxpool.Pool
+	Pool                 repository.DBPool
 	Validator            *validator.Validate
 }
 
-func NewDepartmentService(departmentRepository repository.DepartmentRepository, pool *pgxpool.Pool, validator *validator.Validate) DepartmentService {
+func NewDepartmentService(departmentRepository repository.DepartmentRepository, pool repository.DBPool, validator *validator.Validate) DepartmentService {
 	return &DepartmentServiceImpl{
 		DepartmentRepository: departmentRepository,
 		Pool:                 pool,

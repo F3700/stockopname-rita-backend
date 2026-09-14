@@ -5,18 +5,16 @@ import (
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type InspectorServiceImpl struct {
 	InspectorRepository   repository.InspectorRepository
 	CoordinatorRepository repository.CoordinatorRepository
 	RackRepository        repository.RackRepository
-	Pool                  *pgxpool.Pool
+	Pool                  repository.DBPool
 }
 
-func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, pool *pgxpool.Pool) InspectorService {
+func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, pool repository.DBPool) InspectorService {
 	return &InspectorServiceImpl{
 		InspectorRepository:   inspectorRepository,
 		CoordinatorRepository: coordinatorRepository,

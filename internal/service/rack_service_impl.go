@@ -5,16 +5,14 @@ import (
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type RackServiceImpl struct {
 	RackRepository repository.RackRepository
-	Pool           *pgxpool.Pool
+	Pool           repository.DBPool
 }
 
-func NewRackService(rackRepository repository.RackRepository, pool *pgxpool.Pool) RackService {
+func NewRackService(rackRepository repository.RackRepository, pool repository.DBPool) RackService {
 	return &RackServiceImpl{
 		RackRepository: rackRepository,
 		Pool:           pool,
