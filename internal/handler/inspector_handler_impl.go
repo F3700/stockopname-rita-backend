@@ -14,7 +14,7 @@ type InspectorHandlerImpl struct {
 	InspectorService service.InspectorService
 }
 
-func NewInspectorHandler(inspectorService service.InspectorService) *InspectorHandlerImpl {
+func NewInspectorHandler(inspectorService service.InspectorService) InspectorHandler {
 	return &InspectorHandlerImpl{
 		InspectorService: inspectorService,
 	}

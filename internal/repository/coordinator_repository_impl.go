@@ -6,13 +6,17 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CoordinatorRepositoryImpl struct {
+	Pool *pgxpool.Pool
 }
 
-func NewCoordinatorRepository() CoordinatorRepository {
-	return &CoordinatorRepositoryImpl{}
+func NewCoordinatorRepository(pool *pgxpool.Pool) CoordinatorRepository {
+	return &CoordinatorRepositoryImpl{
+		Pool: pool,
+	}
 }
 
 func (c *CoordinatorRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error {
@@ -32,7 +36,7 @@ func (c *CoordinatorRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, coord
 }
 
 // FindAll implements [CoordinatorRepository].
-func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context, tx pgx.Tx) ([]*model.CoordinatorSummary, error) {
+func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context) ([]*model.CoordinatorSummary, error) {
 	const SQL = `
 		SELECT
 			c.coor_id AS id,
@@ -56,7 +60,7 @@ func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context, tx pgx.T
 			c.coor_status
 		ORDER BY c.coor_id;
 	`
-	rows, err := tx.Query(ctx, SQL)
+	rows, err := c.Pool.Query(ctx, SQL)
 	if err != nil {
 		return nil, err
 	}
@@ -76,7 +80,7 @@ func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context, tx pgx.T
 }
 
 // FindById implements [CoordinatorRepository].
-func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, tx pgx.Tx, id int) (*model.CoordinatorSummary, error) {
+func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, id int) (*model.CoordinatorSummary, error) {
 	const SQL = `
 		SELECT
 			c.coor_id AS id,
@@ -101,7 +105,7 @@ func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, tx pgx.
 			c.coor_status
 		ORDER BY c.coor_id;
 	`
-	row := tx.QueryRow(ctx, SQL, id)
+	row := c.Pool.QueryRow(ctx, SQL, id)
 	var coordinatorSummary model.CoordinatorSummary
 	err := row.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.Inspector, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
 	if err != nil {
@@ -113,12 +117,11 @@ func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, tx pgx.
 	return &coordinatorSummary, nil
 }
 
-func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, tx pgx.Tx, id int) (*model.CoordinatorReport, error) {
+func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, id int) (*model.CoordinatorReport, error) {
 	const SQL = `
 		SELECT c.coor_id, c.coor_code, c.coor_status, s.sesi_code,
 			COUNT(DISTINCT i.inspector_id), COUNT(DISTINCT r.rak_id),
-			COUNT(DISTINCT r.rak_id) FILTER (WHERE so.stock_opname_id IS NOT NULL),
-			COUNT(DISTINCT i.inspector_id)
+			COUNT(DISTINCT r.rak_id) FILTER (WHERE so.stock_opname_id IS NOT NULL)
 		FROM coordinator c
 		JOIN sesi s ON s.sesi_id = c.coor_sesi_id
 		LEFT JOIN inspector i ON i.inspector_coor_id = c.coor_id
@@ -128,15 +131,18 @@ func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, tx pgx.T
 		GROUP BY c.coor_id, c.coor_code, c.coor_status, s.sesi_code
 	`
 	var report model.CoordinatorReport
-	err := tx.QueryRow(ctx, SQL, id).Scan(&report.ID, &report.Code, &report.Status, &report.SessionCode, &report.Inspector, &report.RackAssigned, &report.RackCompleted, &report.Inspector)
+	err := c.Pool.QueryRow(ctx, SQL, id).Scan(&report.ID, &report.Code, &report.Status, &report.SessionCode, &report.Inspector, &report.RackAssigned, &report.RackCompleted)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
+		}
 		return nil, err
 	}
 	return &report, nil
 }
 
 // FindBySesiId implements [CoordinatorRepository].
-func (c *CoordinatorRepositoryImpl) FindBySesiIdSummary(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.CoordinatorSummary, error) {
+func (c *CoordinatorRepositoryImpl) FindBySesiIdSummary(ctx context.Context, sesiId int) ([]*model.CoordinatorSummary, error) {
 	const SQL = `
 		SELECT
 			c.coor_id AS id,
@@ -161,7 +167,7 @@ func (c *CoordinatorRepositoryImpl) FindBySesiIdSummary(ctx context.Context, tx 
 			c.coor_status
 		ORDER BY c.coor_id;
 	`
-	rows, err := tx.Query(ctx, SQL, sesiId)
+	rows, err := c.Pool.Query(ctx, SQL, sesiId)
 	if err != nil {
 		return nil, err
 	}
@@ -209,6 +215,9 @@ func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, t
 	var coordinator model.Coordinator
 	err := row.Scan(&coordinator.CoorID, &coordinator.CoorCode, &coordinator.CoorSesiID, &coordinator.CoorStatus)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Coordinator", Detail: "coordinator code does not match any coordinator in the session"}
+		}
 		return nil, err
 	}
 	return &coordinator, nil

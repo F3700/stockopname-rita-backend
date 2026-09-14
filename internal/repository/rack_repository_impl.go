@@ -105,7 +105,7 @@ func (r *RackRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, rack *model.Ra
 		VALUES ($1, $2)
 		RETURNING rak_id
 	`
-	err := r.Pool.QueryRow(ctx, SQL, rack.RackName, rack.InspectorID).Scan(&rack.RackID)
+	err := tx.QueryRow(ctx, SQL, rack.RackName, rack.InspectorID).Scan(&rack.RackID)
 	if err != nil {
 		return model.MapPgError("Rack", err)
 	}

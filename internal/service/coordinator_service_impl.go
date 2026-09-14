@@ -42,21 +42,16 @@ func (c *CoordinatorServiceImpl) Update(ctx context.Context, id int, req *dto.Up
 
 // FindAllSummary implements [CoordinatorService].
 func (c *CoordinatorServiceImpl) FindAllSummary(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error) {
-	tx, err := c.Pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
 	var coordinators []*model.CoordinatorSummary
+	var err error
 
 	if sesiId != nil {
-		coordinators, err = c.CoordinatorRepository.FindBySesiIdSummary(ctx, tx, *sesiId)
+		coordinators, err = c.CoordinatorRepository.FindBySesiIdSummary(ctx, *sesiId)
 		if err != nil {
 			return nil, err
 		}
 	} else {
-		coordinators, err = c.CoordinatorRepository.FindAllSummary(ctx, tx)
+		coordinators, err = c.CoordinatorRepository.FindAllSummary(ctx)
 		if err != nil {
 			return nil, err
 		}
@@ -74,27 +69,13 @@ func (c *CoordinatorServiceImpl) FindAllSummary(ctx context.Context, sesiId *int
 		})
 	}
 
-	if err = tx.Commit(ctx); err != nil {
-		return nil, err
-	}
-
 	return response, nil
 }
 
 // FindByIdSummary implements [CoordinatorService].
 func (c *CoordinatorServiceImpl) FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
-	tx, err := c.Pool.Begin(ctx)
+	coordinator, err := c.CoordinatorRepository.FindByIdSummary(ctx, id)
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
-	coordinator, err := c.CoordinatorRepository.FindByIdSummary(ctx, tx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 
@@ -109,16 +90,8 @@ func (c *CoordinatorServiceImpl) FindByIdSummary(ctx context.Context, id int) (*
 }
 
 func (c *CoordinatorServiceImpl) FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error) {
-	tx, err := c.Pool.Begin(ctx)
+	report, err := c.CoordinatorRepository.FindByIdReport(ctx, id)
 	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-	report, err := c.CoordinatorRepository.FindByIdReport(ctx, tx, id)
-	if err != nil {
-		return nil, err
-	}
-	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
 	return &dto.CoordinatorReportResponse{Coordinator: dto.CoordinatorResponse{ID: report.ID, Code: report.Code, Inspector: report.Inspector, RackAssigned: report.RackAssigned, RackCompleted: report.RackCompleted, Status: report.Status}, SessionCode: report.SessionCode}, nil

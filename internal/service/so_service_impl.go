@@ -86,15 +86,9 @@ func (s *StockOpnameServiceImpl) Delete(ctx context.Context, id int) error {
 
 // FindAll implements [StockOpnameService].
 func (s *StockOpnameServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return nil, err
-	}
-	defer tx.Rollback(ctx)
-
 	offset := (pagination.Page - 1) * pagination.Limit
 
-	stockOpnames, total, err := s.StockOpnameRepository.FindAll(ctx, tx, pagination.Limit, offset, search, sesiId, coorId)
+	stockOpnames, total, err := s.StockOpnameRepository.FindAll(ctx, pagination.Limit, offset, search, sesiId, coorId)
 	if err != nil {
 		return nil, err
 	}

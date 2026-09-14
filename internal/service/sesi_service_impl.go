@@ -31,13 +31,7 @@ func NewSesiService(sesiRepository repository.SesiRepository, coordinatorReposit
 }
 
 func (s *SesiServiceImpl) FindById(ctx context.Context, id int) (dto.SesiResponse, error) {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return dto.SesiResponse{}, err
-	}
-	defer tx.Rollback(ctx)
-
-	sesiModel, err := s.SesiRepository.FindById(ctx, tx, id)
+	sesiModel, err := s.SesiRepository.FindById(ctx, id)
 	if err != nil {
 		return dto.SesiResponse{}, fmt.Errorf("failed to find sesi with id %d: %w", id, err)
 	}
@@ -145,15 +139,9 @@ func (s *SesiServiceImpl) Update(ctx context.Context, id int, req dto.UpdateSesi
 }
 
 func (s *SesiServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.SesiResponse, error) {
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer tx.Rollback(ctx)
-
 	offset := (pagination.Page - 1) * pagination.Limit
 
-	sesiModels, total, err := s.SesiRepository.FindAllInPageSearch(ctx, tx, pagination.Limit, offset, search)
+	sesiModels, total, err := s.SesiRepository.FindAllInPageSearch(ctx, pagination.Limit, offset, search)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find all sesi: %w", err)
 	}

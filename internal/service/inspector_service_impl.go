@@ -16,7 +16,7 @@ type InspectorServiceImpl struct {
 	Pool                  *pgxpool.Pool
 }
 
-func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, pool *pgxpool.Pool) *InspectorServiceImpl {
+func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, pool *pgxpool.Pool) InspectorService {
 	return &InspectorServiceImpl{
 		InspectorRepository:   inspectorRepository,
 		CoordinatorRepository: coordinatorRepository,

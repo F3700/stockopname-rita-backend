@@ -10,9 +10,13 @@ import (
 type NotFoundError struct {
 	Resource string
 	ID       int
+	Detail   string
 }
 
 func (e *NotFoundError) Error() string {
+	if e.Detail != "" {
+		return e.Detail
+	}
 	return fmt.Sprintf("%s with ID %d not found", e.Resource, e.ID)
 }
 

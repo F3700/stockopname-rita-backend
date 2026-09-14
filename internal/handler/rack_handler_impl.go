@@ -14,7 +14,7 @@ type RackHandlerImpl struct {
 	RackService service.RackService
 }
 
-func NewRackHandler(rackService service.RackService) *RackHandlerImpl {
+func NewRackHandler(rackService service.RackService) RackHandler {
 	return &RackHandlerImpl{
 		RackService: rackService,
 	}

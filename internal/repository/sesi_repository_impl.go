@@ -6,13 +6,17 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type SesiRepositoryImpl struct {
+	Pool *pgxpool.Pool
 }
 
-func NewSesiRepository() SesiRepository {
-	return &SesiRepositoryImpl{}
+func NewSesiRepository(pool *pgxpool.Pool) SesiRepository {
+	return &SesiRepositoryImpl{
+		Pool: pool,
+	}
 }
 
 // Delete implements [SesiRepository].
@@ -31,7 +35,7 @@ func (s *SesiRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 	return nil
 }
 
-func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, tx pgx.Tx, limit int, offset int, search string) ([]*model.Sesi, int, error) {
+func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Sesi, int, error) {
 	const SQL = `
 		SELECT sesi_id, sesi_location, sesi_code, sesi_status, sesi_startedat, sesi_endedat
 		FROM sesi
@@ -39,7 +43,7 @@ func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, tx pgx.Tx,
 		ORDER BY sesi_id DESC
 		LIMIT $1 OFFSET $2
 	`
-	rows, err := tx.Query(ctx, SQL, limit, offset, "%"+search+"%")
+	rows, err := s.Pool.Query(ctx, SQL, limit, offset, "%"+search+"%")
 	if err != nil {
 		return nil, 0, err
 	}
@@ -51,7 +55,7 @@ func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, tx pgx.Tx,
 	}
 
 	var total int
-	if err = tx.QueryRow(ctx, `
+	if err = s.Pool.QueryRow(ctx, `
         SELECT COUNT(*)
         FROM sesi
         WHERE sesi_location ILIKE $1 OR sesi_code ILIKE $1
@@ -63,14 +67,14 @@ func (s *SesiRepositoryImpl) FindAllInPageSearch(ctx context.Context, tx pgx.Tx,
 }
 
 // FindById implements [SesiRepository].
-func (s *SesiRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error) {
+func (s *SesiRepositoryImpl) FindById(ctx context.Context, id int) (*model.Sesi, error) {
 	const SQL = `
 		SELECT sesi_id, sesi_location, sesi_code, sesi_status, sesi_startedat, sesi_endedat
 		FROM sesi
 		WHERE sesi_id = $1
 	`
 	var sesi model.Sesi
-	err := tx.QueryRow(ctx, SQL, id).Scan(&sesi.SesiID, &sesi.SesiLocation, &sesi.SesiCode, &sesi.SesiStatus, &sesi.SesiStartedAt, &sesi.SesiEndedAt)
+	err := s.Pool.QueryRow(ctx, SQL, id).Scan(&sesi.SesiID, &sesi.SesiLocation, &sesi.SesiCode, &sesi.SesiStatus, &sesi.SesiStartedAt, &sesi.SesiEndedAt)
 
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -100,15 +104,19 @@ func (s *SesiRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, sesi *model.Se
 
 // Update implements [SesiRepository].
 func (s *SesiRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error {
+	var exists bool
+	if err := tx.QueryRow(ctx, `SELECT EXISTS(SELECT 1 FROM sesi WHERE sesi_id = $1)`, sesi.SesiID).Scan(&exists); err != nil {
+		return err
+	}
+	if !exists {
+		return &model.NotFoundError{Resource: "Session", ID: sesi.SesiID}
+	}
+
 	const SQL = `
 		SELECT update_sesi_status($1, $2)
 	`
-	result, err := tx.Exec(ctx, SQL, sesi.SesiID, sesi.SesiStatus)
-	if err != nil {
+	if _, err := tx.Exec(ctx, SQL, sesi.SesiID, sesi.SesiStatus); err != nil {
 		return model.MapPgError("Session", err)
-	}
-	if result.RowsAffected() == 0 {
-		return &model.NotFoundError{Resource: "Session", ID: sesi.SesiID}
 	}
 	return nil
 }

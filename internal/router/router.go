@@ -28,11 +28,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	categoryService := service.NewCategoryService(categoryRepository, pool, validate)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 
-	coordinatorRepository := repository.NewCoordinatorRepository()
+	coordinatorRepository := repository.NewCoordinatorRepository(pool)
 	coordinatorService := service.NewCoordinatorService(coordinatorRepository, pool)
 	coordinatorHandler := handler.NewCoordinatorHandler(coordinatorService)
 
-	sesiRepository := repository.NewSesiRepository()
+	sesiRepository := repository.NewSesiRepository(pool)
 	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, pool, validate)
 	sesiHandler := handler.NewSesiHandler(sesiService)
 
@@ -44,7 +44,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	inspectorService := service.NewInspectorService(inspectorRepository, coordinatorRepository, rackRepository, pool)
 	inspectorHandler := handler.NewInspectorHandler(inspectorService)
 
-	stockOpnameRepository := repository.NewStockOpnameRepository()
+	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
 	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, pool, validate)
 	stockOpnameHandler := handler.NewStockOpnameHandler(stockOpnameService)
 	reportService := service.NewReportService(sesiService, coordinatorService, inspectorService, stockOpnameService)

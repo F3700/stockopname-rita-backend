@@ -14,7 +14,7 @@ type RackServiceImpl struct {
 	Pool           *pgxpool.Pool
 }
 
-func NewRackService(rackRepository repository.RackRepository, pool *pgxpool.Pool) *RackServiceImpl {
+func NewRackService(rackRepository repository.RackRepository, pool *pgxpool.Pool) RackService {
 	return &RackServiceImpl{
 		RackRepository: rackRepository,
 		Pool:           pool,

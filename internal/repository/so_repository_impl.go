@@ -2,16 +2,21 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type StockOpnameRepositoryImpl struct {
+	Pool *pgxpool.Pool
 }
 
-func NewStockOpnameRepository() StockOpnameRepository {
-	return &StockOpnameRepositoryImpl{}
+func NewStockOpnameRepository(pool *pgxpool.Pool) StockOpnameRepository {
+	return &StockOpnameRepositoryImpl{
+		Pool: pool,
+	}
 }
 
 // Delete implements [StockOpnameRepository].
@@ -32,7 +37,7 @@ func (s *StockOpnameRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id in
 }
 
 // FindAll implements [StockOpnameRepository].
-func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, tx pgx.Tx, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
+func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
 	const SQL = `
 		SELECT
 			so.stock_opname_id AS id,
@@ -59,7 +64,7 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, tx pgx.Tx, limi
 		LIMIT $4 OFFSET $5;
 	`
 
-	rows, err := tx.Query(ctx, SQL, coorId, sesiId, "%"+search+"%", limit, offset)
+	rows, err := s.Pool.Query(ctx, SQL, coorId, sesiId, "%"+search+"%", limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -87,7 +92,7 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, tx pgx.Tx, limi
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
 		AND (p.product_barcode ILIKE $3 OR p.product_name ILIKE $3)
 	`
-	if err := tx.QueryRow(ctx, countSQL, coorId, sesiId, "%"+search+"%").Scan(&total); err != nil {
+	if err := s.Pool.QueryRow(ctx, countSQL, coorId, sesiId, "%"+search+"%").Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -127,6 +132,9 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 	var stockOpname model.StockOpnameSummary
 	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.RackName, &stockOpname.InspectorCode, &stockOpname.CoordinatorCode, &stockOpname.UpdatedAt)
 	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Stock Opname", ID: id}
+		}
 		return nil, err
 	}
 
