@@ -215,7 +215,7 @@ func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, t
 	err := row.Scan(&coordinator.CoorID, &coordinator.CoorCode, &coordinator.CoorSesiID, &coordinator.CoorStatus)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &model.NotFoundError{Resource: "Coordinator", Detail: "coordinator code does not match any coordinator in the session"}
+			return nil, &model.NotFoundError{Resource: "Coordinator or Session Code", Detail: "coordinator or session code does not match any coordinator in the session"}
 		}
 		return nil, err
 	}
