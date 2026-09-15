@@ -67,6 +67,13 @@ func (i *InspectorServiceImpl) CreateInspector(ctx context.Context, request dto.
 		return dto.InspectorJoinResponse{}, err
 	}
 
+	if coordinator.CoorStatus != "IN_PROGRESS" {
+		return dto.InspectorJoinResponse{}, &model.ConflictError{
+			Resource: "Coordinator",
+			Detail:   "Coordinator is not active",
+		}
+	}
+
 	inspectorModel := model.Inspector{
 		InspectorCode: request.InspectorCode,
 		CoordinatorID: coordinator.CoorID,
