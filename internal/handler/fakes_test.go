@@ -51,6 +51,7 @@ func (f *fakeCategoryService) Delete(ctx context.Context, id int) error {
 
 type fakeCoordinatorService struct {
 	findByIdSummaryFunc func(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
+	findByIdDetailFunc  func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	findByIdReportFunc  func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 	findAllSummaryFunc  func(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
 	updateFunc          func(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error
@@ -58,6 +59,13 @@ type fakeCoordinatorService struct {
 
 func (f *fakeCoordinatorService) FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
 	return f.findByIdSummaryFunc(ctx, id)
+}
+
+func (f *fakeCoordinatorService) FindByIdDetail(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
+	if f.findByIdDetailFunc == nil {
+		return nil, nil
+	}
+	return f.findByIdDetailFunc(ctx, id)
 }
 
 func (f *fakeCoordinatorService) FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error) {
@@ -109,8 +117,9 @@ func (f *fakeDepartmentService) Update(ctx context.Context, id int, req dto.Depa
 }
 
 type fakeInspectorService struct {
-	findAllSummaryFunc func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error)
-	createFunc         func(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error)
+	findAllSummaryFunc        func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error)
+	createFunc                func(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error)
+	createByCoordinatorQRFunc func(ctx context.Context, request dto.InspectorJoinByCoordinatorQRRequest) (dto.InspectorJoinResponse, error)
 }
 
 func (f *fakeInspectorService) FindAllSummary(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error) {
@@ -119,6 +128,13 @@ func (f *fakeInspectorService) FindAllSummary(ctx context.Context, coorId *int) 
 
 func (f *fakeInspectorService) CreateInspector(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error) {
 	return f.createFunc(ctx, request)
+}
+
+func (f *fakeInspectorService) CreateInspectorByCoordinatorQR(ctx context.Context, request dto.InspectorJoinByCoordinatorQRRequest) (dto.InspectorJoinResponse, error) {
+	if f.createByCoordinatorQRFunc == nil {
+		return dto.InspectorJoinResponse{}, nil
+	}
+	return f.createByCoordinatorQRFunc(ctx, request)
 }
 
 type fakeProductService struct {

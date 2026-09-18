@@ -74,3 +74,29 @@ func (i *InspectorHandlerImpl) CreateInspector(writer http.ResponseWriter, req *
 		return
 	}
 }
+
+// CreateInspectorByCoordinatorQR joins a coordinator by scanning its QR code.
+// Mobile only sends coordinator_qr + inspector_code + rak.
+func (i *InspectorHandlerImpl) CreateInspectorByCoordinatorQR(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	var joinRequest dto.InspectorJoinByCoordinatorQRRequest
+	if err := helper.ReadFromRequestBody(req, &joinRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	inspector, err := i.InspectorService.CreateInspectorByCoordinatorQR(req.Context(), joinRequest)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Inspector created successfully",
+		Data:    inspector,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusCreated, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to send response", err)
+		return
+	}
+}

@@ -91,6 +91,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.GET("/stockopname/inspectors", inspectorHandler.GetInspectors)
 	router.POST("/stockopname/inspectors", inspectorHandler.CreateInspector)
+	router.POST("/stockopname/inspectors/join-by-coordinator-qr", inspectorHandler.CreateInspectorByCoordinatorQR)
 
 	router.GET("/stockopname/racks/progress", rackHandler.GetRackProgress)
 	router.GET("/stockopname/racks", rackHandler.GetRacks)

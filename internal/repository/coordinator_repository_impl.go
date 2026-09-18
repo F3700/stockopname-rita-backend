@@ -116,6 +116,47 @@ func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, id int)
 	return &coordinatorSummary, nil
 }
 
+func (c *CoordinatorRepositoryImpl) FindByIdDetail(ctx context.Context, id int) (*model.CoordinatorDetail, error) {
+	const SQL = `
+		SELECT
+			c.coor_id AS id,
+			c.coor_code AS code,
+			s.sesi_code AS session_code,
+			s.sesi_location AS session_location,
+			COUNT(DISTINCT i.inspector_id) AS inspector,
+			COUNT(DISTINCT r.rak_id) AS rack_assigned,
+			COUNT(DISTINCT r.rak_id) FILTER (
+				WHERE so.stock_opname_id IS NOT NULL
+			) AS rack_completed,
+			c.coor_status AS status
+		FROM coordinator c
+		JOIN sesi s ON s.sesi_id = c.coor_sesi_id
+		LEFT JOIN inspector i
+			ON i.inspector_coor_id = c.coor_id
+		LEFT JOIN rak r
+			ON r.rak_inspector_id = i.inspector_id
+		LEFT JOIN stock_opname so
+			ON so.stock_opname_rak_id = r.rak_id
+		WHERE c.coor_id = $1
+		GROUP BY
+			c.coor_id,
+			c.coor_code,
+			c.coor_status,
+			s.sesi_code,
+			s.sesi_location;
+	`
+	row := c.Pool.QueryRow(ctx, SQL, id)
+	var detail model.CoordinatorDetail
+	err := row.Scan(&detail.ID, &detail.Code, &detail.SessionCode, &detail.SessionLocation, &detail.Inspector, &detail.RackAssigned, &detail.RackCompleted, &detail.Status)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
+		}
+		return nil, err
+	}
+	return &detail, nil
+}
+
 func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, id int) (*model.CoordinatorReport, error) {
 	const SQL = `
 		SELECT c.coor_id, c.coor_code, c.coor_status, s.sesi_code,
@@ -196,6 +237,28 @@ func (c *CoordinatorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, coordin
 		return model.MapPgError("Coordinator", err)
 	}
 	return nil
+}
+
+func (c *CoordinatorRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Coordinator, error) {
+	const SQL = `
+		SELECT
+			coor_id       AS id,
+			coor_code     AS code,
+			coor_sesi_id  AS sesi_id,
+			coor_status   AS status
+		FROM coordinator
+		WHERE coor_id = $1;
+	`
+	row := tx.QueryRow(ctx, SQL, id)
+	var coordinator model.Coordinator
+	err := row.Scan(&coordinator.CoorID, &coordinator.CoorCode, &coordinator.CoorSesiID, &coordinator.CoorStatus)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
+		}
+		return nil, err
+	}
+	return &coordinator, nil
 }
 
 func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {
