@@ -1091,7 +1091,7 @@
       "get": {
         "tags": ["Stock Opname Coordinator"],
         "summary": "Get a specific coordinator for a stock opname session",
-        "description": "Retrieve details of a specific coordinator by its ID.",
+        "description": "Retrieve details of a specific coordinator by its ID, including parent session code and location for scan-QR join preview.",
         "parameters": [
           {
             "name": "id",
@@ -1116,13 +1116,14 @@
                       "example": "Coordinator retrieved successfully"
                     },
                     "data": {
-                      "$ref": "#/components/schemas/Coordinator"
+                      "$ref": "#/components/schemas/CoordinatorDetail"
                     }
                   }
                 }
               }
             }
           },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1305,6 +1306,88 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
+        }
+      }
+    },
+    "/stockopname/inspectors/join-by-coordinator-qr": {
+      "post": {
+        "tags": ["Stock Opname Inspector"],
+        "summary": "Join a coordinator by scanning its QR code",
+        "description": "Create a new inspector for a coordinator by scanning its QR code (e.g. RITA-COOR-12) instead of typing sesi_code and coor_code manually. Mobile only sends coordinator_qr, inspector_code and rak.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "coordinator_qr": {
+                    "type": "string",
+                    "example": "RITA-COOR-12"
+                  },
+                  "inspector_code": {
+                    "type": "string",
+                    "example": "INSPECTOR1"
+                  },
+                  "rak": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    },
+                    "example": ["RAK1", "RAK2"]
+                  }
+                },
+                "required": ["coordinator_qr", "inspector_code", "rak"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Inspector created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Inspector created successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "inspector_id": {
+                          "type": "integer",
+                          "example": 132
+                        },
+                        "rak": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "integer",
+                                "example": 1
+                              },
+                              "name": {
+                                "type": "string",
+                                "example": "RAK1"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/BadRequest" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": { "$ref": "#/components/responses/Conflict" },
+          "500": { "$ref": "#/components/responses/InternalServerError" }
         }
       }
     },
@@ -2162,6 +2245,24 @@
             "example": "IN_PROGRESS"
           }
         }
+      },
+      "CoordinatorDetail": {
+        "allOf": [
+          { "$ref": "#/components/schemas/Coordinator" },
+          {
+            "type": "object",
+            "properties": {
+              "sessionCode": {
+                "type": "string",
+                "example": "SO-14-08-2026-01"
+              },
+              "sessionLocation": {
+                "type": "string",
+                "example": "Gudang A"
+              }
+            }
+          }
+        ]
       },
       "Inspector": {
         "type": "object",

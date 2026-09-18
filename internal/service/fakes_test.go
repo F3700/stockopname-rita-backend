@@ -72,8 +72,10 @@ type fakeCoordinatorRepository struct {
 	findBySesiIdSummaryFn  func(ctx context.Context, sesiId int) ([]*model.CoordinatorSummary, error)
 	findByIdSummaryFunc    func(ctx context.Context, id int) (*model.CoordinatorSummary, error)
 	findByIdReportFunc     func(ctx context.Context, id int) (*model.CoordinatorReport, error)
+	findByIdDetailFunc     func(ctx context.Context, id int) (*model.CoordinatorDetail, error)
 	updateFunc             func(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error
 	findBySesiAndCoorCodeF func(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error)
+	findByIdFunc           func(ctx context.Context, tx pgx.Tx, id int) (*model.Coordinator, error)
 }
 
 func (f *fakeCoordinatorRepository) Save(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error {
@@ -96,12 +98,26 @@ func (f *fakeCoordinatorRepository) FindByIdReport(ctx context.Context, id int) 
 	return f.findByIdReportFunc(ctx, id)
 }
 
+func (f *fakeCoordinatorRepository) FindByIdDetail(ctx context.Context, id int) (*model.CoordinatorDetail, error) {
+	if f.findByIdDetailFunc == nil {
+		return nil, nil
+	}
+	return f.findByIdDetailFunc(ctx, id)
+}
+
 func (f *fakeCoordinatorRepository) Update(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error {
 	return f.updateFunc(ctx, tx, coordinator)
 }
 
 func (f *fakeCoordinatorRepository) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {
 	return f.findBySesiAndCoorCodeF(ctx, tx, sesiCode, coorCode)
+}
+
+func (f *fakeCoordinatorRepository) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Coordinator, error) {
+	if f.findByIdFunc == nil {
+		return nil, nil
+	}
+	return f.findByIdFunc(ctx, tx, id)
 }
 
 type fakeDeletedProductRepository struct {
@@ -325,11 +341,19 @@ func (f *fakeSesiService) FindAll(ctx context.Context, pagination *dto.Paginatio
 type fakeCoordinatorService struct {
 	findAllSummaryFunc  func(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
 	findByIdSummaryFunc func(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
+	findByIdDetailFunc  func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	findByIdReportFunc  func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 }
 
 func (f *fakeCoordinatorService) FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
 	return f.findByIdSummaryFunc(ctx, id)
+}
+
+func (f *fakeCoordinatorService) FindByIdDetail(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
+	if f.findByIdDetailFunc == nil {
+		return nil, nil
+	}
+	return f.findByIdDetailFunc(ctx, id)
 }
 
 func (f *fakeCoordinatorService) FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error) {
@@ -353,6 +377,10 @@ func (f *fakeInspectorService) FindAllSummary(ctx context.Context, coorId *int) 
 }
 
 func (f *fakeInspectorService) CreateInspector(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error) {
+	return dto.InspectorJoinResponse{}, nil
+}
+
+func (f *fakeInspectorService) CreateInspectorByCoordinatorQR(ctx context.Context, request dto.InspectorJoinByCoordinatorQRRequest) (dto.InspectorJoinResponse, error) {
 	return dto.InspectorJoinResponse{}, nil
 }
 

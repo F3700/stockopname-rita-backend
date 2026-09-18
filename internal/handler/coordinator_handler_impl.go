@@ -57,7 +57,7 @@ func (c *CoordinatorHandlerImpl) GetCoordinatorById(writer http.ResponseWriter, 
 		return
 	}
 
-	coordinator, err := c.CoordinatorService.FindByIdSummary(req.Context(), id)
+	coordinator, err := c.CoordinatorService.FindByIdDetail(req.Context(), id)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return

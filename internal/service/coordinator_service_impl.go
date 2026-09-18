@@ -87,6 +87,25 @@ func (c *CoordinatorServiceImpl) FindByIdSummary(ctx context.Context, id int) (*
 	}, nil
 }
 
+// FindByIdDetail implements [CoordinatorService].
+func (c *CoordinatorServiceImpl) FindByIdDetail(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
+	coordinator, err := c.CoordinatorRepository.FindByIdDetail(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &dto.CoordinatorDetailResponse{
+		ID:              coordinator.ID,
+		Code:            coordinator.Code,
+		Inspector:       coordinator.Inspector,
+		RackAssigned:    coordinator.RackAssigned,
+		RackCompleted:   coordinator.RackCompleted,
+		Status:          coordinator.Status,
+		SessionCode:     coordinator.SessionCode,
+		SessionLocation: coordinator.SessionLocation,
+	}, nil
+}
+
 func (c *CoordinatorServiceImpl) FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error) {
 	report, err := c.CoordinatorRepository.FindByIdReport(ctx, id)
 	if err != nil {

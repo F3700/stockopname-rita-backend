@@ -75,11 +75,11 @@ func TestUpdateCoordinatorServiceError(t *testing.T) {
 
 func TestGetCoordinatorById(t *testing.T) {
 	h := NewCoordinatorHandler(&fakeCoordinatorService{
-		findByIdSummaryFunc: func(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
+		findByIdDetailFunc: func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
 			if id != 5 {
 				t.Errorf("expected id 5, got %d", id)
 			}
-			return &dto.CoordinatorResponse{ID: 5, Code: "KOR-01"}, nil
+			return &dto.CoordinatorDetailResponse{ID: 5, Code: "KOR-01", SessionCode: "SESI-01", SessionLocation: "Gudang A"}, nil
 		},
 	})
 
@@ -97,7 +97,7 @@ func TestGetCoordinatorById(t *testing.T) {
 
 func TestGetCoordinatorByIdServiceError(t *testing.T) {
 	h := NewCoordinatorHandler(&fakeCoordinatorService{
-		findByIdSummaryFunc: func(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
+		findByIdDetailFunc: func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
 			return nil, errors.New("boom")
 		},
 	})
