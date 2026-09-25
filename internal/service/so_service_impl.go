@@ -9,19 +9,53 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
+	"github.com/jackc/pgx/v5"
 )
 
 type StockOpnameServiceImpl struct {
 	Pool                  repository.DBPool
 	StockOpnameRepository repository.StockOpnameRepository
+	ProductRepository     repository.ProductRepository
 	Validator             *validator.Validate
 }
 
-func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, pool repository.DBPool, validate *validator.Validate) StockOpnameService {
+func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, productRepository repository.ProductRepository, pool repository.DBPool, validate *validator.Validate) StockOpnameService {
 	return &StockOpnameServiceImpl{
 		Pool:                  pool,
 		StockOpnameRepository: stockOpnameRepository,
+		ProductRepository:     productRepository,
 		Validator:             validate,
+	}
+}
+
+// resolveProduct finds the master product by scanned barcode or PLU.
+func (s *StockOpnameServiceImpl) resolveProduct(ctx context.Context, tx pgx.Tx, barcode string, plu string) (*model.Product, error) {
+	if barcode != "" {
+		return s.ProductRepository.FindByBarcode(ctx, tx, barcode)
+	}
+	if plu != "" {
+		return s.ProductRepository.FindByPLU(ctx, tx, plu)
+	}
+	return nil, &model.ValidationError{Detail: "barcode or plu is required"}
+}
+
+// snapshot builds the immutable history row from the resolved product.
+// soBarcode is the actually scanned barcode (may differ from the
+// product's primary barcode); it falls back to the primary barcode
+// (or "" for products without any barcode) on PLU-based input.
+func snapshot(quantity int, rakID int, product *model.Product, scannedBarcode string) *model.StockOpname {
+	soBarcode := scannedBarcode
+	if soBarcode == "" {
+		soBarcode = product.PrimaryBarcode()
+	}
+	return &model.StockOpname{
+		StockOpnameQuantity: quantity,
+		StockOpnameRakID:    rakID,
+		SoProductPLU:        product.ProductPLU,
+		SoProductName:       product.ProductName,
+		SoBarcode:           soBarcode,
+		SoBuyPrice:          product.ProductBuyPrice,
+		SoSellPrice:         product.ProductSellPrice,
 	}
 }
 
@@ -30,6 +64,9 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 	if err := s.Validator.Struct(req); err != nil {
 		return dto.StockOpnameResponse{}, err
 	}
+	if req.Barcode == "" && req.PLU == "" {
+		return dto.StockOpnameResponse{}, &model.ValidationError{Detail: "barcode or plu is required"}
+	}
 
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -37,11 +74,12 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 	}
 	defer tx.Rollback(ctx)
 
-	modelSO := &model.StockOpname{
-		StockOpnameQuantity:  req.Quantity,
-		StockOpnameProductID: req.ProductID,
-		StockOpnameRakID:     req.RakID,
+	product, err := s.resolveProduct(ctx, tx, req.Barcode, req.PLU)
+	if err != nil {
+		return dto.StockOpnameResponse{}, err
 	}
+
+	modelSO := snapshot(req.Quantity, req.RakID, product, req.Barcode)
 
 	if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
 		return dto.StockOpnameResponse{}, err
@@ -179,6 +217,11 @@ func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.Creat
 	if err := s.Validator.Struct(req); err != nil {
 		return err
 	}
+	for _, item := range req.Items {
+		if item.Barcode == "" && item.PLU == "" {
+			return &model.ValidationError{Detail: "barcode or plu is required"}
+		}
+	}
 
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -187,11 +230,11 @@ func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.Creat
 	defer tx.Rollback(ctx)
 
 	for _, item := range req.Items {
-		modelSO := &model.StockOpname{
-			StockOpnameQuantity:  item.Quantity,
-			StockOpnameProductID: item.ProductID,
-			StockOpnameRakID:     req.RackID,
+		product, err := s.resolveProduct(ctx, tx, item.Barcode, item.PLU)
+		if err != nil {
+			return err
 		}
+		modelSO := snapshot(item.Quantity, req.RackID, product, item.Barcode)
 		if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
 			return err
 		}

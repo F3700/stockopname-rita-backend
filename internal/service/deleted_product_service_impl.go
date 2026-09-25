@@ -39,7 +39,7 @@ func (d *DeletedProductServiceImpl) FindAll(ctx context.Context, date *time.Time
 
 		for _, product := range products {
 			response := dto.DeletedProductResponse{
-				ProductID: product.ProductID,
+				ProductPLU: product.ProductPLU,
 			}
 			deletedProducts = append(deletedProducts, response)
 		}
@@ -52,7 +52,7 @@ func (d *DeletedProductServiceImpl) FindAll(ctx context.Context, date *time.Time
 	}
 	for _, product := range products {
 		response := dto.DeletedProductResponse{
-			ProductID: product.ProductID,
+			ProductPLU: product.ProductPLU,
 		}
 		deletedProducts = append(deletedProducts, response)
 	}

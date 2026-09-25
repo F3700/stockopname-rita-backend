@@ -13,10 +13,9 @@ import (
 	"stockopname-rita-backend/internal/repository"
 )
 
-var _ repository.CategoryRepository = (*fakeCategoryRepository)(nil)
+var _ repository.BarcodeRepository = (*fakeBarcodeRepository)(nil)
 var _ repository.CoordinatorRepository = (*fakeCoordinatorRepository)(nil)
 var _ repository.DeletedProductRepository = (*fakeDeletedProductRepository)(nil)
-var _ repository.DepartmentRepository = (*fakeDepartmentRepository)(nil)
 var _ repository.InspectorRepository = (*fakeInspectorRepository)(nil)
 var _ repository.ProductRepository = (*fakeProductRepository)(nil)
 var _ repository.RackRepository = (*fakeRackRepository)(nil)
@@ -33,37 +32,23 @@ func newTestValidator(t *testing.T) *validator.Validate {
 	return validator.New()
 }
 
-type fakeCategoryRepository struct {
-	saveFunc              func(ctx context.Context, tx pgx.Tx, category *model.Category) error
-	findAllFunc           func(ctx context.Context) ([]*model.Category, error)
-	findAllInPageSearchFn func(ctx context.Context, limit int, offset int, search string) ([]*model.Category, int, error)
-	findByIdFn            func(ctx context.Context, tx pgx.Tx, id int) (*model.Category, error)
-	updateFunc            func(ctx context.Context, tx pgx.Tx, category *model.Category) error
-	deleteFunc            func(ctx context.Context, tx pgx.Tx, id int) error
+type fakeBarcodeRepository struct {
+	saveBatchFunc func(ctx context.Context, tx pgx.Tx, productID int, codes []string) error
+	replaceFunc   func(ctx context.Context, tx pgx.Tx, productID int, codes []string) error
 }
 
-func (f *fakeCategoryRepository) Save(ctx context.Context, tx pgx.Tx, category *model.Category) error {
-	return f.saveFunc(ctx, tx, category)
+func (f *fakeBarcodeRepository) SaveBatch(ctx context.Context, tx pgx.Tx, productID int, codes []string) error {
+	if f.saveBatchFunc == nil {
+		return nil
+	}
+	return f.saveBatchFunc(ctx, tx, productID, codes)
 }
 
-func (f *fakeCategoryRepository) FindAll(ctx context.Context) ([]*model.Category, error) {
-	return f.findAllFunc(ctx)
-}
-
-func (f *fakeCategoryRepository) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Category, int, error) {
-	return f.findAllInPageSearchFn(ctx, limit, offset, search)
-}
-
-func (f *fakeCategoryRepository) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Category, error) {
-	return f.findByIdFn(ctx, tx, id)
-}
-
-func (f *fakeCategoryRepository) Update(ctx context.Context, tx pgx.Tx, category *model.Category) error {
-	return f.updateFunc(ctx, tx, category)
-}
-
-func (f *fakeCategoryRepository) Delete(ctx context.Context, tx pgx.Tx, id int) error {
-	return f.deleteFunc(ctx, tx, id)
+func (f *fakeBarcodeRepository) Replace(ctx context.Context, tx pgx.Tx, productID int, codes []string) error {
+	if f.replaceFunc == nil {
+		return nil
+	}
+	return f.replaceFunc(ctx, tx, productID, codes)
 }
 
 type fakeCoordinatorRepository struct {
@@ -121,14 +106,14 @@ func (f *fakeCoordinatorRepository) FindById(ctx context.Context, tx pgx.Tx, id 
 }
 
 type fakeDeletedProductRepository struct {
-	saveFunc                func(ctx context.Context, tx pgx.Tx, id int) error
+	saveFunc                func(ctx context.Context, tx pgx.Tx, plu string) error
 	deleteFunc              func(ctx context.Context) error
 	findAllFunc             func(ctx context.Context) ([]*model.DeletedProduct, error)
 	findAllUpdatedAfterFunc func(ctx context.Context, date time.Time) ([]*model.DeletedProduct, error)
 }
 
-func (f *fakeDeletedProductRepository) Save(ctx context.Context, tx pgx.Tx, id int) error {
-	return f.saveFunc(ctx, tx, id)
+func (f *fakeDeletedProductRepository) Save(ctx context.Context, tx pgx.Tx, plu string) error {
+	return f.saveFunc(ctx, tx, plu)
 }
 
 func (f *fakeDeletedProductRepository) Delete(ctx context.Context) error {
@@ -141,39 +126,6 @@ func (f *fakeDeletedProductRepository) FindAll(ctx context.Context) ([]*model.De
 
 func (f *fakeDeletedProductRepository) FindAllUpdatedAfter(ctx context.Context, date time.Time) ([]*model.DeletedProduct, error) {
 	return f.findAllUpdatedAfterFunc(ctx, date)
-}
-
-type fakeDepartmentRepository struct {
-	saveFunc              func(ctx context.Context, tx pgx.Tx, department *model.Department) error
-	updateFunc            func(ctx context.Context, tx pgx.Tx, department *model.Department) error
-	deleteFunc            func(ctx context.Context, tx pgx.Tx, id int) error
-	findAllFunc           func(ctx context.Context) ([]*model.Department, error)
-	findAllInPageSearchFn func(ctx context.Context, limit int, offset int, search string) ([]*model.Department, int, error)
-	findByIdFn            func(ctx context.Context, tx pgx.Tx, id int) (*model.Department, error)
-}
-
-func (f *fakeDepartmentRepository) Save(ctx context.Context, tx pgx.Tx, department *model.Department) error {
-	return f.saveFunc(ctx, tx, department)
-}
-
-func (f *fakeDepartmentRepository) Update(ctx context.Context, tx pgx.Tx, department *model.Department) error {
-	return f.updateFunc(ctx, tx, department)
-}
-
-func (f *fakeDepartmentRepository) Delete(ctx context.Context, tx pgx.Tx, id int) error {
-	return f.deleteFunc(ctx, tx, id)
-}
-
-func (f *fakeDepartmentRepository) FindAll(ctx context.Context) ([]*model.Department, error) {
-	return f.findAllFunc(ctx)
-}
-
-func (f *fakeDepartmentRepository) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Department, int, error) {
-	return f.findAllInPageSearchFn(ctx, limit, offset, search)
-}
-
-func (f *fakeDepartmentRepository) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Department, error) {
-	return f.findByIdFn(ctx, tx, id)
 }
 
 type fakeInspectorRepository struct {
@@ -198,11 +150,14 @@ type fakeProductRepository struct {
 	saveFunc                func(ctx context.Context, tx pgx.Tx, product *model.Product) error
 	updateFunc              func(ctx context.Context, tx pgx.Tx, product *model.Product) error
 	deleteFunc              func(ctx context.Context, tx pgx.Tx, id int) error
-	findAllFunc             func(ctx context.Context) ([]*model.Product, error)
+	clearFunc               func(ctx context.Context, tx pgx.Tx) error
 	findAllInPageSearchFn   func(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error)
 	findAllUpdatedAfterFunc func(ctx context.Context, date time.Time, limit int, offset int) ([]*model.Product, int, error)
 	findAllLastSessionFunc  func(ctx context.Context, limit int) ([]*model.ProductLastSession, error)
+	findAllForImportFunc    func(ctx context.Context, tx pgx.Tx) ([]*model.Product, error)
 	findByIdFn              func(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error)
+	findByPLUFn             func(ctx context.Context, tx pgx.Tx, plu string) (*model.Product, error)
+	findByBarcodeFn         func(ctx context.Context, tx pgx.Tx, code string) (*model.Product, error)
 }
 
 func (f *fakeProductRepository) Save(ctx context.Context, tx pgx.Tx, product *model.Product) error {
@@ -217,8 +172,20 @@ func (f *fakeProductRepository) Delete(ctx context.Context, tx pgx.Tx, id int) e
 	return f.deleteFunc(ctx, tx, id)
 }
 
-func (f *fakeProductRepository) FindAll(ctx context.Context) ([]*model.Product, error) {
-	return f.findAllFunc(ctx)
+func (f *fakeProductRepository) Clear(ctx context.Context, tx pgx.Tx) error {
+	return f.clearFunc(ctx, tx)
+}
+
+func (f *fakeProductRepository) FindAllForImport(ctx context.Context, tx pgx.Tx) ([]*model.Product, error) {
+	return f.findAllForImportFunc(ctx, tx)
+}
+
+func (f *fakeProductRepository) FindByPLU(ctx context.Context, tx pgx.Tx, plu string) (*model.Product, error) {
+	return f.findByPLUFn(ctx, tx, plu)
+}
+
+func (f *fakeProductRepository) FindByBarcode(ctx context.Context, tx pgx.Tx, code string) (*model.Product, error) {
+	return f.findByBarcodeFn(ctx, tx, code)
 }
 
 func (f *fakeProductRepository) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error) {
@@ -284,11 +251,11 @@ func (f *fakeSesiRepository) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 }
 
 type fakeStockOpnameRepository struct {
-	saveFunc    func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
-	findByIdFn  func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
-	findAllFunc func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error)
-	updateFunc  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
-	deleteFunc  func(ctx context.Context, tx pgx.Tx, id int) error
+	saveFunc             func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	findByIdFn           func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
+	findAllFunc          func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error)
+	updateFunc           func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	deleteFunc           func(ctx context.Context, tx pgx.Tx, id int) error
 	findAllForExportFunc func(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error)
 }
 

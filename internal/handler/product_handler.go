@@ -13,4 +13,6 @@ type ProductHandler interface {
 	CreateProduct(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	UpdateProduct(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	DeleteProduct(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
+	ImportProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
+	ClearProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 }

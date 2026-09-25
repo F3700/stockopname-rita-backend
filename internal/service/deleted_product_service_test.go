@@ -33,7 +33,7 @@ func TestDeletedProductFindAllWithoutDate(t *testing.T) {
 	afterCalled := false
 	svc := NewDeletedProductService(&fakeDeletedProductRepository{
 		findAllFunc: func(ctx context.Context) ([]*model.DeletedProduct, error) {
-			return []*model.DeletedProduct{{ProductID: 1}, {ProductID: 2}}, nil
+			return []*model.DeletedProduct{{ProductPLU: "100251"}, {ProductPLU: "100252"}}, nil
 		},
 		findAllUpdatedAfterFunc: func(ctx context.Context, date time.Time) ([]*model.DeletedProduct, error) {
 			afterCalled = true
@@ -48,7 +48,7 @@ func TestDeletedProductFindAllWithoutDate(t *testing.T) {
 	if afterCalled {
 		t.Error("FindAllUpdatedAfter must not be called without date")
 	}
-	if len(responses) != 2 || responses[0].ProductID != 1 || responses[1].ProductID != 2 {
+	if len(responses) != 2 || responses[0].ProductPLU != "100251" || responses[1].ProductPLU != "100252" {
 		t.Errorf("unexpected responses %+v", responses)
 	}
 }
@@ -65,7 +65,7 @@ func TestDeletedProductFindAllWithDate(t *testing.T) {
 			if !got.Equal(date) {
 				t.Errorf("expected date %v, got %v", date, got)
 			}
-			return []*model.DeletedProduct{{ProductID: 7}}, nil
+			return []*model.DeletedProduct{{ProductPLU: "100251"}}, nil
 		},
 	})
 
@@ -76,7 +76,7 @@ func TestDeletedProductFindAllWithDate(t *testing.T) {
 	if allCalled {
 		t.Error("FindAll must not be called with date")
 	}
-	if len(responses) != 1 || responses[0].ProductID != 7 {
+	if len(responses) != 1 || responses[0].ProductPLU != "100251" {
 		t.Errorf("unexpected responses %+v", responses)
 	}
 }

@@ -15,12 +15,12 @@ func TestMapPgError(t *testing.T) {
 	}{
 		{
 			name:     "unique violation mapped",
-			pgErr:    &pgconn.PgError{Code: "23505", ConstraintName: "product_product_barcode_key"},
+			pgErr:    &pgconn.PgError{Code: "23505", ConstraintName: "product_product_plu_key"},
 			wantType: &ConflictError{},
 		},
 		{
 			name:     "foreign key violation mapped",
-			pgErr:    &pgconn.PgError{Code: "23503", ConstraintName: "fk_product_category_id"},
+			pgErr:    &pgconn.PgError{Code: "23503", ConstraintName: "fk_barcode_product"},
 			wantType: &ForeignKeyError{},
 		},
 		{
@@ -39,7 +39,7 @@ func TestMapPgError(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected *ConflictError, got %T", err)
 				}
-				if conflict.Detail != "Product barcode already exists" {
+				if conflict.Detail != "Product PLU already exists" {
 					t.Errorf("unexpected detail: %q", conflict.Detail)
 				}
 			case *ForeignKeyError:
@@ -47,7 +47,7 @@ func TestMapPgError(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected *ForeignKeyError, got %T", err)
 				}
-				if fk.Detail != "Category not found" {
+				if fk.Detail != "Product not found" {
 					t.Errorf("unexpected detail: %q", fk.Detail)
 				}
 			case *ValidationError:
@@ -91,8 +91,8 @@ func TestNotFoundErrorMessage(t *testing.T) {
 }
 
 func TestConflictErrorMessage(t *testing.T) {
-	withDetail := &ConflictError{Resource: "Product", Detail: "Product barcode already exists"}
-	if got := withDetail.Error(); got != "Product conflict: Product barcode already exists" {
+	withDetail := &ConflictError{Resource: "Product", Detail: "Product PLU already exists"}
+	if got := withDetail.Error(); got != "Product conflict: Product PLU already exists" {
 		t.Errorf("unexpected message: %q", got)
 	}
 
@@ -103,13 +103,13 @@ func TestConflictErrorMessage(t *testing.T) {
 }
 
 func TestForeignKeyErrorMessage(t *testing.T) {
-	withDetail := &ForeignKeyError{Resource: "Category", Detail: "Category not found"}
-	if got := withDetail.Error(); got != "Category foreign key violation: Category not found" {
+	withDetail := &ForeignKeyError{Resource: "Barcode", Detail: "Product not found"}
+	if got := withDetail.Error(); got != "Barcode foreign key violation: Product not found" {
 		t.Errorf("unexpected message: %q", got)
 	}
 
-	plain := &ForeignKeyError{Resource: "Category"}
-	if got := plain.Error(); got != "Category is referenced by other records" {
+	plain := &ForeignKeyError{Resource: "Barcode"}
+	if got := plain.Error(); got != "Barcode is referenced by other records" {
 		t.Errorf("unexpected message: %q", got)
 	}
 }

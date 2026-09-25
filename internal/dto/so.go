@@ -27,10 +27,13 @@ type StockOpnameExportResponse struct {
 	UpdatedAt       string  `json:"updatedAt"`
 }
 
+// CreateStockOpnameRequest identifies the product by Barcode (scanned)
+// or PLU (catalog pick). At least one of them is required.
 type CreateStockOpnameRequest struct {
-	Quantity  int `json:"quantity" validate:"required"`
-	ProductID int `json:"product_id" validate:"required"`
-	RakID     int `json:"rak_id" validate:"required"`
+	Quantity int    `json:"quantity" validate:"required"`
+	Barcode  string `json:"barcode"`
+	PLU      string `json:"plu"`
+	RakID    int    `json:"rak_id" validate:"required"`
 }
 
 type UpdateStockOpnameRequest struct {

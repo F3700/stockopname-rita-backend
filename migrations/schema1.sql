@@ -1,42 +1,43 @@
-CREATE TABLE department (
-    department_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    department_code VARCHAR(10) NOT NULL UNIQUE,
-    department_name VARCHAR(100) NOT NULL,
-    department_desc TEXT
-);
-
-
-CREATE TABLE category (
-    category_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    category_name VARCHAR(100) NOT NULL UNIQUE,
-    category_desc TEXT
-);
-
+-- ============================================
+-- SCHEMA: Stock Opname Rita (master data redesign)
+--
+-- product  : master dari sistem legacy (PLU sebagai business key)
+-- barcode  : 1 produk dapat memiliki N barcode
+-- stock_opname : histori immutable, memakai SNAPSHOT produk
+--                (tanpa FK ke product agar tetap terbaca
+--                walau master berubah / dihapus / di-clear)
+-- ============================================
 
 CREATE TABLE product (
     product_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    product_barcode VARCHAR(20) NOT NULL UNIQUE,
+    product_plu VARCHAR(10) NOT NULL UNIQUE,
     product_name VARCHAR(150) NOT NULL,
+    product_department_code VARCHAR(10) NOT NULL,
     product_buyprice NUMERIC(15,2) NOT NULL CHECK (product_buyprice >= 0),
     product_sellprice NUMERIC(15,2) NOT NULL CHECK (product_sellprice >= 0),
     product_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    product_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    product_category_id INTEGER NOT NULL,
-    product_department_id INTEGER NOT NULL,
-
-    CONSTRAINT fk_product_category_id
-        FOREIGN KEY (product_category_id)
-        REFERENCES category(category_id)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT fk_product_department_id
-        FOREIGN KEY (product_department_id)
-        REFERENCES department(department_id)
-        ON DELETE RESTRICT
+    product_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX idx_product_updatedat ON product(product_updatedat);
+CREATE INDEX idx_product_name ON product(product_name);
+CREATE INDEX idx_product_dept ON product(product_department_code);
+
+
+CREATE TABLE barcode (
+    barcode_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    barcode_product_id INTEGER NOT NULL,
+    barcode_code VARCHAR(15) NOT NULL UNIQUE,
+    barcode_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_barcode_product
+        FOREIGN KEY (barcode_product_id)
+        REFERENCES product(product_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_barcode_product ON barcode(barcode_product_id);
+
 
 CREATE TABLE sesi (
     sesi_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -53,7 +54,7 @@ CREATE TABLE sesi (
 
     CONSTRAINT chk_sesi_time
         CHECK (sesi_endedat IS NULL OR sesi_endedat >= sesi_startedat),
-    
+
     CONSTRAINT chk_sesi_status_time
         CHECK (
             (sesi_status = 'IN_PROGRESS' AND sesi_endedat IS NULL)
@@ -99,7 +100,7 @@ CREATE TABLE inspector (
 
     CONSTRAINT uq_inspector_coor_code
         UNIQUE (inspector_coor_id, inspector_code),
-    
+
     CONSTRAINT chk_inspector_time
         CHECK (
             inspector_endedat IS NULL
@@ -118,7 +119,7 @@ CREATE TABLE rak (
         FOREIGN KEY (rak_inspector_id)
         REFERENCES inspector(inspector_id)
         ON DELETE RESTRICT,
-    
+
     CONSTRAINT uq_rak_inspector_name
         UNIQUE (rak_inspector_id, rak_name)
 );
@@ -130,28 +131,29 @@ CREATE TABLE stock_opname (
         CHECK (stock_opname_quantity >= 0),
     stock_opname_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    stock_opname_product_id INTEGER NOT NULL,
-    stock_opname_rak_id INTEGER NOT NULL,
+    -- Product snapshot: kolom biasa, BUKAN foreign key.
+    so_product_plu VARCHAR(10) NOT NULL,
+    so_product_name VARCHAR(150) NOT NULL,
+    so_barcode VARCHAR(15) NOT NULL DEFAULT '',
+    so_buyprice NUMERIC(15,2) NOT NULL CHECK (so_buyprice >= 0),
+    so_sellprice NUMERIC(15,2) NOT NULL CHECK (so_sellprice >= 0),
 
-    CONSTRAINT fk_stock_opname_product
-        FOREIGN KEY (stock_opname_product_id)
-        REFERENCES product(product_id)
-        ON DELETE RESTRICT,
+    stock_opname_rak_id INTEGER NOT NULL,
 
     CONSTRAINT fk_stock_opname_rak
         FOREIGN KEY (stock_opname_rak_id)
         REFERENCES rak(rak_id)
         ON DELETE RESTRICT,
 
-    CONSTRAINT uq_stock_opname_rak_product
+    CONSTRAINT uq_stock_opname_rak_plu
         UNIQUE (
             stock_opname_rak_id,
-            stock_opname_product_id
+            so_product_plu
         )
 );
 
 CREATE TABLE deleted_product (
-    product_id INTEGER NOT NULL PRIMARY KEY,
+    product_plu VARCHAR(10) NOT NULL PRIMARY KEY,
     deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -184,7 +186,6 @@ EXECUTE FUNCTION sync_sesi_endedat();
 
 
 
-
 CREATE OR REPLACE FUNCTION update_sesi_status(
     p_sesi_id INTEGER,
     p_status VARCHAR
@@ -211,7 +212,6 @@ BEGIN
     END IF;
 END;
 $$;
-
 
 
 

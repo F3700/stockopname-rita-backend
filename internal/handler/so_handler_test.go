@@ -14,14 +14,14 @@ import (
 func TestCreateStockOpname(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
 		createFunc: func(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
-			if req.Quantity != 10 || req.ProductID != 1 || req.RakID != 2 {
+			if req.Quantity != 10 || req.Barcode != "8991001010016" || req.RakID != 2 {
 				t.Errorf("unexpected request %+v", req)
 			}
 			return dto.StockOpnameResponse{Id: 1, Quantity: 10}, nil
 		},
 	})
 
-	req := newJSONRequest(t, http.MethodPost, "/stock-opnames", `{"quantity":10,"product_id":1,"rak_id":2}`)
+	req := newJSONRequest(t, http.MethodPost, "/stock-opnames", `{"quantity":10,"barcode":"8991001010016","rak_id":2}`)
 	rec := httptest.NewRecorder()
 	h.CreateStockOpname(rec, req, nil)
 
@@ -292,7 +292,7 @@ func TestCreateStockOpnameByRack(t *testing.T) {
 		},
 	})
 
-	body := `{"rak_id":5,"so_products":[{"quantity":10,"product_id":1,"rak_id":5}]}`
+	body := `{"rak_id":5,"so_products":[{"quantity":10,"barcode":"8991001010016","rak_id":5}]}`
 	req := newJSONRequest(t, http.MethodPost, "/stock-opnames/by-rack", body)
 	rec := httptest.NewRecorder()
 	h.CreateStockOpnameByRack(rec, req, nil)

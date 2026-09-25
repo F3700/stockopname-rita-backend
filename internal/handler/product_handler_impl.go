@@ -1,6 +1,8 @@
 package handler
 
 import (
+	"fmt"
+	"io"
 	"net/http"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/helper"
@@ -11,11 +13,13 @@ import (
 
 type ProductHandlerImpl struct {
 	ProductService service.ProductService
+	ImportService  service.ImportService
 }
 
-func NewProductHandler(productService service.ProductService) ProductHandler {
+func NewProductHandler(productService service.ProductService, importService service.ImportService) ProductHandler {
 	return &ProductHandlerImpl{
 		ProductService: productService,
+		ImportService:  importService,
 	}
 }
 
@@ -182,6 +186,78 @@ func (p *ProductHandlerImpl) SyncProducts(writer http.ResponseWriter, req *http.
 	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
 		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
 		return
+	}
+}
+
+// ImportProducts implements [ProductHandler].
+// Expects multipart form with "produk" (PRODUK.DBF) and "barcode"
+// (BARCODE.DBF) files. Optional ?dry_run=true validates without writing.
+func (p *ProductHandlerImpl) ImportProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if err := req.ParseMultipartForm(32 << 20); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid multipart form", err)
+		return
+	}
+
+	produkData, err := readUpload(req, "produk")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Missing or invalid produk file", err)
+		return
+	}
+	barcodeData, err := readUpload(req, "barcode")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Missing or invalid barcode file", err)
+		return
+	}
+
+	dryRun := req.URL.Query().Get("dry_run") == "true"
+
+	result, err := p.ImportService.Import(req.Context(), produkData, barcodeData, dryRun)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	message := "Master data imported successfully"
+	if dryRun {
+		message = "Master data validation completed (dry run, nothing written)"
+	}
+	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{Message: message, Data: result}); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
+	}
+}
+
+func readUpload(req *http.Request, field string) ([]byte, error) {
+	file, _, err := req.FormFile(field)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(file)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, fmt.Errorf("empty file: %s", field)
+	}
+	return data, nil
+}
+
+// ClearProducts implements [ProductHandler].
+// Removes ALL master data (products, barcodes, tombstones).
+// Requires ?confirm=true. Stock opname history is untouched.
+func (p *ProductHandlerImpl) ClearProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	if req.URL.Query().Get("confirm") != "true" {
+		helper.WriteError(writer, http.StatusBadRequest, "Master data clear requires ?confirm=true", nil)
+		return
+	}
+
+	if err := p.ProductService.Clear(req.Context()); err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{Message: "Master data cleared successfully", Data: nil}); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
 
