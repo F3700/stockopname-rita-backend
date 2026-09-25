@@ -36,20 +36,20 @@ func (s *StockOpnameRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id in
 }
 
 // FindAll implements [StockOpnameRepository].
+// Product display data comes from the snapshot columns, so history
+// never depends on the product master table.
 func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
 	const SQL = `
 		SELECT
 			so.stock_opname_id AS id,
-			p.product_barcode AS barcode,
-			p.product_name AS name,
+			so.so_barcode AS barcode,
+			so.so_product_name AS name,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name AS rackName,
 			i.inspector_code AS inspectorCode,
 			c.coor_code AS coordinatorCode,
 			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
-		JOIN product p
-			ON so.stock_opname_product_id = p.product_id
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
 		JOIN inspector i
@@ -58,7 +58,7 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 			ON i.inspector_coor_id = c.coor_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
-		AND (p.product_barcode ILIKE $3 OR p.product_name ILIKE $3)
+		AND (so.so_barcode ILIKE $3 OR so.so_product_name ILIKE $3 OR so.so_product_plu ILIKE $3)
 		ORDER BY so.stock_opname_id DESC
 		LIMIT $4 OFFSET $5;
 	`
@@ -79,8 +79,6 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 		SELECT
 			COUNT(*)
 		FROM stock_opname so
-		JOIN product p
-			ON so.stock_opname_product_id = p.product_id
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
 		JOIN inspector i
@@ -89,7 +87,7 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 			ON i.inspector_coor_id = c.coor_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
-		AND (p.product_barcode ILIKE $3 OR p.product_name ILIKE $3)
+		AND (so.so_barcode ILIKE $3 OR so.so_product_name ILIKE $3 OR so.so_product_plu ILIKE $3)
 	`
 	if err := s.Pool.QueryRow(ctx, countSQL, coorId, sesiId, "%"+search+"%").Scan(&total); err != nil {
 		return nil, 0, err
@@ -103,8 +101,8 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 	const SQL = `
 		SELECT
 			so.stock_opname_id AS id,
-			p.product_barcode AS barcode,
-			p.product_name,
+			so.so_barcode AS barcode,
+			so.so_product_name,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name,
 			i.inspector_code,
@@ -112,9 +110,6 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 			so.stock_opname_updatedat AS "updatedAt"
 
 		FROM stock_opname so
-
-		JOIN product p
-			ON so.stock_opname_product_id = p.product_id
 
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
@@ -141,13 +136,23 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 }
 
 // Save implements [StockOpnameRepository].
+// It is an idempotent upsert on (rak_id, product_plu): re-uploading a rack
+// after a local edit refreshes the snapshot instead of failing with a
+// unique-constraint conflict.
 func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_product_id, stock_opname_rak_id)
-		VALUES ($1, $2, $3)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_barcode, so_buyprice, so_sellprice)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
+		SET stock_opname_quantity = EXCLUDED.stock_opname_quantity,
+		    so_barcode = EXCLUDED.so_barcode,
+		    so_product_name = EXCLUDED.so_product_name,
+		    so_buyprice = EXCLUDED.so_buyprice,
+		    so_sellprice = EXCLUDED.so_sellprice,
+		    stock_opname_updatedat = NOW()
 		RETURNING stock_opname_id
 	`
-	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameProductID, stockOpname.StockOpnameRakID).Scan(&stockOpname.StockOpnameID)
+	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice).Scan(&stockOpname.StockOpnameID)
 	if err != nil {
 		return model.MapPgError("Stock Opname", err)
 	}
@@ -179,18 +184,16 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 	const SQL = `
 		SELECT
 			so.stock_opname_id AS id,
-			p.product_barcode AS barcode,
-			p.product_name AS name,
-			p.product_buyprice AS buyPrice,
-			p.product_sellprice AS sellPrice,
+			so.so_barcode AS barcode,
+			so.so_product_name AS name,
+			so.so_buyprice AS buyPrice,
+			so.so_sellprice AS sellPrice,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name AS rackName,
 			i.inspector_code AS inspectorCode,
 			c.coor_code AS coordinatorCode,
 			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
-		JOIN product p
-			ON so.stock_opname_product_id = p.product_id
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
 		JOIN inspector i

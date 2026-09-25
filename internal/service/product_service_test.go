@@ -15,16 +15,14 @@ import (
 func productModel() *model.Product {
 	return &model.Product{
 		ProductID:             1,
-		ProductBarcode:        "8991234567890",
-		ProductName:           "Indomie",
-		ProductBuyPrice:       2500,
-		ProductSellPrice:      3500,
+		ProductPLU:            "100251",
+		ProductName:           "Sari Roti",
+		ProductDepartmentCode: "1138",
+		ProductBuyPrice:       14500,
+		ProductSellPrice:      17200,
 		ProductCreatedat:      time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC),
 		ProductUpdatedat:      time.Date(2026, 9, 11, 8, 0, 0, 0, time.UTC),
-		ProductCategoryID:     1,
-		ProductDepartmentID:   1,
-		ProductCategoryName:   "Makanan",
-		ProductDepartmentCode: "D01",
+		ProductBarcodes:       []string{"1002515550011", "8991001010016"},
 	}
 }
 
@@ -34,15 +32,15 @@ func TestProductFindAll(t *testing.T) {
 			if limit != 10 || offset != 20 {
 				t.Errorf("expected limit 10 offset 20, got limit %d offset %d", limit, offset)
 			}
-			if search != "mie" {
-				t.Errorf("expected search %q, got %q", "mie", search)
+			if search != "roti" {
+				t.Errorf("expected search %q, got %q", "roti", search)
 			}
 			return []*model.Product{productModel()}, 21, nil
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, newTestValidator(t))
 
 	pagination := &dto.Pagination{Page: 3, Limit: 10}
-	responses, err := svc.FindAll(context.Background(), pagination, "mie")
+	responses, err := svc.FindAll(context.Background(), pagination, "roti")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -50,14 +48,17 @@ func TestProductFindAll(t *testing.T) {
 		t.Fatalf("expected 1 response, got %d", len(responses))
 	}
 	got := responses[0]
-	if got.Id != 1 || got.Barcode != "8991234567890" || got.Name != "Indomie" {
+	if got.Id != 1 || got.PLU != "100251" || got.Name != "Sari Roti" {
 		t.Errorf("unexpected response %+v", got)
 	}
-	if got.BuyPrice != 2500 || got.SellPrice != 3500 {
+	if got.Barcode != "1002515550011" || len(got.Barcodes) != 2 {
+		t.Errorf("unexpected barcodes %+v", got)
+	}
+	if got.BuyPrice != 14500 || got.SellPrice != 17200 {
 		t.Errorf("unexpected prices %+v", got)
 	}
-	if got.CategoryName != "Makanan" || got.DepartmentCode != "D01" {
-		t.Errorf("unexpected category/department %+v", got)
+	if got.DepartmentCode != "1138" {
+		t.Errorf("unexpected department %+v", got)
 	}
 	if got.DateCreated != "2026-09-10T08:00:00Z" || got.DateUpdated != "2026-09-11T08:00:00Z" {
 		t.Errorf("unexpected dates %+v", got)
@@ -75,7 +76,7 @@ func TestProductFindAllRepoError(t *testing.T) {
 		findAllInPageSearchFn: func(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error) {
 			return nil, 0, errors.New("boom")
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, newTestValidator(t))
 
 	_, err := svc.FindAll(context.Background(), &dto.Pagination{Page: 1, Limit: 10}, "")
 	if err == nil {
@@ -92,7 +93,7 @@ func TestProductFindAllUpdatedAfter(t *testing.T) {
 			}
 			return []*model.Product{productModel()}, 1, nil
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, newTestValidator(t))
 
 	pagination := &dto.Pagination{Page: 1, Limit: 10}
 	responses, err := svc.FindAllUpdatedAfter(context.Background(), pagination, date)
@@ -115,11 +116,11 @@ func TestProductFindAllLastSession(t *testing.T) {
 				t.Errorf("expected limit 20, got %d", limit)
 			}
 			return []*model.ProductLastSession{
-				{Id: 1, Barcode: "8991234567890", Name: "Indomie", LastSessionDate: &sessionDate, LastSessionCode: "SESI-01"},
-				{Id: 2, Barcode: "8991234567891", Name: "Soto", LastSessionDate: nil, LastSessionCode: ""},
+				{Id: 1, Barcode: "1002515550011", Name: "Sari Roti", LastSessionDate: &sessionDate, LastSessionCode: "SESI-01"},
+				{Id: 2, Barcode: "", Name: "Krat", LastSessionDate: nil, LastSessionCode: ""},
 			}, nil
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, newTestValidator(t))
 
 	responses, err := svc.FindAllLastSession(context.Background(), 20)
 	if err != nil {
@@ -131,8 +132,8 @@ func TestProductFindAllLastSession(t *testing.T) {
 	if responses[0].LastSessionDate != "2026-09-10T08:00:00Z" || responses[0].LastSessionCode != "SESI-01" {
 		t.Errorf("unexpected first response %+v", responses[0])
 	}
-	if responses[1].LastSessionDate != "" {
-		t.Errorf("expected empty date for nil session, got %q", responses[1].LastSessionDate)
+	if responses[1].LastSessionDate != "" || responses[1].Barcode != "" {
+		t.Errorf("expected empty date/barcode for nil session, got %+v", responses[1])
 	}
 }
 
@@ -141,7 +142,7 @@ func TestProductFindAllLastSessionError(t *testing.T) {
 		findAllLastSessionFunc: func(ctx context.Context, limit int) ([]*model.ProductLastSession, error) {
 			return nil, errors.New("boom")
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, newTestValidator(t))
 
 	_, err := svc.FindAllLastSession(context.Background(), 20)
 	if err == nil {
@@ -156,7 +157,7 @@ func TestProductCreateValidationFailure(t *testing.T) {
 			repoCalled = true
 			return nil
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, newTestValidator(t))
 
 	_, err := svc.Create(context.Background(), dto.ProductCreateRequest{})
 	if err == nil {

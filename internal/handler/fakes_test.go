@@ -15,39 +15,15 @@ import (
 	"stockopname-rita-backend/internal/service"
 )
 
-var _ service.CategoryService = (*fakeCategoryService)(nil)
 var _ service.CoordinatorService = (*fakeCoordinatorService)(nil)
 var _ service.DeletedProductService = (*fakeDeletedProductService)(nil)
-var _ service.DepartmentService = (*fakeDepartmentService)(nil)
 var _ service.InspectorService = (*fakeInspectorService)(nil)
 var _ service.ProductService = (*fakeProductService)(nil)
+var _ service.ImportService = (*fakeImportService)(nil)
 var _ service.RackService = (*fakeRackService)(nil)
 var _ service.SesiService = (*fakeSesiService)(nil)
 var _ service.StockOpnameService = (*fakeStockOpnameService)(nil)
 var _ service.ReportService = (*fakeReportService)(nil)
-
-type fakeCategoryService struct {
-	createFunc  func(ctx context.Context, req dto.CategoryCreateRequest) (dto.CategoryResponse, error)
-	findAllFunc func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.CategoryResponse, error)
-	updateFunc  func(ctx context.Context, id int, req dto.CategoryUpdateRequest) (dto.CategoryResponse, error)
-	deleteFunc  func(ctx context.Context, id int) error
-}
-
-func (f *fakeCategoryService) Create(ctx context.Context, req dto.CategoryCreateRequest) (dto.CategoryResponse, error) {
-	return f.createFunc(ctx, req)
-}
-
-func (f *fakeCategoryService) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.CategoryResponse, error) {
-	return f.findAllFunc(ctx, pagination, search)
-}
-
-func (f *fakeCategoryService) Update(ctx context.Context, id int, req dto.CategoryUpdateRequest) (dto.CategoryResponse, error) {
-	return f.updateFunc(ctx, id, req)
-}
-
-func (f *fakeCategoryService) Delete(ctx context.Context, id int) error {
-	return f.deleteFunc(ctx, id)
-}
 
 type fakeCoordinatorService struct {
 	findByIdSummaryFunc func(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
@@ -93,29 +69,6 @@ func (f *fakeDeletedProductService) Delete(ctx context.Context) error {
 	return f.deleteFunc(ctx)
 }
 
-type fakeDepartmentService struct {
-	deleteFunc  func(ctx context.Context, id int) error
-	findAllFunc func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.DepartmentResponse, error)
-	createFunc  func(ctx context.Context, req dto.DepartmentCreateRequest) (dto.DepartmentResponse, error)
-	updateFunc  func(ctx context.Context, id int, req dto.DepartmentUpdateRequest) (dto.DepartmentResponse, error)
-}
-
-func (f *fakeDepartmentService) Delete(ctx context.Context, id int) error {
-	return f.deleteFunc(ctx, id)
-}
-
-func (f *fakeDepartmentService) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.DepartmentResponse, error) {
-	return f.findAllFunc(ctx, pagination, search)
-}
-
-func (f *fakeDepartmentService) Create(ctx context.Context, req dto.DepartmentCreateRequest) (dto.DepartmentResponse, error) {
-	return f.createFunc(ctx, req)
-}
-
-func (f *fakeDepartmentService) Update(ctx context.Context, id int, req dto.DepartmentUpdateRequest) (dto.DepartmentResponse, error) {
-	return f.updateFunc(ctx, id, req)
-}
-
 type fakeInspectorService struct {
 	findAllSummaryFunc        func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error)
 	createFunc                func(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error)
@@ -141,9 +94,22 @@ type fakeProductService struct {
 	createFunc            func(ctx context.Context, req dto.ProductCreateRequest) (dto.ProductResponse, error)
 	updateFunc            func(ctx context.Context, id int, req dto.ProductUpdateRequest) (dto.ProductResponse, error)
 	deleteFunc            func(ctx context.Context, id int) error
+	clearFunc             func(ctx context.Context) error
 	findAllFunc           func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error)
 	findAllUpdatedAfterFn func(ctx context.Context, pagination *dto.Pagination, date time.Time) ([]dto.ProductResponse, error)
 	findAllLastSessionFn  func(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error)
+}
+
+func (f *fakeProductService) Clear(ctx context.Context) error {
+	return f.clearFunc(ctx)
+}
+
+type fakeImportService struct {
+	importFunc func(ctx context.Context, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error)
+}
+
+func (f *fakeImportService) Import(ctx context.Context, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
+	return f.importFunc(ctx, produkData, barcodeData, dryRun)
 }
 
 func (f *fakeProductService) Create(ctx context.Context, req dto.ProductCreateRequest) (dto.ProductResponse, error) {
@@ -217,10 +183,10 @@ func (f *fakeSesiService) FindAll(ctx context.Context, pagination *dto.Paginatio
 }
 
 type fakeStockOpnameService struct {
-	createFunc     func(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error)
-	updateFunc     func(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error)
-	deleteFunc     func(ctx context.Context, id int) error
-	findByIdFn     func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
+	createFunc           func(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error)
+	updateFunc           func(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error)
+	deleteFunc           func(ctx context.Context, id int) error
+	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
 	createByRackFn       func(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error
 	findAllForExportFunc func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)

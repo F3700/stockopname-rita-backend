@@ -30,7 +30,7 @@ func (d *DeletedProductRepositoryImpl) Delete(ctx context.Context) error {
 // FindAll implements [DeletedProductRepository].
 func (d *DeletedProductRepositoryImpl) FindAll(ctx context.Context) ([]*model.DeletedProduct, error) {
 	const SQL = `
-		SELECT product_id, deleted_at
+		SELECT product_plu, deleted_at
 		FROM deleted_product
 	`
 	rows, err := d.pool.Query(ctx, SQL)
@@ -42,7 +42,7 @@ func (d *DeletedProductRepositoryImpl) FindAll(ctx context.Context) ([]*model.De
 	var deletedProducts []*model.DeletedProduct
 	for rows.Next() {
 		var deletedProduct model.DeletedProduct
-		if err := rows.Scan(&deletedProduct.ProductID, &deletedProduct.DeletedAt); err != nil {
+		if err := rows.Scan(&deletedProduct.ProductPLU, &deletedProduct.DeletedAt); err != nil {
 			return nil, err
 		}
 		deletedProducts = append(deletedProducts, &deletedProduct)
@@ -53,7 +53,7 @@ func (d *DeletedProductRepositoryImpl) FindAll(ctx context.Context) ([]*model.De
 // FindAllUpdatedAfter implements [DeletedProductRepository].
 func (d *DeletedProductRepositoryImpl) FindAllUpdatedAfter(ctx context.Context, date time.Time) ([]*model.DeletedProduct, error) {
 	const SQL = `
-		SELECT product_id, deleted_at
+		SELECT product_plu, deleted_at
 		FROM deleted_product
 		WHERE deleted_at > $1
 	`
@@ -66,7 +66,7 @@ func (d *DeletedProductRepositoryImpl) FindAllUpdatedAfter(ctx context.Context, 
 	var deletedProducts []*model.DeletedProduct
 	for rows.Next() {
 		var deletedProduct model.DeletedProduct
-		if err := rows.Scan(&deletedProduct.ProductID, &deletedProduct.DeletedAt); err != nil {
+		if err := rows.Scan(&deletedProduct.ProductPLU, &deletedProduct.DeletedAt); err != nil {
 			return nil, err
 		}
 		deletedProducts = append(deletedProducts, &deletedProduct)
@@ -75,12 +75,13 @@ func (d *DeletedProductRepositoryImpl) FindAllUpdatedAfter(ctx context.Context, 
 }
 
 // Save implements [DeletedProductRepository].
-func (d *DeletedProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, id int) error {
+func (d *DeletedProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, plu string) error {
 	const SQL = `
-		INSERT INTO deleted_product (product_id)
+		INSERT INTO deleted_product (product_plu)
 		VALUES ($1)
+		ON CONFLICT (product_plu) DO UPDATE SET deleted_at = NOW()
 	`
-	_, err := tx.Exec(ctx, SQL, id)
+	_, err := tx.Exec(ctx, SQL, plu)
 	if err != nil {
 		return model.MapPgError("Deleted Product", err)
 	}

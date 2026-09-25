@@ -6,8 +6,15 @@ type StockOpname struct {
 	StockOpnameID        int       `json:"stockopname_id"`
 	StockOpnameQuantity  int       `json:"stockopname_quantity"`
 	StockOpnameUpdatedAt time.Time `json:"stockopname_updatedat"`
-	StockOpnameProductID int       `json:"stockopname_product_id"`
 	StockOpnameRakID     int       `json:"stockopname_rak_id"`
+
+	// Product snapshot: plain columns, NOT a foreign key to product,
+	// so history stays readable after the master changes or is cleared.
+	SoProductPLU  string  `json:"product_plu"`
+	SoProductName string  `json:"product_name"`
+	SoBarcode     string  `json:"barcode"`
+	SoBuyPrice    float64 `json:"buy_price"`
+	SoSellPrice   float64 `json:"sell_price"`
 }
 
 type StockOpnameSummary struct {

@@ -17,16 +17,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	deletedProductHandler := handler.NewDeletedProductHandler(deletedProductService)
 
 	productRepository := repository.NewProductRepository(pool)
-	productService := service.NewProductService(productRepository, deletedProductRepository, pool, validate)
-	productHandler := handler.NewProductHandler(productService)
-
-	departmentRepository := repository.NewDepartmentRepositoryImpl(pool)
-	departmentService := service.NewDepartmentService(departmentRepository, pool, validate)
-	departmentHandler := handler.NewDepartmentHandler(departmentService)
-
-	categoryRepository := repository.NewCategoryRepositoryImpl(pool)
-	categoryService := service.NewCategoryService(categoryRepository, pool, validate)
-	categoryHandler := handler.NewCategoryHandler(categoryService)
+	barcodeRepository := repository.NewBarcodeRepository(pool)
+	productService := service.NewProductService(productRepository, barcodeRepository, deletedProductRepository, pool, validate)
+	importService := service.NewImportService(productRepository, barcodeRepository, pool)
+	productHandler := handler.NewProductHandler(productService, importService)
 
 	coordinatorRepository := repository.NewCoordinatorRepository(pool)
 	coordinatorService := service.NewCoordinatorService(coordinatorRepository, pool)
@@ -45,7 +39,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	inspectorHandler := handler.NewInspectorHandler(inspectorService)
 
 	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
-	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, pool, validate)
+	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, pool, validate)
 	stockOpnameHandler := handler.NewStockOpnameHandler(stockOpnameService)
 	reportService := service.NewReportService(sesiService, coordinatorService, inspectorService, stockOpnameService)
 	reportHandler := handler.NewReportHandler(reportService)
@@ -59,18 +53,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/products", productHandler.GetProducts)
 	router.GET("/products/last-session", productHandler.GetProductsLastSession)
 	router.GET("/products/sync", productHandler.SyncProducts)
+	router.POST("/products/import", productHandler.ImportProducts)
+	router.POST("/products/clear", productHandler.ClearProducts)
+	router.DELETE("/products", productHandler.ClearProducts)
 	router.PATCH("/products/:id", productHandler.UpdateProduct)
 	router.DELETE("/products/:id", productHandler.DeleteProduct)
-
-	router.POST("/departments", departmentHandler.CreateDepartment)
-	router.GET("/departments", departmentHandler.GetDepartments)
-	router.PATCH("/departments/:id", departmentHandler.UpdateDepartment)
-	router.DELETE("/departments/:id", departmentHandler.DeleteDepartment)
-
-	router.POST("/categories", categoryHandler.CreateCategory)
-	router.GET("/categories", categoryHandler.GetCategories)
-	router.PATCH("/categories/:id", categoryHandler.UpdateCategory)
-	router.DELETE("/categories/:id", categoryHandler.DeleteCategory)
 
 	router.GET("/deleted/products", deletedProductHandler.GetDeletedProducts)
 	router.DELETE("/deleted/products", deletedProductHandler.DeleteDeletedProducts)

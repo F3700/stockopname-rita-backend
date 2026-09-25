@@ -14,17 +14,38 @@ import (
 
 type ProductServiceImpl struct {
 	ProductRepository        repository.ProductRepository
+	BarcodeRepository        repository.BarcodeRepository
 	DeletedProductRepository repository.DeletedProductRepository
 	Pool                     repository.DBPool
 	Validator                *validator.Validate
 }
 
-func NewProductService(productRepository repository.ProductRepository, deletedProductRepository repository.DeletedProductRepository, pool repository.DBPool, validator *validator.Validate) ProductService {
+func NewProductService(productRepository repository.ProductRepository, barcodeRepository repository.BarcodeRepository, deletedProductRepository repository.DeletedProductRepository, pool repository.DBPool, validator *validator.Validate) ProductService {
 	return &ProductServiceImpl{
 		ProductRepository:        productRepository,
+		BarcodeRepository:        barcodeRepository,
 		DeletedProductRepository: deletedProductRepository,
 		Pool:                     pool,
 		Validator:                validator,
+	}
+}
+
+func toProductResponse(product *model.Product) dto.ProductResponse {
+	barcodes := product.ProductBarcodes
+	if barcodes == nil {
+		barcodes = []string{}
+	}
+	return dto.ProductResponse{
+		Id:             product.ProductID,
+		PLU:            product.ProductPLU,
+		Barcode:        product.PrimaryBarcode(),
+		Barcodes:       barcodes,
+		Name:           product.ProductName,
+		BuyPrice:       product.ProductBuyPrice,
+		SellPrice:      product.ProductSellPrice,
+		DateCreated:    product.ProductCreatedat.Format(time.RFC3339),
+		DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
+		DepartmentCode: product.ProductDepartmentCode,
 	}
 }
 
@@ -41,16 +62,21 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 	defer tx.Rollback(ctx)
 
 	product := model.Product{
-		ProductBarcode:      req.Barcode,
-		ProductName:         req.Name,
-		ProductBuyPrice:     req.BuyPrice,
-		ProductSellPrice:    req.SellPrice,
-		ProductCategoryID:   req.CategoryID,
-		ProductDepartmentID: req.DepartmentID,
+		ProductPLU:            req.PLU,
+		ProductName:           req.Name,
+		ProductDepartmentCode: req.DepartmentCode,
+		ProductBuyPrice:       *req.BuyPrice,
+		ProductSellPrice:      *req.SellPrice,
 	}
 
 	if err := p.ProductRepository.Save(ctx, tx, &product); err != nil {
 		return dto.ProductResponse{}, fmt.Errorf("save product: %w", err)
+	}
+
+	if len(req.Barcodes) > 0 {
+		if err := p.BarcodeRepository.SaveBatch(ctx, tx, product.ProductID, req.Barcodes); err != nil {
+			return dto.ProductResponse{}, fmt.Errorf("save barcodes: %w", err)
+		}
 	}
 
 	productResult, err := p.ProductRepository.FindById(ctx, tx, product.ProductID)
@@ -62,17 +88,7 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 		return dto.ProductResponse{}, err
 	}
 
-	return dto.ProductResponse{
-		Id:             productResult.ProductID,
-		Barcode:        productResult.ProductBarcode,
-		Name:           productResult.ProductName,
-		BuyPrice:       productResult.ProductBuyPrice,
-		SellPrice:      productResult.ProductSellPrice,
-		DateCreated:    productResult.ProductCreatedat.Format(time.RFC3339),
-		DateUpdated:    productResult.ProductUpdatedat.Format(time.RFC3339),
-		CategoryName:   productResult.ProductCategoryName,
-		DepartmentCode: productResult.ProductDepartmentCode,
-	}, nil
+	return toProductResponse(productResult), nil
 }
 
 // Delete implements [ProductService].
@@ -83,13 +99,39 @@ func (p *ProductServiceImpl) Delete(ctx context.Context, id int) error {
 	}
 	defer tx.Rollback(ctx)
 
+	product, err := p.ProductRepository.FindById(ctx, tx, id)
+	if err != nil {
+		return fmt.Errorf("find product id %d: %w", id, err)
+	}
+
 	if err := p.ProductRepository.Delete(ctx, tx, id); err != nil {
 		return fmt.Errorf("delete product id %d: %w", id, err)
 	}
 
-	//tambahin id yang udah di delete ke table deleted product pake repository deleted product
-	if err := p.DeletedProductRepository.Save(ctx, tx, id); err != nil {
+	//tambahin plu yang udah di delete ke table deleted product pake repository deleted product
+	if err := p.DeletedProductRepository.Save(ctx, tx, product.ProductPLU); err != nil {
 		return fmt.Errorf("save deleted product: %w", err)
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit transaction: %w", err)
+	}
+
+	return nil
+}
+
+// Clear implements [ProductService].
+// It removes ALL master data. Stock opname history is untouched
+// (snapshot columns, no FK to product).
+func (p *ProductServiceImpl) Clear(ctx context.Context) error {
+	tx, err := p.Pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin transaction: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if err := p.ProductRepository.Clear(ctx, tx); err != nil {
+		return fmt.Errorf("clear master data: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -108,19 +150,9 @@ func (p *ProductServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagina
 		return nil, fmt.Errorf("find all products: %w", err)
 	}
 
-	var responses []dto.ProductResponse
+	responses := make([]dto.ProductResponse, 0, len(products))
 	for _, product := range products {
-		responses = append(responses, dto.ProductResponse{
-			Id:             product.ProductID,
-			Barcode:        product.ProductBarcode,
-			Name:           product.ProductName,
-			BuyPrice:       product.ProductBuyPrice,
-			SellPrice:      product.ProductSellPrice,
-			DateCreated:    product.ProductCreatedat.Format(time.RFC3339),
-			DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
-			CategoryName:   product.ProductCategoryName,
-			DepartmentCode: product.ProductDepartmentCode,
-		})
+		responses = append(responses, toProductResponse(product))
 	}
 
 	pagination.TotalItems = total
@@ -138,19 +170,9 @@ func (p *ProductServiceImpl) FindAllUpdatedAfter(ctx context.Context, pagination
 		return nil, fmt.Errorf("find all updated after %v: %w", date, err)
 	}
 
-	var responses []dto.ProductResponse
+	responses := make([]dto.ProductResponse, 0, len(products))
 	for _, product := range products {
-		responses = append(responses, dto.ProductResponse{
-			Id:             product.ProductID,
-			Barcode:        product.ProductBarcode,
-			Name:           product.ProductName,
-			BuyPrice:       product.ProductBuyPrice,
-			SellPrice:      product.ProductSellPrice,
-			DateCreated:    product.ProductCreatedat.Format(time.RFC3339),
-			DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
-			CategoryName:   product.ProductCategoryName,
-			DepartmentCode: product.ProductDepartmentCode,
-		})
+		responses = append(responses, toProductResponse(product))
 	}
 
 	pagination.TotalItems = total
@@ -161,6 +183,10 @@ func (p *ProductServiceImpl) FindAllUpdatedAfter(ctx context.Context, pagination
 
 // Update implements [ProductService].
 func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.ProductUpdateRequest) (dto.ProductResponse, error) {
+	if err := p.Validator.Struct(req); err != nil {
+		return dto.ProductResponse{}, err
+	}
+
 	tx, err := p.Pool.Begin(ctx)
 	if err != nil {
 		return dto.ProductResponse{}, fmt.Errorf("begin transaction: %w", err)
@@ -172,11 +198,14 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 		return dto.ProductResponse{}, fmt.Errorf("find product by id %d: %w", id, err)
 	}
 
-	if req.Barcode != nil {
-		product.ProductBarcode = *req.Barcode
+	if req.PLU != nil {
+		product.ProductPLU = *req.PLU
 	}
 	if req.Name != nil {
 		product.ProductName = *req.Name
+	}
+	if req.DepartmentCode != nil {
+		product.ProductDepartmentCode = *req.DepartmentCode
 	}
 	if req.BuyPrice != nil {
 		product.ProductBuyPrice = *req.BuyPrice
@@ -184,15 +213,15 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 	if req.SellPrice != nil {
 		product.ProductSellPrice = *req.SellPrice
 	}
-	if req.CategoryID != nil {
-		product.ProductCategoryID = *req.CategoryID
-	}
-	if req.DepartmentID != nil {
-		product.ProductDepartmentID = *req.DepartmentID
-	}
 
 	if err = p.ProductRepository.Update(ctx, tx, product); err != nil {
 		return dto.ProductResponse{}, fmt.Errorf("update product %d: %w", id, err)
+	}
+
+	if req.Barcodes != nil {
+		if err := p.BarcodeRepository.Replace(ctx, tx, id, *req.Barcodes); err != nil {
+			return dto.ProductResponse{}, fmt.Errorf("replace barcodes product %d: %w", id, err)
+		}
 	}
 
 	updatedProduct, err := p.ProductRepository.FindById(ctx, tx, id)
@@ -204,19 +233,7 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 		return dto.ProductResponse{}, fmt.Errorf("commit transaction: %w", err)
 	}
 
-	response := dto.ProductResponse{
-		Id:             updatedProduct.ProductID,
-		Barcode:        updatedProduct.ProductBarcode,
-		Name:           updatedProduct.ProductName,
-		BuyPrice:       updatedProduct.ProductBuyPrice,
-		SellPrice:      updatedProduct.ProductSellPrice,
-		DateCreated:    updatedProduct.ProductCreatedat.Format(time.RFC3339),
-		DateUpdated:    updatedProduct.ProductUpdatedat.Format(time.RFC3339),
-		CategoryName:   updatedProduct.ProductCategoryName,
-		DepartmentCode: updatedProduct.ProductDepartmentCode,
-	}
-
-	return response, nil
+	return toProductResponse(updatedProduct), nil
 }
 
 // FindAllLastSession implements [ProductService].
