@@ -90,6 +90,41 @@ func TestGetProducts(t *testing.T) {
 	}
 }
 
+func TestGetProductsInvalidPagination(t *testing.T) {
+	called := false
+	h := newProductHandler(&fakeProductService{
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
+			called = true
+			return nil, nil
+		},
+	}, nil)
+
+	tests := []struct {
+		name string
+		url  string
+	}{
+		{"page zero", "/products?page=0&limit=10"},
+		{"limit zero", "/products?page=1&limit=0"},
+		{"limit too large", "/products?page=1&limit=1001"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := newJSONRequest(t, http.MethodGet, tt.url, "")
+			rec := httptest.NewRecorder()
+			h.GetProducts(rec, req, nil)
+
+			if rec.Code != http.StatusBadRequest {
+				t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+			}
+		})
+	}
+
+	if called {
+		t.Error("service FindAll must not be called for invalid pagination")
+	}
+}
+
 func newImportRequest(t *testing.T, target string, produk []byte, barcode []byte) *http.Request {
 	t.Helper()
 	var body bytes.Buffer

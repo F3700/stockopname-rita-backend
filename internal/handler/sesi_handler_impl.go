@@ -82,6 +82,16 @@ func (s *SesiHandlerImpl) GetAllSesi(writer http.ResponseWriter, req *http.Reque
 		return
 	}
 
+	if err := helper.ValidatePage(page); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
+		return
+	}
+
+	if err := helper.ValidateLimit(limit); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
 	search := req.URL.Query().Get("search")
 
 	pagination := &dto.Pagination{

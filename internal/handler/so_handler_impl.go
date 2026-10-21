@@ -83,6 +83,16 @@ func (s *StockOpnameHandlerImpl) GetAllStockOpname(writer http.ResponseWriter, r
 		return
 	}
 
+	if err := helper.ValidatePage(page); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query parameter", err)
+		return
+	}
+
+	if err := helper.ValidateLimit(limit); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query parameter", err)
+		return
+	}
+
 	search := req.URL.Query().Get("search")
 
 	sesiIdStr := req.URL.Query().Get("sessionId")

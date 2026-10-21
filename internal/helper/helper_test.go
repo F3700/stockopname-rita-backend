@@ -184,6 +184,48 @@ func TestParseIntQueryNotNull(t *testing.T) {
 	}
 }
 
+func TestValidatePage(t *testing.T) {
+	tests := []struct {
+		name    string
+		page    int
+		wantErr bool
+	}{
+		{"valid", 1, false},
+		{"zero", 0, true},
+		{"negative", -1, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidatePage(tt.page); (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePage(%d) error = %v, wantErr %v", tt.page, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateLimit(t *testing.T) {
+	tests := []struct {
+		name    string
+		limit   int
+		wantErr bool
+	}{
+		{"minimum", 1, false},
+		{"maximum", maxLimit, false},
+		{"zero", 0, true},
+		{"negative", -1, true},
+		{"too large", maxLimit + 1, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateLimit(tt.limit); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateLimit(%d) error = %v, wantErr %v", tt.limit, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestParseDateNullable(t *testing.T) {
 	if got := ParseDateNullable(nil); got != "" {
 		t.Errorf("expected empty string for nil, got %q", got)

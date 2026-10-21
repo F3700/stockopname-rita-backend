@@ -44,6 +44,22 @@ func ParseIntQueryNotNull(req *http.Request, key string) (int, error) {
 	return value, nil
 }
 
+const maxLimit = 1000
+
+func ValidatePage(page int) error {
+	if page < 1 {
+		return fmt.Errorf("page must be >= 1")
+	}
+	return nil
+}
+
+func ValidateLimit(limit int) error {
+	if limit < 1 || limit > maxLimit {
+		return fmt.Errorf("limit must be between 1 and %d", maxLimit)
+	}
+	return nil
+}
+
 func ParseDateNullable(endDate *time.Time) string {
 	if endDate == nil {
 		return ""

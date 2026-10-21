@@ -87,6 +87,16 @@ func (p *ProductHandlerImpl) GetProducts(writer http.ResponseWriter, req *http.R
 		return
 	}
 
+	if err := helper.ValidatePage(page); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
+		return
+	}
+
+	if err := helper.ValidateLimit(limit); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
 	search := req.URL.Query().Get("search")
 
 	pagination := &dto.Pagination{
@@ -124,6 +134,11 @@ func (p *ProductHandlerImpl) GetProductsLastSession(writer http.ResponseWriter, 
 		limit = parsed
 	}
 
+	if err := helper.ValidateLimit(limit); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
 	products, err := p.ProductService.FindAllLastSession(req.Context(), limit)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
@@ -151,6 +166,16 @@ func (p *ProductHandlerImpl) SyncProducts(writer http.ResponseWriter, req *http.
 
 	limit, err := helper.ParseIntQueryNotNull(req, "limit")
 	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
+		return
+	}
+
+	if err := helper.ValidatePage(page); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
+		return
+	}
+
+	if err := helper.ValidateLimit(limit); err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
 		return
 	}
