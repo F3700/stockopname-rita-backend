@@ -107,7 +107,7 @@ func existingProductRows() *pgxmock.Rows {
 
 func TestImportInsertNew(t *testing.T) {
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
 		{PLU: "100251", BARCODE: "1002515550011"},
@@ -149,7 +149,7 @@ func TestImportInsertNew(t *testing.T) {
 
 func TestImportIdempotentDryRun(t *testing.T) {
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
 		{PLU: "100251", BARCODE: "1002515550011"},
@@ -191,7 +191,7 @@ func TestImportIdempotentDryRun(t *testing.T) {
 func TestImportUpdateChanged(t *testing.T) {
 	// Existing price 14000 -> fixture 14500, and one extra barcode.
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
 		{PLU: "100251", BARCODE: "1002515550011"},
@@ -236,7 +236,7 @@ func TestImportUpdateChanged(t *testing.T) {
 
 func TestImportOrphanAndInvalid(t *testing.T) {
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 		{PLU: "100252", NAMABRG: "", KODEDPT: "1138", HRGJUAL: 1000, RPBELI: 900},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
@@ -302,5 +302,22 @@ func TestImportNoValidProdukRows(t *testing.T) {
 	_, err = svc.Import(context.Background(), produk, barcodes, false)
 	if err == nil {
 		t.Fatal("expected error for empty valid produk rows, got nil")
+	}
+}
+
+func TestParseProdukPriceMapping(t *testing.T) {
+	produk := produkFixture(t, toAny([]fixtureProdukRow{
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
+	}))
+
+	products, invalid := parseProdukFile(produk)
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid rows: %+v", invalid)
+	}
+	if len(products) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(products))
+	}
+	if products[0].buy != 14500 || products[0].sell != 17200 {
+		t.Errorf("prices mapped wrong: buy=%v sell=%v", products[0].buy, products[0].sell)
 	}
 }

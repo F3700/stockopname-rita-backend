@@ -245,8 +245,9 @@ func parseProdukFile(data []byte) ([]*importProduct, []dto.ImportInvalidRow) {
 		plu, _ := row.StringValueByName("PLU")
 		name, _ := row.StringValueByName("NAMABRG")
 		dept, _ := row.StringValueByName("KODE_DPT")
-		buy, buyErr := row.FloatValueByName("HRG_JUAL")
-		sell, sellErr := row.FloatValueByName("RP_BELI")
+		// Legacy names: HRG_JUAL is the selling price, RP_BELI the purchase price.
+		sell, sellErr := row.FloatValueByName("HRG_JUAL")
+		buy, buyErr := row.FloatValueByName("RP_BELI")
 
 		reject := func(reason string) {
 			invalid = append(invalid, dto.ImportInvalidRow{File: "produk", Line: line, PLU: plu, Reason: reason})
@@ -272,10 +273,10 @@ func parseProdukFile(data []byte) ([]*importProduct, []dto.ImportInvalidRow) {
 			reject("department code longer than 10 characters")
 			continue
 		case buyErr != nil:
-			reject("invalid HRG_JUAL")
+			reject("invalid RP_BELI")
 			continue
 		case sellErr != nil:
-			reject("invalid RP_BELI")
+			reject("invalid HRG_JUAL")
 			continue
 		case buy < 0 || sell < 0:
 			reject("negative price")
