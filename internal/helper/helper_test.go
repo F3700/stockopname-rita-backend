@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/julienschmidt/httprouter"
 
 	"stockopname-rita-backend/internal/model"
@@ -235,5 +236,20 @@ func TestParseDateNullable(t *testing.T) {
 	got := ParseDateNullable(&date)
 	if !strings.HasPrefix(got, "2026-09-10T08:00:00Z") {
 		t.Errorf("unexpected formatted date: %q", got)
+	}
+}
+
+func TestMapServiceErrorValidation(t *testing.T) {
+	type request struct {
+		Quantity *int `validate:"required,gte=0"`
+	}
+
+	err := validator.New().Struct(request{})
+	status, message := mapServiceError(err)
+	if status != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
+	}
+	if message != "Quantity is required" {
+		t.Errorf("unexpected message %q", message)
 	}
 }

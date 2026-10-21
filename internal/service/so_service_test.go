@@ -79,3 +79,29 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 		t.Errorf("unexpected responses %+v", responses)
 	}
 }
+
+func TestStockOpnameQuantityValidation(t *testing.T) {
+	validate := newTestValidator(t)
+
+	tests := []struct {
+		name    string
+		request any
+		wantErr bool
+	}{
+		{"zero create", dto.CreateStockOpnameRequest{Quantity: intPtr(0), Barcode: "x", RakID: 1}, false},
+		{"missing create", dto.CreateStockOpnameRequest{Barcode: "x", RakID: 1}, true},
+		{"negative create", dto.CreateStockOpnameRequest{Quantity: intPtr(-1), Barcode: "x", RakID: 1}, true},
+		{"zero update", dto.UpdateStockOpnameRequest{Quantity: intPtr(0)}, false},
+		{"missing update", dto.UpdateStockOpnameRequest{}, true},
+		{"negative update", dto.UpdateStockOpnameRequest{Quantity: intPtr(-1)}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validate.Struct(tt.request)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validation error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
+	}
+}

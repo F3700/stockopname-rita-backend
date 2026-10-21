@@ -79,7 +79,7 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 		return dto.StockOpnameResponse{}, err
 	}
 
-	modelSO := snapshot(req.Quantity, req.RakID, product, req.Barcode)
+	modelSO := snapshot(*req.Quantity, req.RakID, product, req.Barcode)
 
 	if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
 		return dto.StockOpnameResponse{}, err
@@ -177,6 +177,10 @@ func (s *StockOpnameServiceImpl) FindById(ctx context.Context, id int) (dto.Stoc
 
 // Update implements [StockOpnameService].
 func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error) {
+	if err := s.Validator.Struct(req); err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return dto.StockOpnameResponse{}, err
@@ -185,7 +189,7 @@ func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.Upd
 
 	modelSO := &model.StockOpname{
 		StockOpnameID:       id,
-		StockOpnameQuantity: req.Quantity,
+		StockOpnameQuantity: *req.Quantity,
 	}
 
 	if err := s.StockOpnameRepository.Update(ctx, tx, modelSO); err != nil {
@@ -234,7 +238,7 @@ func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.Creat
 		if err != nil {
 			return err
 		}
-		modelSO := snapshot(item.Quantity, req.RackID, product, item.Barcode)
+		modelSO := snapshot(*item.Quantity, req.RackID, product, item.Barcode)
 		if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
 			return err
 		}

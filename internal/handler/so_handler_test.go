@@ -14,7 +14,7 @@ import (
 func TestCreateStockOpname(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
 		createFunc: func(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
-			if req.Quantity != 10 || req.Barcode != "8991001010016" || req.RakID != 2 {
+			if req.Quantity == nil || *req.Quantity != 10 || req.Barcode != "8991001010016" || req.RakID != 2 {
 				t.Errorf("unexpected request %+v", req)
 			}
 			return dto.StockOpnameResponse{Id: 1, Quantity: 10}, nil
@@ -247,7 +247,7 @@ func TestGetStockOpnameByIdNotFound(t *testing.T) {
 func TestUpdateStockOpname(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
 		updateFunc: func(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error) {
-			if id != 3 || req.Quantity != 25 {
+			if id != 3 || req.Quantity == nil || *req.Quantity != 25 {
 				t.Errorf("unexpected id/request: %d %+v", id, req)
 			}
 			return dto.StockOpnameResponse{Id: 3, Quantity: 25}, nil

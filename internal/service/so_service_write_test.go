@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/pashagolub/pgxmock/v4"
 
 	"stockopname-rita-backend/internal/dto"
@@ -58,7 +59,7 @@ func TestStockOpnameCreateByBarcodeTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: 10, Barcode: "8991001010016", RakID: 2})
+	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -90,7 +91,7 @@ func TestStockOpnameCreateByPLUTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: 10, PLU: "100251", RakID: 2})
+	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), PLU: "100251", RakID: 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -111,7 +112,7 @@ func TestStockOpnameCreateWithoutIdentifier(t *testing.T) {
 	})
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: 10, RakID: 2})
+	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), RakID: 2})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -139,7 +140,7 @@ func TestStockOpnameCreateTxSaveError(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: 10, Barcode: "8991001010016", RakID: 2})
+	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 2})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -215,7 +216,7 @@ func TestStockOpnameUpdateTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	res, err := svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: 25})
+	res, err := svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: intPtr(25)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -283,11 +284,30 @@ func TestStockOpnameCreateByRackTx(t *testing.T) {
 	req := dto.CreateStockOpnameByRackRequest{
 		RackID: 5,
 		Items: []dto.CreateStockOpnameRequest{
-			{Quantity: 10, Barcode: "8991001010016", RakID: 5},
-			{Quantity: 5, PLU: "100252", RakID: 5},
+			{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 5},
+			{Quantity: intPtr(5), PLU: "100252", RakID: 5},
 		},
 	}
 	if err := svc.CreateByRack(context.Background(), req); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestStockOpnameUpdateRejectsInvalidQuantity(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newStockOpnameServiceWithMock(mock, t)
+	_, err = svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: intPtr(-1)})
+	var validationErrs validator.ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Fatalf("expected validation error, got %T: %v", err, err)
 	}
 }

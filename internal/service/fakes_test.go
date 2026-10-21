@@ -32,6 +32,8 @@ func newTestValidator(t *testing.T) *validator.Validate {
 	return validator.New()
 }
 
+func intPtr(v int) *int { return &v }
+
 type fakeBarcodeRepository struct {
 	saveBatchFunc func(ctx context.Context, tx pgx.Tx, productID int, codes []string) error
 	replaceFunc   func(ctx context.Context, tx pgx.Tx, productID int, codes []string) error
