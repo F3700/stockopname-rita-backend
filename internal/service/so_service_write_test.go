@@ -293,6 +293,45 @@ func TestStockOpnameCreateByRackTx(t *testing.T) {
 	}
 }
 
+func TestStockOpnameCreateByRackRejectsInvalidQuantity(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newStockOpnameServiceWithMock(mock, t)
+
+	// No DB expectations: an invalid item must be rejected before Pool.Begin.
+	for _, tt := range []struct {
+		name string
+		qty  *int
+	}{
+		{"missing quantity", nil},
+		{"negative quantity", intPtr(-1)},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			err := svc.CreateByRack(context.Background(), dto.CreateStockOpnameByRackRequest{
+				RackID: 5,
+				Items: []dto.CreateStockOpnameRequest{{
+					Quantity: tt.qty,
+					Barcode:  "8991001010016",
+					RakID:    5,
+				}},
+			})
+
+			var validationErrs validator.ValidationErrors
+			if !errors.As(err, &validationErrs) {
+				t.Fatalf("expected validation error, got %T: %v", err, err)
+			}
+		})
+	}
+}
+
 func TestStockOpnameUpdateRejectsInvalidQuantity(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {

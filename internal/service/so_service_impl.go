@@ -222,6 +222,9 @@ func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.Creat
 		return err
 	}
 	for _, item := range req.Items {
+		if item.Quantity == nil {
+			return &model.ValidationError{Detail: "quantity is required"}
+		}
 		if item.Barcode == "" && item.PLU == "" {
 			return &model.ValidationError{Detail: "barcode or plu is required"}
 		}

@@ -43,5 +43,5 @@ type UpdateStockOpnameRequest struct {
 
 type CreateStockOpnameByRackRequest struct {
 	RackID int                        `json:"rak_id" validate:"required"`
-	Items  []CreateStockOpnameRequest `json:"so_products" validate:"required"`
+	Items  []CreateStockOpnameRequest `json:"so_products" validate:"required,dive"`
 }
