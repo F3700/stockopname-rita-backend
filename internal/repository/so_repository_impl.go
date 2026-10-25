@@ -178,8 +178,6 @@ func (s *StockOpnameRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, stock
 }
 
 // FindAllForExport implements [StockOpnameRepository].
-// It returns the full denormalized result set of one session, including
-// product prices, for file exports. Unlike FindAll it needs no pagination.
 func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
 	const SQL = `
 		SELECT
@@ -216,4 +214,60 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 	}
 
 	return exports, nil
+}
+
+// FindSesiIdByRak implements [StockOpnameRepository].
+func (s *StockOpnameRepositoryImpl) FindSesiIdByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error) {
+	const SQL = `
+		SELECT c.coor_sesi_id
+		FROM rak r
+		JOIN inspector i ON i.inspector_id = r.rak_inspector_id
+		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		WHERE r.rak_id = $1
+	`
+	var sesiId int
+	if err := tx.QueryRow(ctx, SQL, rakID).Scan(&sesiId); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, &model.NotFoundError{Resource: "Rack", ID: rakID}
+		}
+		return 0, err
+	}
+	return sesiId, nil
+}
+
+// FindSesiIdByStockOpnameID implements [StockOpnameRepository].
+func (s *StockOpnameRepositoryImpl) FindSesiIdByStockOpnameID(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error) {
+	const SQL = `
+		SELECT c.coor_sesi_id
+		FROM stock_opname so
+		JOIN rak r ON r.rak_id = so.stock_opname_rak_id
+		JOIN inspector i ON i.inspector_id = r.rak_inspector_id
+		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		WHERE so.stock_opname_id = $1
+	`
+	var sesiId int
+	if err := tx.QueryRow(ctx, SQL, stockOpnameID).Scan(&sesiId); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, &model.NotFoundError{Resource: "Stock opname", ID: stockOpnameID}
+		}
+		return 0, err
+	}
+	return sesiId, nil
+}
+
+// CountBySesi implements [StockOpnameRepository].
+func (s *StockOpnameRepositoryImpl) CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error) {
+	const SQL = `
+		SELECT COUNT(*)
+		FROM stock_opname so
+		JOIN rak r ON r.rak_id = so.stock_opname_rak_id
+		JOIN inspector i ON i.inspector_id = r.rak_inspector_id
+		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		WHERE c.coor_sesi_id = $1
+	`
+	var total int
+	if err := tx.QueryRow(ctx, SQL, sesiId).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
 }

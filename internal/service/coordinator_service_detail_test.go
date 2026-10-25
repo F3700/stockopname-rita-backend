@@ -19,7 +19,7 @@ func TestCoordinatorFindByIdDetail(t *testing.T) {
 				SessionLocation:    "Gudang A",
 			}, nil
 		},
-	}, nil)
+	}, nil, nil)
 
 	res, err := svc.FindByIdDetail(context.Background(), 5)
 	if err != nil {

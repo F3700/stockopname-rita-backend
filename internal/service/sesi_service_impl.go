@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"stockopname-rita-backend/internal/dto"
-	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
 	"time"
@@ -18,15 +17,26 @@ type SesiServiceImpl struct {
 	Pool                  repository.DBPool
 	SesiRepository        repository.SesiRepository
 	CoordinatorRepository repository.CoordinatorRepository
+	ProductRepository     repository.ProductRepository
+	StockOpnameRepository repository.StockOpnameRepository
 }
 
-func NewSesiService(sesiRepository repository.SesiRepository, coordinatorRepository repository.CoordinatorRepository, pool repository.DBPool, validate *validator.Validate) SesiService {
+func NewSesiService(sesiRepository repository.SesiRepository, coordinatorRepository repository.CoordinatorRepository, productRepository repository.ProductRepository, stockOpnameRepository repository.StockOpnameRepository, pool repository.DBPool, validate *validator.Validate) SesiService {
 	return &SesiServiceImpl{
 		Validator:             validate,
 		Pool:                  pool,
 		SesiRepository:        sesiRepository,
 		CoordinatorRepository: coordinatorRepository,
+		ProductRepository:     productRepository,
+		StockOpnameRepository: stockOpnameRepository,
 	}
+}
+
+func sesiEndDate(sesi *model.Sesi) string {
+	if !sesi.SesiEndedAt.Valid {
+		return ""
+	}
+	return sesi.SesiEndedAt.Time.Format(time.RFC3339)
 }
 
 func (s *SesiServiceImpl) FindById(ctx context.Context, id int) (dto.SesiResponse, error) {
@@ -41,7 +51,7 @@ func (s *SesiServiceImpl) FindById(ctx context.Context, id int) (dto.SesiRespons
 		Code:      sesiModel.SesiCode,
 		Status:    sesiModel.SesiStatus,
 		StartDate: sesiModel.SesiStartedAt.Format(time.RFC3339),
-		EndDate:   helper.ParseDateNullable(&sesiModel.SesiEndedAt.Time),
+		EndDate:   sesiEndDate(sesiModel),
 	}
 
 	return response, nil
@@ -90,7 +100,7 @@ func (s *SesiServiceImpl) Create(ctx context.Context, req dto.CreateSesiRequest)
 		Code:      sesiModel.SesiCode,
 		Status:    sesiModel.SesiStatus,
 		StartDate: sesiModel.SesiStartedAt.Format(time.RFC3339),
-		EndDate:   helper.ParseDateNullable(&sesiModel.SesiEndedAt.Time),
+		EndDate:   sesiEndDate(sesiModel),
 	}, nil
 }
 
@@ -101,6 +111,29 @@ func (s *SesiServiceImpl) Delete(ctx context.Context, id int) error {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	current, err := s.SesiRepository.FindByIdForUpdate(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	if current.SesiStatus == "IN_PROGRESS" {
+		products, err := s.ProductRepository.CountBySesi(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if products > 0 {
+			return &model.ConflictError{Resource: "Session", Detail: "Session still has data"}
+		}
+
+		results, err := s.StockOpnameRepository.CountBySesi(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if results > 0 {
+			return &model.ConflictError{Resource: "Session", Detail: "Session still has data"}
+		}
+	}
 
 	if err := s.SesiRepository.Delete(ctx, tx, id); err != nil {
 		return fmt.Errorf("failed to delete sesi with id %d: %w", id, err)
@@ -120,6 +153,25 @@ func (s *SesiServiceImpl) Update(ctx context.Context, id int, req dto.UpdateSesi
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
+
+	current, err := s.SesiRepository.FindByIdForUpdate(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	if err := ensureSessionWritable(current); err != nil {
+		return err
+	}
+
+	if req.Status == "COMPLETED" {
+		products, err := s.ProductRepository.CountBySesi(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if products == 0 {
+			return &model.ConflictError{Resource: "Session", Detail: "Session has no products yet"}
+		}
+	}
 
 	sesiModel := &model.Sesi{
 		SesiID:     id,
@@ -153,7 +205,7 @@ func (s *SesiServiceImpl) FindAll(ctx context.Context, pagination *dto.Paginatio
 			Code:      sesiModel.SesiCode,
 			Status:    sesiModel.SesiStatus,
 			StartDate: sesiModel.SesiStartedAt.Format(time.RFC3339),
-			EndDate:   helper.ParseDateNullable(&sesiModel.SesiEndedAt.Time),
+			EndDate:   sesiEndDate(sesiModel),
 		}
 		sesiResponses = append(sesiResponses, sesiResponse)
 	}

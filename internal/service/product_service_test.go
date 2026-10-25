@@ -15,6 +15,7 @@ import (
 func productModel() *model.Product {
 	return &model.Product{
 		ProductID:             1,
+		ProductSesiID:         3,
 		ProductPLU:            "100251",
 		ProductName:           "Sari Roti",
 		ProductDepartmentCode: "1138",
@@ -26,21 +27,29 @@ func productModel() *model.Product {
 	}
 }
 
+func fakeSesiForProduct() *fakeSesiRepository {
+	return &fakeSesiRepository{
+		findByIdFn: func(ctx context.Context, id int) (*model.Sesi, error) {
+			return &model.Sesi{SesiID: id, SesiStatus: "IN_PROGRESS"}, nil
+		},
+	}
+}
+
 func TestProductFindAll(t *testing.T) {
 	svc := NewProductService(&fakeProductRepository{
-		findAllInPageSearchFn: func(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error) {
-			if limit != 10 || offset != 20 {
-				t.Errorf("expected limit 10 offset 20, got limit %d offset %d", limit, offset)
+		findAllInPageSearchFn: func(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error) {
+			if sesiId != 3 || limit != 10 || offset != 20 {
+				t.Errorf("expected session 3 limit 10 offset 20, got %d %d %d", sesiId, limit, offset)
 			}
 			if search != "roti" {
 				t.Errorf("expected search %q, got %q", "roti", search)
 			}
 			return []*model.Product{productModel()}, 21, nil
 		},
-	}, nil, nil, nil, newTestValidator(t))
+	}, nil, fakeSesiForProduct(), nil, newTestValidator(t))
 
 	pagination := &dto.Pagination{Page: 3, Limit: 10}
-	responses, err := svc.FindAll(context.Background(), pagination, "roti")
+	responses, err := svc.FindAll(context.Background(), 3, pagination, "roti")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,38 +82,14 @@ func TestProductFindAll(t *testing.T) {
 
 func TestProductFindAllRepoError(t *testing.T) {
 	svc := NewProductService(&fakeProductRepository{
-		findAllInPageSearchFn: func(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error) {
+		findAllInPageSearchFn: func(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error) {
 			return nil, 0, errors.New("boom")
 		},
-	}, nil, nil, nil, newTestValidator(t))
+	}, nil, fakeSesiForProduct(), nil, newTestValidator(t))
 
-	_, err := svc.FindAll(context.Background(), &dto.Pagination{Page: 1, Limit: 10}, "")
+	_, err := svc.FindAll(context.Background(), 3, &dto.Pagination{Page: 1, Limit: 10}, "")
 	if err == nil {
 		t.Error("expected error, got nil")
-	}
-}
-
-func TestProductFindAllUpdatedAfter(t *testing.T) {
-	date := time.Date(2026, 9, 9, 0, 0, 0, 0, time.UTC)
-	svc := NewProductService(&fakeProductRepository{
-		findAllUpdatedAfterFunc: func(ctx context.Context, got time.Time, limit int, offset int) ([]*model.Product, int, error) {
-			if !got.Equal(date) {
-				t.Errorf("expected date %v, got %v", date, got)
-			}
-			return []*model.Product{productModel()}, 1, nil
-		},
-	}, nil, nil, nil, newTestValidator(t))
-
-	pagination := &dto.Pagination{Page: 1, Limit: 10}
-	responses, err := svc.FindAllUpdatedAfter(context.Background(), pagination, date)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(responses) != 1 || responses[0].Id != 1 {
-		t.Errorf("unexpected responses %+v", responses)
-	}
-	if pagination.TotalItems != 1 || pagination.TotalPages != 1 {
-		t.Errorf("unexpected pagination %+v", pagination)
 	}
 }
 

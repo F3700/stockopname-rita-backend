@@ -8,6 +8,7 @@ import (
 	"github.com/pashagolub/pgxmock/v4"
 
 	"stockopname-rita-backend/internal/dto"
+	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
 )
 
@@ -17,6 +18,8 @@ func newInspectorServiceWithMock(mock pgxmock.PgxPoolIface, t *testing.T) Inspec
 		repository.NewInspectorRepository(mock),
 		repository.NewCoordinatorRepository(mock),
 		repository.NewRackRepository(mock),
+		repository.NewProductRepository(mock),
+		repository.NewSesiRepository(mock),
 		mock,
 	)
 }
@@ -36,6 +39,8 @@ func TestInspectorCreateTx(t *testing.T) {
 	mock.ExpectQuery("s.sesi_code").WithArgs("SESI-01", "KOR-01").WillReturnRows(
 		pgxmock.NewRows([]string{"id", "code", "sesi_id", "status"}).AddRow(1, "KOR-01", 1, "IN_PROGRESS"),
 	)
+	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("INSERT INTO inspector").WithArgs("INSP-01", 1).WillReturnRows(
 		pgxmock.NewRows([]string{"inspector_id"}).AddRow(9),
 	)
@@ -55,6 +60,9 @@ func TestInspectorCreateTx(t *testing.T) {
 	}
 	if res.InspectorID != 9 {
 		t.Errorf("expected inspector id 9, got %d", res.InspectorID)
+	}
+	if res.SesiID != 1 {
+		t.Errorf("expected session id 1, got %d", res.SesiID)
 	}
 	if len(res.Rak) != 2 || res.Rak[0].RackID != 21 || res.Rak[1].RackName != "R2" {
 		t.Errorf("unexpected racks %+v", res.Rak)
@@ -100,6 +108,8 @@ func TestInspectorCreateTxRackError(t *testing.T) {
 	mock.ExpectQuery("s.sesi_code").WithArgs("SESI-01", "KOR-01").WillReturnRows(
 		pgxmock.NewRows([]string{"id", "code", "sesi_id", "status"}).AddRow(1, "KOR-01", 1, "IN_PROGRESS"),
 	)
+	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("INSERT INTO inspector").WithArgs("INSP-01", 1).WillReturnRows(
 		pgxmock.NewRows([]string{"inspector_id"}).AddRow(9),
 	)
@@ -110,5 +120,35 @@ func TestInspectorCreateTxRackError(t *testing.T) {
 	_, err = svc.CreateInspector(context.Background(), dto.InspectorRequest{SesiCode: "SESI-01", CoorCode: "KOR-01", InspectorCode: "INSP-01", Rak: []string{"R1"}})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestInspectorCreateNoProducts(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("s.sesi_code").WithArgs("SESI-01", "KOR-01").WillReturnRows(
+		pgxmock.NewRows([]string{"id", "code", "sesi_id", "status"}).AddRow(1, "KOR-01", 1, "IN_PROGRESS"),
+	)
+	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectRollback()
+
+	svc := newInspectorServiceWithMock(mock, t)
+	_, err = svc.CreateInspector(context.Background(), dto.InspectorRequest{SesiCode: "SESI-01", CoorCode: "KOR-01", InspectorCode: "INSP-01", Rak: []string{"R1"}})
+	if err == nil {
+		t.Fatal("expected conflict, got nil")
+	}
+	var conflict *model.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
 	}
 }

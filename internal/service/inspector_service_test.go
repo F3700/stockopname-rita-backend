@@ -20,7 +20,7 @@ func TestInspectorFindAllSummaryWithoutFilter(t *testing.T) {
 			byCoorCalled = true
 			return nil, nil
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	responses, err := svc.FindAllSummary(context.Background(), nil)
 	if err != nil {
@@ -51,7 +51,7 @@ func TestInspectorFindAllSummaryWithFilter(t *testing.T) {
 			}
 			return []*model.InspectorSummary{}, nil
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	coorId := 5
 	responses, err := svc.FindAllSummary(context.Background(), &coorId)
@@ -71,7 +71,7 @@ func TestInspectorFindAllSummaryError(t *testing.T) {
 		findAllFunc: func(ctx context.Context) ([]*model.InspectorSummary, error) {
 			return nil, errors.New("boom")
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	_, err := svc.FindAllSummary(context.Background(), nil)
 	if err == nil {
@@ -84,7 +84,7 @@ func TestInspectorFindAllSummaryEmpty(t *testing.T) {
 		findAllFunc: func(ctx context.Context) ([]*model.InspectorSummary, error) {
 			return nil, nil
 		},
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil, nil)
 
 	responses, err := svc.FindAllSummary(context.Background(), nil)
 	if err != nil {

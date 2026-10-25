@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5"
@@ -15,7 +14,6 @@ import (
 
 var _ repository.BarcodeRepository = (*fakeBarcodeRepository)(nil)
 var _ repository.CoordinatorRepository = (*fakeCoordinatorRepository)(nil)
-var _ repository.DeletedProductRepository = (*fakeDeletedProductRepository)(nil)
 var _ repository.InspectorRepository = (*fakeInspectorRepository)(nil)
 var _ repository.ProductRepository = (*fakeProductRepository)(nil)
 var _ repository.RackRepository = (*fakeRackRepository)(nil)
@@ -35,22 +33,22 @@ func newTestValidator(t *testing.T) *validator.Validate {
 func intPtr(v int) *int { return &v }
 
 type fakeBarcodeRepository struct {
-	saveBatchFunc func(ctx context.Context, tx pgx.Tx, productID int, codes []string) error
-	replaceFunc   func(ctx context.Context, tx pgx.Tx, productID int, codes []string) error
+	saveBatchFunc func(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error
+	replaceFunc   func(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error
 }
 
-func (f *fakeBarcodeRepository) SaveBatch(ctx context.Context, tx pgx.Tx, productID int, codes []string) error {
+func (f *fakeBarcodeRepository) SaveBatch(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error {
 	if f.saveBatchFunc == nil {
 		return nil
 	}
-	return f.saveBatchFunc(ctx, tx, productID, codes)
+	return f.saveBatchFunc(ctx, tx, sesiId, productID, codes)
 }
 
-func (f *fakeBarcodeRepository) Replace(ctx context.Context, tx pgx.Tx, productID int, codes []string) error {
+func (f *fakeBarcodeRepository) Replace(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error {
 	if f.replaceFunc == nil {
 		return nil
 	}
-	return f.replaceFunc(ctx, tx, productID, codes)
+	return f.replaceFunc(ctx, tx, sesiId, productID, codes)
 }
 
 type fakeCoordinatorRepository struct {
@@ -107,29 +105,6 @@ func (f *fakeCoordinatorRepository) FindById(ctx context.Context, tx pgx.Tx, id 
 	return f.findByIdFunc(ctx, tx, id)
 }
 
-type fakeDeletedProductRepository struct {
-	saveFunc                func(ctx context.Context, tx pgx.Tx, plu string) error
-	deleteFunc              func(ctx context.Context) error
-	findAllFunc             func(ctx context.Context) ([]*model.DeletedProduct, error)
-	findAllUpdatedAfterFunc func(ctx context.Context, date time.Time) ([]*model.DeletedProduct, error)
-}
-
-func (f *fakeDeletedProductRepository) Save(ctx context.Context, tx pgx.Tx, plu string) error {
-	return f.saveFunc(ctx, tx, plu)
-}
-
-func (f *fakeDeletedProductRepository) Delete(ctx context.Context) error {
-	return f.deleteFunc(ctx)
-}
-
-func (f *fakeDeletedProductRepository) FindAll(ctx context.Context) ([]*model.DeletedProduct, error) {
-	return f.findAllFunc(ctx)
-}
-
-func (f *fakeDeletedProductRepository) FindAllUpdatedAfter(ctx context.Context, date time.Time) ([]*model.DeletedProduct, error) {
-	return f.findAllUpdatedAfterFunc(ctx, date)
-}
-
 type fakeInspectorRepository struct {
 	findAllFunc               func(ctx context.Context) ([]*model.InspectorSummary, error)
 	findByCoorIdFunc          func(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error)
@@ -157,16 +132,16 @@ func (f *fakeInspectorRepository) Save(ctx context.Context, tx pgx.Tx, inspector
 }
 
 type fakeProductRepository struct {
-	saveFunc                func(ctx context.Context, tx pgx.Tx, product *model.Product) error
-	updateFunc              func(ctx context.Context, tx pgx.Tx, product *model.Product) error
-	deleteFunc              func(ctx context.Context, tx pgx.Tx, id int) error
-	clearFunc               func(ctx context.Context, tx pgx.Tx) error
-	findAllInPageSearchFn   func(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error)
-	findAllUpdatedAfterFunc func(ctx context.Context, date time.Time, limit int, offset int) ([]*model.Product, int, error)
-	findAllForImportFunc    func(ctx context.Context, tx pgx.Tx) ([]*model.Product, error)
-	findByIdFn              func(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error)
-	findByPLUFn             func(ctx context.Context, tx pgx.Tx, plu string) (*model.Product, error)
-	findByBarcodeFn         func(ctx context.Context, tx pgx.Tx, code string) (*model.Product, error)
+	saveFunc              func(ctx context.Context, tx pgx.Tx, product *model.Product) error
+	updateFunc            func(ctx context.Context, tx pgx.Tx, product *model.Product) error
+	deleteFunc            func(ctx context.Context, tx pgx.Tx, id int) error
+	clearFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) error
+	countBySesiFunc       func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
+	findAllInPageSearchFn func(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error)
+	findAllForImportFunc  func(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.Product, error)
+	findByIdFn            func(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error)
+	findByPLUFn           func(ctx context.Context, tx pgx.Tx, sesiId int, plu string) (*model.Product, error)
+	findByBarcodeFn       func(ctx context.Context, tx pgx.Tx, sesiId int, code string) (*model.Product, error)
 }
 
 func (f *fakeProductRepository) Save(ctx context.Context, tx pgx.Tx, product *model.Product) error {
@@ -181,28 +156,31 @@ func (f *fakeProductRepository) Delete(ctx context.Context, tx pgx.Tx, id int) e
 	return f.deleteFunc(ctx, tx, id)
 }
 
-func (f *fakeProductRepository) Clear(ctx context.Context, tx pgx.Tx) error {
-	return f.clearFunc(ctx, tx)
+func (f *fakeProductRepository) Clear(ctx context.Context, tx pgx.Tx, sesiId int) error {
+	return f.clearFunc(ctx, tx, sesiId)
 }
 
-func (f *fakeProductRepository) FindAllForImport(ctx context.Context, tx pgx.Tx) ([]*model.Product, error) {
-	return f.findAllForImportFunc(ctx, tx)
+func (f *fakeProductRepository) CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error) {
+	if f.countBySesiFunc == nil {
+		return 0, nil
+	}
+	return f.countBySesiFunc(ctx, tx, sesiId)
 }
 
-func (f *fakeProductRepository) FindByPLU(ctx context.Context, tx pgx.Tx, plu string) (*model.Product, error) {
-	return f.findByPLUFn(ctx, tx, plu)
+func (f *fakeProductRepository) FindAllForImport(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.Product, error) {
+	return f.findAllForImportFunc(ctx, tx, sesiId)
 }
 
-func (f *fakeProductRepository) FindByBarcode(ctx context.Context, tx pgx.Tx, code string) (*model.Product, error) {
-	return f.findByBarcodeFn(ctx, tx, code)
+func (f *fakeProductRepository) FindByPLU(ctx context.Context, tx pgx.Tx, sesiId int, plu string) (*model.Product, error) {
+	return f.findByPLUFn(ctx, tx, sesiId, plu)
 }
 
-func (f *fakeProductRepository) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error) {
-	return f.findAllInPageSearchFn(ctx, limit, offset, search)
+func (f *fakeProductRepository) FindByBarcode(ctx context.Context, tx pgx.Tx, sesiId int, code string) (*model.Product, error) {
+	return f.findByBarcodeFn(ctx, tx, sesiId, code)
 }
 
-func (f *fakeProductRepository) FindAllUpdatedAfter(ctx context.Context, date time.Time, limit int, offset int) ([]*model.Product, int, error) {
-	return f.findAllUpdatedAfterFunc(ctx, date, limit, offset)
+func (f *fakeProductRepository) FindAllInPageSearch(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error) {
+	return f.findAllInPageSearchFn(ctx, sesiId, limit, offset, search)
 }
 
 func (f *fakeProductRepository) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error) {
@@ -272,12 +250,15 @@ func (f *fakeSesiRepository) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 }
 
 type fakeStockOpnameRepository struct {
-	saveFunc             func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
-	findByIdFn           func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
-	findAllFunc          func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error)
-	updateFunc           func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
-	deleteFunc           func(ctx context.Context, tx pgx.Tx, id int) error
-	findAllForExportFunc func(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error)
+	saveFunc                    func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	findByIdFn                  func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
+	findAllFunc                 func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error)
+	updateFunc                  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	deleteFunc                  func(ctx context.Context, tx pgx.Tx, id int) error
+	findAllForExportFunc        func(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error)
+	findSesiIdByRakFunc         func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
+	findSesiIdByStockOpnameFunc func(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error)
+	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 }
 
 func (f *fakeStockOpnameRepository) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
@@ -302,6 +283,27 @@ func (f *fakeStockOpnameRepository) Delete(ctx context.Context, tx pgx.Tx, id in
 
 func (f *fakeStockOpnameRepository) FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
 	return f.findAllForExportFunc(ctx, sesiId)
+}
+
+func (f *fakeStockOpnameRepository) FindSesiIdByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error) {
+	if f.findSesiIdByRakFunc == nil {
+		return 0, nil
+	}
+	return f.findSesiIdByRakFunc(ctx, tx, rakID)
+}
+
+func (f *fakeStockOpnameRepository) FindSesiIdByStockOpnameID(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error) {
+	if f.findSesiIdByStockOpnameFunc == nil {
+		return 0, nil
+	}
+	return f.findSesiIdByStockOpnameFunc(ctx, tx, stockOpnameID)
+}
+
+func (f *fakeStockOpnameRepository) CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error) {
+	if f.countBySesiFunc == nil {
+		return 0, nil
+	}
+	return f.countBySesiFunc(ctx, tx, sesiId)
 }
 
 type fakeSesiService struct {

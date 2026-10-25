@@ -15,12 +15,12 @@ func TestMapPgError(t *testing.T) {
 	}{
 		{
 			name:     "unique violation mapped",
-			pgErr:    &pgconn.PgError{Code: "23505", ConstraintName: "product_product_plu_key"},
+			pgErr:    &pgconn.PgError{Code: "23505", ConstraintName: "uq_product_sesi_plu"},
 			wantType: &ConflictError{},
 		},
 		{
 			name:     "foreign key violation mapped",
-			pgErr:    &pgconn.PgError{Code: "23503", ConstraintName: "fk_barcode_product"},
+			pgErr:    &pgconn.PgError{Code: "23503", ConstraintName: "fk_product_sesi"},
 			wantType: &ForeignKeyError{},
 		},
 		{
@@ -39,7 +39,7 @@ func TestMapPgError(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected *ConflictError, got %T", err)
 				}
-				if conflict.Detail != "Product PLU already exists" {
+				if conflict.Detail != "Product PLU already exists in this session" {
 					t.Errorf("unexpected detail: %q", conflict.Detail)
 				}
 			case *ForeignKeyError:
@@ -47,7 +47,7 @@ func TestMapPgError(t *testing.T) {
 				if !ok {
 					t.Fatalf("expected *ForeignKeyError, got %T", err)
 				}
-				if fk.Detail != "Product not found" {
+				if fk.Detail != "Session not found" {
 					t.Errorf("unexpected detail: %q", fk.Detail)
 				}
 			case *ValidationError:

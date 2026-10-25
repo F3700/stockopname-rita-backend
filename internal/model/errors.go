@@ -53,14 +53,15 @@ func (e *ValidationError) Error() string {
 }
 
 var constraintMessages = map[string]string{
-	"product_product_plu_key":  "Product PLU already exists",
-	"barcode_barcode_code_key": "Barcode already exists",
+	"uq_product_sesi_plu":      "Product PLU already exists in this session",
+	"uq_barcode_sesi_code":     "Barcode already exists in this session",
 	"sesi_sesi_code_key":       "Session code already exists",
 	"uq_coordinator_sesi_code": "Coordinator code already exists in this session",
 	"uq_inspector_coor_code":   "Inspector code already exists for this coordinator",
 	"uq_rak_inspector_name":    "Rack name already exists for this inspector",
 	"uq_stock_opname_rak_plu":  "Product already recorded for this rack",
-	"fk_barcode_product":       "Product not found",
+	"fk_product_sesi":          "Session not found",
+	"fk_barcode_sesi_product":  "Product/session mismatch",
 	"fk_coordinator_sesi":      "Session not found",
 	"fk_inspector_coordinator": "Coordinator not found",
 	"fk_rak_inspector":         "Inspector not found",

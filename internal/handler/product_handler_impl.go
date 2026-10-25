@@ -57,7 +57,13 @@ func (p *ProductHandlerImpl) DeleteProduct(writer http.ResponseWriter, req *http
 		return
 	}
 
-	if err := p.ProductService.Delete(req.Context(), id); err != nil {
+	sesiId, err := helper.ParseIntQueryNotNull(req, "sessionId")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query sessionId parameter", err)
+		return
+	}
+
+	if err := p.ProductService.Delete(req.Context(), id, sesiId); err != nil {
 		helper.WriteServiceError(writer, err)
 		return
 	}
@@ -99,12 +105,18 @@ func (p *ProductHandlerImpl) GetProducts(writer http.ResponseWriter, req *http.R
 
 	search := req.URL.Query().Get("search")
 
+	sesiId, err := helper.ParseIntQueryNotNull(req, "sessionId")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query sessionId parameter", err)
+		return
+	}
+
 	pagination := &dto.Pagination{
 		Page:  page,
 		Limit: limit,
 	}
 
-	products, err := p.ProductService.FindAll(req.Context(), pagination, search)
+	products, err := p.ProductService.FindAll(req.Context(), sesiId, pagination, search)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return
@@ -122,67 +134,10 @@ func (p *ProductHandlerImpl) GetProducts(writer http.ResponseWriter, req *http.R
 	}
 }
 
-// SyncProducts implements [ProductHandler].
-func (p *ProductHandlerImpl) SyncProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	page, err := helper.ParseIntQueryNotNull(req, "page")
-	if err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
-		return
-	}
-
-	limit, err := helper.ParseIntQueryNotNull(req, "limit")
-	if err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
-		return
-	}
-
-	if err := helper.ValidatePage(page); err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid query page parameter", err)
-		return
-	}
-
-	if err := helper.ValidateLimit(limit); err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
-		return
-	}
-
-	date, err := helper.ParseDate(req.URL.Query().Get("updated_after"))
-	if err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid date format", err)
-		return
-	}
-
-	if date == nil {
-		helper.WriteError(writer, http.StatusBadRequest, "updated_after parameter is required", nil)
-		return
-	}
-
-	pagination := &dto.Pagination{
-		Page:  page,
-		Limit: limit,
-	}
-
-	products, err := p.ProductService.FindAllUpdatedAfter(req.Context(), pagination, *date)
-	if err != nil {
-		helper.WriteServiceError(writer, err)
-		return
-	}
-
-	response := dto.ResponsePagination{
-		Message:    "Products synced successfully",
-		Data:       products,
-		Pagination: pagination,
-	}
-
-	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
-		return
-	}
-}
-
 // ImportProducts implements [ProductHandler].
 // Expects multipart form with "produk" (PRODUK.DBF) and "barcode"
-// (BARCODE.DBF) files. Optional ?dry_run=true validates without writing.
+// (BARCODE.DBF) files plus ?sessionId=. Optional ?dry_run=true validates
+// without writing.
 func (p *ProductHandlerImpl) ImportProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	if err := req.ParseMultipartForm(32 << 20); err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid multipart form", err)
@@ -200,9 +155,15 @@ func (p *ProductHandlerImpl) ImportProducts(writer http.ResponseWriter, req *htt
 		return
 	}
 
+	sesiId, err := helper.ParseIntQueryNotNull(req, "sessionId")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query sessionId parameter", err)
+		return
+	}
+
 	dryRun := req.URL.Query().Get("dry_run") == "true"
 
-	result, err := p.ImportService.Import(req.Context(), produkData, barcodeData, dryRun)
+	result, err := p.ImportService.Import(req.Context(), sesiId, produkData, barcodeData, dryRun)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return
@@ -234,20 +195,26 @@ func readUpload(req *http.Request, field string) ([]byte, error) {
 }
 
 // ClearProducts implements [ProductHandler].
-// Removes ALL master data (products, barcodes, tombstones).
-// Requires ?confirm=true. Stock opname history is untouched.
+// Removes all products of one session. Requires ?sessionId=&confirm=true.
+// Stock opname history is untouched.
 func (p *ProductHandlerImpl) ClearProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	sesiId, err := helper.ParseIntQueryNotNull(req, "sessionId")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query sessionId parameter", err)
+		return
+	}
+
 	if req.URL.Query().Get("confirm") != "true" {
 		helper.WriteError(writer, http.StatusBadRequest, "Master data clear requires ?confirm=true", nil)
 		return
 	}
 
-	if err := p.ProductService.Clear(req.Context()); err != nil {
+	if err := p.ProductService.Clear(req.Context(), sesiId); err != nil {
 		helper.WriteServiceError(writer, err)
 		return
 	}
 
-	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{Message: "Master data cleared successfully", Data: nil}); err != nil {
+	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{Message: "Products cleared successfully", Data: nil}); err != nil {
 		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
 	}
 }
@@ -260,13 +227,19 @@ func (p *ProductHandlerImpl) UpdateProduct(writer http.ResponseWriter, req *http
 		return
 	}
 
+	sesiId, err := helper.ParseIntQueryNotNull(req, "sessionId")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query sessionId parameter", err)
+		return
+	}
+
 	productUpdateRequest := dto.ProductUpdateRequest{}
 	if err := helper.ReadFromRequestBody(req, &productUpdateRequest); err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 
-	productResponse, err := p.ProductService.Update(req.Context(), id, productUpdateRequest)
+	productResponse, err := p.ProductService.Update(req.Context(), id, sesiId, productUpdateRequest)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return

@@ -52,7 +52,7 @@
           "Products"
         ],
         "summary": "Get products",
-        "description": "Retrieve a paginated list of products with optional search.",
+        "description": "Retrieve a paginated list of products belonging to one session, with optional search.",
         "parameters": [
           {
             "name": "page",
@@ -80,6 +80,16 @@
               "type": "string"
             },
             "example": "laptop"
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 3
           }
         ],
         "responses": {
@@ -110,6 +120,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -162,124 +175,6 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
-      },
-      "delete": {
-        "tags": [
-          "Products"
-        ],
-        "summary": "Clear all master data",
-        "description": "Removes ALL products, barcodes and tombstones. Requires ?confirm=true. Stock opname history is untouched.",
-        "parameters": [
-          {
-            "name": "confirm",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "example": "true"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Master data cleared successfully"
-                    },
-                    "data": {
-                      "type": "object",
-                      "nullable": true
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/products/sync": {
-      "get": {
-        "tags": [
-          "Products"
-        ],
-        "summary": "Sync products by update timestamp",
-        "description": "Retrieve a paginated list of products updated after a specific timestamp, used for data synchronization.",
-        "parameters": [
-          {
-            "name": "page",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 1
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "integer"
-            },
-            "example": 50
-          },
-          {
-            "name": "updated_after",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-08-24T21:58:28+07:00"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Products synced successfully"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/Product"
-                      }
-                    },
-                    "pagination": {
-                      "$ref": "#/components/schemas/Pagination"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "$ref": "#/components/responses/BadRequest"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
       }
     },
     "/products/{id}": {
@@ -298,6 +193,16 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 3
           }
         ],
         "requestBody": {
@@ -359,6 +264,16 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 3
           }
         ],
         "responses": {
@@ -387,86 +302,6 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
-    "/deleted/products": {
-      "get": {
-        "tags": [
-          "Deleted Products"
-        ],
-        "summary": "Get deleted products",
-        "description": "Retrieve a list of products that have been deleted, optionally filtered by their last update timestamp.",
-        "parameters": [
-          {
-            "name": "updated_after",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "format": "date-time"
-            },
-            "example": "2026-08-14T10:00:00Z"
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Deleted products retrieved successfully"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "$ref": "#/components/schemas/DeletedProduct"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      },
-      "delete": {
-        "tags": [
-          "Deleted Products"
-        ],
-        "summary": "Delete all deleted products",
-        "description": "Permanently delete all products that have been marked as deleted.",
-        "responses": {
-          "200": {
-            "description": "All deleted products removed successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "All deleted products removed successfully"
-                    },
-                    "data": {
-                      "type": "string",
-                      "example": ""
-                    }
-                  }
-                }
-              }
-            }
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -651,7 +486,7 @@
           "Stock Opname Session"
         ],
         "summary": "Update a stock opname session",
-        "description": "Update the details of an existing stock opname session.",
+        "description": "Update session status. Rejected with 409 for COMPLETED/CANCELLED sessions and for IN_PROGRESS -> COMPLETED when the session has no products.",
         "parameters": [
           {
             "name": "id",
@@ -693,6 +528,61 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Stock Opname Session"
+        ],
+        "summary": "Delete a stock opname session",
+        "description": "Hard delete. COMPLETED/CANCELLED sessions are always deletable; IN_PROGRESS only when it has no products and no stock opname results. All child rows (products, barcodes, results, racks, inspectors, coordinators) are removed by cascade.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session deleted successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Sesi deleted successfully"
+                    },
+                    "data": {
+                      "type": "object",
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -997,6 +887,9 @@
               }
             }
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1129,6 +1022,10 @@
                               }
                             }
                           }
+                        },
+                        "sesi_id": {
+                          "type": "integer",
+                          "example": 3
                         }
                       }
                     }
@@ -1136,6 +1033,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -1219,6 +1119,10 @@
                               }
                             }
                           }
+                        },
+                        "sesi_id": {
+                          "type": "integer",
+                          "example": 3
                         }
                       }
                     }
@@ -1581,6 +1485,9 @@
               }
             }
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1668,6 +1575,9 @@
               }
             }
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1719,6 +1629,9 @@
                 }
               }
             }
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -1810,6 +1723,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1831,6 +1747,16 @@
             "schema": {
               "type": "boolean"
             }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 3
           }
         ],
         "requestBody": {
@@ -1881,6 +1807,12 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1893,7 +1825,7 @@
           "Products"
         ],
         "summary": "Clear all master data",
-        "description": "Removes ALL products, barcodes and tombstones. Requires ?confirm=true. Stock opname history is untouched.",
+        "description": "Removes all products and barcodes of one session. Requires ?sessionId=&confirm=true. Stock opname history is untouched.",
         "parameters": [
           {
             "name": "confirm",
@@ -1903,6 +1835,16 @@
               "type": "string",
               "example": "true"
             }
+          },
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "example": 3
           }
         ],
         "responses": {
@@ -1915,7 +1857,7 @@
                   "properties": {
                     "message": {
                       "type": "string",
-                      "example": "Master data cleared successfully"
+                      "example": "Products cleared successfully"
                     },
                     "data": {
                       "type": "object",
@@ -1928,6 +1870,12 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -2009,6 +1957,7 @@
       "CreateProductRequest": {
         "type": "object",
         "required": [
+          "sesi_id",
           "plu",
           "name",
           "buy_price",
@@ -2016,6 +1965,11 @@
           "department_code"
         ],
         "properties": {
+          "sesi_id": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 3
+          },
           "plu": {
             "type": "string",
             "example": "100251"
@@ -2081,18 +2035,6 @@
               "type": "string"
             },
             "description": "Replaces the whole barcode set when present."
-          }
-        }
-      },
-      "DeletedProduct": {
-        "type": "object",
-        "required": [
-          "plu"
-        ],
-        "properties": {
-          "plu": {
-            "type": "string",
-            "example": "100251"
           }
         }
       },

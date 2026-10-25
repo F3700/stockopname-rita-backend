@@ -26,6 +26,8 @@ func TestInspectorCreateByCoordinatorQRSuccess(t *testing.T) {
 	mock.ExpectQuery("WHERE coor_id").WithArgs(12).WillReturnRows(
 		pgxmock.NewRows([]string{"id", "code", "sesi_id", "status"}).AddRow(12, "KOR-12", 1, "IN_PROGRESS"),
 	)
+	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("INSERT INTO inspector").WithArgs("BUDI", 12).WillReturnRows(
 		pgxmock.NewRows([]string{"inspector_id"}).AddRow(9),
 	)
@@ -46,6 +48,9 @@ func TestInspectorCreateByCoordinatorQRSuccess(t *testing.T) {
 	}
 	if res.InspectorID != 9 {
 		t.Errorf("expected inspector id 9, got %d", res.InspectorID)
+	}
+	if res.SesiID != 1 {
+		t.Errorf("expected session id 1, got %d", res.SesiID)
 	}
 	if len(res.Rak) != 1 || res.Rak[0].RackID != 21 {
 		t.Errorf("unexpected racks %+v", res.Rak)
@@ -90,6 +95,7 @@ func TestInspectorCreateByCoordinatorQRInactive(t *testing.T) {
 	mock.ExpectQuery("WHERE coor_id").WithArgs(12).WillReturnRows(
 		pgxmock.NewRows([]string{"id", "code", "sesi_id", "status"}).AddRow(12, "KOR-12", 1, "COMPLETED"),
 	)
+	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
 	mock.ExpectRollback()
 
 	svc := newInspectorServiceWithMock(mock, t)

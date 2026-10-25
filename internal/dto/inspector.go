@@ -26,5 +26,6 @@ type InspectorJoinByCoordinatorQRRequest struct {
 
 type InspectorJoinResponse struct {
 	InspectorID int            `json:"inspector_id"`
+	SesiID      int            `json:"sesi_id"`
 	Rak         []RackResponse `json:"rak"`
 }

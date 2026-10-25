@@ -9,12 +9,14 @@ import (
 
 type CoordinatorServiceImpl struct {
 	CoordinatorRepository repository.CoordinatorRepository
+	SesiRepository        repository.SesiRepository
 	Pool                  repository.DBPool
 }
 
-func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepository, pool repository.DBPool) CoordinatorService {
+func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepository, sesiRepository repository.SesiRepository, pool repository.DBPool) CoordinatorService {
 	return &CoordinatorServiceImpl{
 		CoordinatorRepository: coordinatorRepository,
+		SesiRepository:        sesiRepository,
 		Pool:                  pool,
 	}
 }
@@ -25,6 +27,19 @@ func (c *CoordinatorServiceImpl) Update(ctx context.Context, id int, req *dto.Up
 		return err
 	}
 	defer tx.Rollback(ctx)
+
+	current, err := c.CoordinatorRepository.FindById(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+
+	sesi, err := c.SesiRepository.FindByIdForShare(ctx, tx, current.CoorSesiID)
+	if err != nil {
+		return err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return err
+	}
 
 	coordinatorModel := &model.Coordinator{
 		CoorID:     id,

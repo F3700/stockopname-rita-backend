@@ -16,7 +16,14 @@ import (
 
 func newSesiServiceWithMock(mock pgxmock.PgxPoolIface, t *testing.T) SesiService {
 	t.Helper()
-	return NewSesiService(repository.NewSesiRepository(mock), repository.NewCoordinatorRepository(mock), mock, newTestValidator(t))
+	return NewSesiService(
+		repository.NewSesiRepository(mock),
+		repository.NewCoordinatorRepository(mock),
+		repository.NewProductRepository(mock),
+		repository.NewStockOpnameRepository(mock),
+		mock,
+		newTestValidator(t),
+	)
 }
 
 func TestSesiCreateTx(t *testing.T) {
@@ -90,6 +97,9 @@ func TestSesiDeleteTx(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
 	mock.ExpectExec("DELETE FROM sesi").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 	mock.ExpectCommit()
 	mock.ExpectRollback()
@@ -97,6 +107,56 @@ func TestSesiDeleteTx(t *testing.T) {
 	svc := newSesiServiceWithMock(mock, t)
 	if err := svc.Delete(context.Background(), 1); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSesiDeleteTxFinalSession(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "COMPLETED"))
+	mock.ExpectExec("DELETE FROM sesi").WithArgs(1).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	svc := newSesiServiceWithMock(mock, t)
+	if err := svc.Delete(context.Background(), 1); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSesiDeleteTxActiveWithData(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectRollback()
+
+	svc := newSesiServiceWithMock(mock, t)
+	err = svc.Delete(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected conflict, got nil")
+	}
+	var conflict *model.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
 	}
 }
 
@@ -112,7 +172,9 @@ func TestSesiDeleteTxNotFound(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectExec("DELETE FROM sesi").WithArgs(99).WillReturnResult(pgxmock.NewResult("DELETE", 0))
+	mock.ExpectQuery("FOR UPDATE").WithArgs(99).WillReturnRows(
+		pgxmock.NewRows([]string{"sesi_id", "sesi_location", "sesi_code", "sesi_status", "sesi_startedat", "sesi_endedat"}),
+	)
 	mock.ExpectRollback()
 
 	svc := newSesiServiceWithMock(mock, t)
@@ -138,6 +200,8 @@ func TestSesiUpdateTx(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("SELECT EXISTS").WithArgs(1).WillReturnRows(
 		pgxmock.NewRows([]string{"exists"}).AddRow(true),
 	)
@@ -148,5 +212,86 @@ func TestSesiUpdateTx(t *testing.T) {
 	svc := newSesiServiceWithMock(mock, t)
 	if err := svc.Update(context.Background(), 1, dto.UpdateSesiRequest{Status: "COMPLETED"}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestSesiUpdateTxCompletionGuard(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectRollback()
+
+	svc := newSesiServiceWithMock(mock, t)
+	err = svc.Update(context.Background(), 1, dto.UpdateSesiRequest{Status: "COMPLETED"})
+	if err == nil {
+		t.Fatal("expected conflict, got nil")
+	}
+	var conflict *model.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
+	}
+}
+
+func TestSesiUpdateTxFinalSession(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "COMPLETED"))
+	mock.ExpectRollback()
+
+	svc := newSesiServiceWithMock(mock, t)
+	err = svc.Update(context.Background(), 1, dto.UpdateSesiRequest{Status: "IN_PROGRESS"})
+	if err == nil {
+		t.Fatal("expected conflict, got nil")
+	}
+	var conflict *model.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
+	}
+}
+
+func TestSesiDeleteTxActiveWithResults(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
+	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(0))
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectRollback()
+
+	svc := newSesiServiceWithMock(mock, t)
+	err = svc.Delete(context.Background(), 1)
+	if err == nil {
+		t.Fatal("expected conflict, got nil")
+	}
+	var conflict *model.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
 	}
 }

@@ -14,7 +14,7 @@ import (
 func newProductHandler(productSvc *fakeProductService, importSvc *fakeImportService) ProductHandler {
 	if importSvc == nil {
 		importSvc = &fakeImportService{
-			importFunc: func(ctx context.Context, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
+			importFunc: func(ctx context.Context, sesiId int, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
 				return dto.ImportResultResponse{}, nil
 			},
 		}
@@ -28,6 +28,9 @@ func TestCreateProduct(t *testing.T) {
 			if req.PLU != "100251" || req.Name != "Sari Roti" || req.DepartmentCode != "1138" {
 				t.Errorf("unexpected request %+v", req)
 			}
+			if req.SesiID != 3 {
+				t.Errorf("expected session 3, got %d", req.SesiID)
+			}
 			if req.BuyPrice == nil || *req.BuyPrice != 14500 {
 				t.Errorf("unexpected buy price %+v", req)
 			}
@@ -35,7 +38,7 @@ func TestCreateProduct(t *testing.T) {
 		},
 	}, nil)
 
-	req := newJSONRequest(t, http.MethodPost, "/products", `{"plu":"100251","name":"Sari Roti","department_code":"1138","buy_price":14500,"sell_price":17200,"barcodes":["1002515550011"]}`)
+	req := newJSONRequest(t, http.MethodPost, "/products", `{"sesi_id":3,"plu":"100251","name":"Sari Roti","department_code":"1138","buy_price":14500,"sell_price":17200,"barcodes":["1002515550011"]}`)
 	rec := httptest.NewRecorder()
 	h.CreateProduct(rec, req, nil)
 
@@ -50,16 +53,19 @@ func TestCreateProduct(t *testing.T) {
 func TestDeleteProduct(t *testing.T) {
 	called := false
 	h := newProductHandler(&fakeProductService{
-		deleteFunc: func(ctx context.Context, id int) error {
+		deleteFunc: func(ctx context.Context, id int, sesiId int) error {
 			called = true
 			if id != 11 {
 				t.Errorf("expected id 11, got %d", id)
+			}
+			if sesiId != 3 {
+				t.Errorf("expected session 3, got %d", sesiId)
 			}
 			return nil
 		},
 	}, nil)
 
-	req := newJSONRequest(t, http.MethodDelete, "/products/11", "")
+	req := newJSONRequest(t, http.MethodDelete, "/products/11?sessionId=3", "")
 	rec := httptest.NewRecorder()
 	h.DeleteProduct(rec, req, paramsWithID("11"))
 
@@ -73,15 +79,15 @@ func TestDeleteProduct(t *testing.T) {
 
 func TestGetProducts(t *testing.T) {
 	h := newProductHandler(&fakeProductService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
-			if pagination.Page != 1 || pagination.Limit != 10 || search != "roti" {
-				t.Errorf("unexpected pagination/search %+v %q", pagination, search)
+		findAllFunc: func(ctx context.Context, sesiId int, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
+			if sesiId != 3 || pagination.Page != 1 || pagination.Limit != 10 || search != "roti" {
+				t.Errorf("unexpected session/pagination/search %d %+v %q", sesiId, pagination, search)
 			}
 			return []dto.ProductResponse{{Id: 11, PLU: "100251"}}, nil
 		},
 	}, nil)
 
-	req := newJSONRequest(t, http.MethodGet, "/products?page=1&limit=10&search=roti", "")
+	req := newJSONRequest(t, http.MethodGet, "/products?sessionId=3&page=1&limit=10&search=roti", "")
 	rec := httptest.NewRecorder()
 	h.GetProducts(rec, req, nil)
 
@@ -93,7 +99,7 @@ func TestGetProducts(t *testing.T) {
 func TestGetProductsInvalidPagination(t *testing.T) {
 	called := false
 	h := newProductHandler(&fakeProductService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
+		findAllFunc: func(ctx context.Context, sesiId int, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
 			called = true
 			return nil, nil
 		},
@@ -103,9 +109,9 @@ func TestGetProductsInvalidPagination(t *testing.T) {
 		name string
 		url  string
 	}{
-		{"page zero", "/products?page=0&limit=10"},
-		{"limit zero", "/products?page=1&limit=0"},
-		{"limit too large", "/products?page=1&limit=1001"},
+		{"page zero", "/products?sessionId=3&page=0&limit=10"},
+		{"limit zero", "/products?sessionId=3&page=1&limit=0"},
+		{"limit too large", "/products?sessionId=3&page=1&limit=1001"},
 	}
 
 	for _, tt := range tests {
@@ -158,22 +164,23 @@ func newImportRequest(t *testing.T, target string, produk []byte, barcode []byte
 func TestImportProducts(t *testing.T) {
 	var gotProduk, gotBarcode []byte
 	var gotDryRun bool
+	var gotSesiId int
 	h := newProductHandler(&fakeProductService{}, &fakeImportService{
-		importFunc: func(ctx context.Context, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
-			gotProduk, gotBarcode, gotDryRun = produkData, barcodeData, dryRun
+		importFunc: func(ctx context.Context, sesiId int, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
+			gotSesiId, gotProduk, gotBarcode, gotDryRun = sesiId, produkData, barcodeData, dryRun
 			return dto.ImportResultResponse{ProductsInserted: 2, DryRun: dryRun}, nil
 		},
 	})
 
-	req := newImportRequest(t, "/products/import?dry_run=true", []byte("produk-bytes"), []byte("barcode-bytes"))
+	req := newImportRequest(t, "/products/import?sessionId=3&dry_run=true", []byte("produk-bytes"), []byte("barcode-bytes"))
 	rec := httptest.NewRecorder()
 	h.ImportProducts(rec, req, nil)
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
-	if string(gotProduk) != "produk-bytes" || string(gotBarcode) != "barcode-bytes" || !gotDryRun {
-		t.Errorf("service got wrong args produk=%q barcode=%q dryRun=%v", gotProduk, gotBarcode, gotDryRun)
+	if gotSesiId != 3 || string(gotProduk) != "produk-bytes" || string(gotBarcode) != "barcode-bytes" || !gotDryRun {
+		t.Errorf("service got wrong args sesi=%d produk=%q barcode=%q dryRun=%v", gotSesiId, gotProduk, gotBarcode, gotDryRun)
 	}
 	if msg := decodeMessage(t, rec); msg != "Master data validation completed (dry run, nothing written)" {
 		t.Errorf("unexpected message %q", msg)
@@ -183,7 +190,7 @@ func TestImportProducts(t *testing.T) {
 func TestImportProductsMissingFile(t *testing.T) {
 	h := newProductHandler(&fakeProductService{}, nil)
 
-	req := newImportRequest(t, "/products/import", []byte("produk-bytes"), nil)
+	req := newImportRequest(t, "/products/import?sessionId=3", []byte("produk-bytes"), nil)
 	rec := httptest.NewRecorder()
 	h.ImportProducts(rec, req, nil)
 
@@ -195,13 +202,16 @@ func TestImportProductsMissingFile(t *testing.T) {
 func TestClearProductsRequiresConfirm(t *testing.T) {
 	called := false
 	h := newProductHandler(&fakeProductService{
-		clearFunc: func(ctx context.Context) error {
+		clearFunc: func(ctx context.Context, sesiId int) error {
 			called = true
+			if sesiId != 3 {
+				t.Errorf("expected session 3, got %d", sesiId)
+			}
 			return nil
 		},
 	}, nil)
 
-	req := newJSONRequest(t, http.MethodPost, "/products/clear", "")
+	req := newJSONRequest(t, http.MethodPost, "/products/clear?sessionId=3", "")
 	rec := httptest.NewRecorder()
 	h.ClearProducts(rec, req, nil)
 
@@ -216,13 +226,16 @@ func TestClearProductsRequiresConfirm(t *testing.T) {
 func TestClearProducts(t *testing.T) {
 	called := false
 	h := newProductHandler(&fakeProductService{
-		clearFunc: func(ctx context.Context) error {
+		clearFunc: func(ctx context.Context, sesiId int) error {
 			called = true
+			if sesiId != 3 {
+				t.Errorf("expected session 3, got %d", sesiId)
+			}
 			return nil
 		},
 	}, nil)
 
-	req := newJSONRequest(t, http.MethodPost, "/products/clear?confirm=true", "")
+	req := newJSONRequest(t, http.MethodPost, "/products/clear?sessionId=3&confirm=true", "")
 	rec := httptest.NewRecorder()
 	h.ClearProducts(rec, req, nil)
 
@@ -232,7 +245,7 @@ func TestClearProducts(t *testing.T) {
 	if !called {
 		t.Error("service Clear must be called")
 	}
-	if msg := decodeMessage(t, rec); msg != "Master data cleared successfully" {
+	if msg := decodeMessage(t, rec); msg != "Products cleared successfully" {
 		t.Errorf("unexpected message %q", msg)
 	}
 }

@@ -14,4 +14,7 @@ type StockOpnameRepository interface {
 	Update(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	Delete(ctx context.Context, tx pgx.Tx, id int) error
 	FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error)
+	FindSesiIdByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
+	FindSesiIdByStockOpnameID(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error)
+	CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 }

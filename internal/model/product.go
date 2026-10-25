@@ -4,6 +4,7 @@ import "time"
 
 type Product struct {
 	ProductID             int       `json:"product_id"`
+	ProductSesiID         int       `json:"product_sesi_id"`
 	ProductPLU            string    `json:"product_plu"`
 	ProductName           string    `json:"product_name"`
 	ProductDepartmentCode string    `json:"department_code"`

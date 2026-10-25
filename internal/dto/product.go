@@ -1,6 +1,7 @@
 package dto
 
 type ProductCreateRequest struct {
+	SesiID         int      `json:"sesi_id" validate:"required,gte=1"`
 	PLU            string   `json:"plu" validate:"required"`
 	Name           string   `json:"name" validate:"required"`
 	DepartmentCode string   `json:"department_code" validate:"required"`

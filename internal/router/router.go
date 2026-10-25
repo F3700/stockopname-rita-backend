@@ -12,34 +12,31 @@ import (
 )
 
 func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Router {
-	deletedProductRepository := repository.NewDeletedProductRepository(pool)
-	deletedProductService := service.NewDeletedProductService(deletedProductRepository)
-	deletedProductHandler := handler.NewDeletedProductHandler(deletedProductService)
-
+	sesiRepository := repository.NewSesiRepository(pool)
+	coordinatorRepository := repository.NewCoordinatorRepository(pool)
 	productRepository := repository.NewProductRepository(pool)
 	barcodeRepository := repository.NewBarcodeRepository(pool)
-	productService := service.NewProductService(productRepository, barcodeRepository, deletedProductRepository, pool, validate)
-	importService := service.NewImportService(productRepository, barcodeRepository, pool)
-	productHandler := handler.NewProductHandler(productService, importService)
-
-	coordinatorRepository := repository.NewCoordinatorRepository(pool)
-	coordinatorService := service.NewCoordinatorService(coordinatorRepository, pool)
-	coordinatorHandler := handler.NewCoordinatorHandler(coordinatorService)
-
-	sesiRepository := repository.NewSesiRepository(pool)
-	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, pool, validate)
-	sesiHandler := handler.NewSesiHandler(sesiService)
-
 	inspectorRepository := repository.NewInspectorRepository(pool)
 	rackRepository := repository.NewRackRepository(pool)
+	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
+
+	productService := service.NewProductService(productRepository, barcodeRepository, sesiRepository, pool, validate)
+	importService := service.NewImportService(productRepository, barcodeRepository, sesiRepository, pool)
+	productHandler := handler.NewProductHandler(productService, importService)
+
+	coordinatorService := service.NewCoordinatorService(coordinatorRepository, sesiRepository, pool)
+	coordinatorHandler := handler.NewCoordinatorHandler(coordinatorService)
+
+	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, productRepository, stockOpnameRepository, pool, validate)
+	sesiHandler := handler.NewSesiHandler(sesiService)
+
 	rackService := service.NewRackService(rackRepository, inspectorRepository, sesiRepository, pool)
 	rackHandler := handler.NewRackHandler(rackService)
 
-	inspectorService := service.NewInspectorService(inspectorRepository, coordinatorRepository, rackRepository, pool)
+	inspectorService := service.NewInspectorService(inspectorRepository, coordinatorRepository, rackRepository, productRepository, sesiRepository, pool)
 	inspectorHandler := handler.NewInspectorHandler(inspectorService)
 
-	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
-	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, pool, validate)
+	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, sesiRepository, pool, validate)
 	stockOpnameHandler := handler.NewStockOpnameHandler(stockOpnameService)
 	reportService := service.NewReportService(sesiService, coordinatorService, inspectorService, stockOpnameService)
 	reportHandler := handler.NewReportHandler(reportService)
@@ -51,15 +48,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.POST("/products", productHandler.CreateProduct)
 	router.GET("/products", productHandler.GetProducts)
-	router.GET("/products/sync", productHandler.SyncProducts)
 	router.POST("/products/import", productHandler.ImportProducts)
 	router.POST("/products/clear", productHandler.ClearProducts)
-	router.DELETE("/products", productHandler.ClearProducts)
 	router.PATCH("/products/:id", productHandler.UpdateProduct)
 	router.DELETE("/products/:id", productHandler.DeleteProduct)
-
-	router.GET("/deleted/products", deletedProductHandler.GetDeletedProducts)
-	router.DELETE("/deleted/products", deletedProductHandler.DeleteDeletedProducts)
 
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)

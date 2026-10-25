@@ -6,22 +6,53 @@ import (
 	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type InspectorServiceImpl struct {
 	InspectorRepository   repository.InspectorRepository
 	CoordinatorRepository repository.CoordinatorRepository
 	RackRepository        repository.RackRepository
+	ProductRepository     repository.ProductRepository
+	SesiRepository        repository.SesiRepository
 	Pool                  repository.DBPool
 }
 
-func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, pool repository.DBPool) InspectorService {
+func NewInspectorService(inspectorRepository repository.InspectorRepository, coordinatorRepository repository.CoordinatorRepository, rackRepository repository.RackRepository, productRepository repository.ProductRepository, sesiRepository repository.SesiRepository, pool repository.DBPool) InspectorService {
 	return &InspectorServiceImpl{
 		InspectorRepository:   inspectorRepository,
 		CoordinatorRepository: coordinatorRepository,
 		RackRepository:        rackRepository,
+		ProductRepository:     productRepository,
+		SesiRepository:        sesiRepository,
 		Pool:                  pool,
 	}
+}
+
+// checkJoinAllowed enforces D3 + D6 for inspector joins.
+func (i *InspectorServiceImpl) checkJoinAllowed(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error {
+	sesi, err := i.SesiRepository.FindByIdForShare(ctx, tx, coordinator.CoorSesiID)
+	if err != nil {
+		return err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return err
+	}
+	if coordinator.CoorStatus != "IN_PROGRESS" {
+		return &model.ConflictError{
+			Resource: "Coordinator",
+			Detail:   "Coordinator is not active",
+		}
+	}
+	total, err := i.ProductRepository.CountBySesi(ctx, tx, coordinator.CoorSesiID)
+	if err != nil {
+		return err
+	}
+	if total == 0 {
+		return &model.ConflictError{Resource: "Session", Detail: "Session has no products yet"}
+	}
+	return nil
 }
 
 // FindAllSummary implements [InspectorService].
@@ -68,11 +99,8 @@ func (i *InspectorServiceImpl) CreateInspector(ctx context.Context, request dto.
 		return dto.InspectorJoinResponse{}, err
 	}
 
-	if coordinator.CoorStatus != "IN_PROGRESS" {
-		return dto.InspectorJoinResponse{}, &model.ConflictError{
-			Resource: "Coordinator",
-			Detail:   "Coordinator is not active",
-		}
+	if err := i.checkJoinAllowed(ctx, tx, coordinator); err != nil {
+		return dto.InspectorJoinResponse{}, err
 	}
 
 	inspectorModel := model.Inspector{
@@ -103,6 +131,7 @@ func (i *InspectorServiceImpl) CreateInspector(ctx context.Context, request dto.
 
 	inspectorJoinResponse := dto.InspectorJoinResponse{
 		InspectorID: inspectorModel.InspectorID,
+		SesiID:      coordinator.CoorSesiID,
 		Rak:         rakResponses,
 	}
 
@@ -137,11 +166,8 @@ func (i *InspectorServiceImpl) CreateInspectorByCoordinatorQR(ctx context.Contex
 		return dto.InspectorJoinResponse{}, err
 	}
 
-	if coordinator.CoorStatus != "IN_PROGRESS" {
-		return dto.InspectorJoinResponse{}, &model.ConflictError{
-			Resource: "Coordinator",
-			Detail:   "Coordinator is not active",
-		}
+	if err := i.checkJoinAllowed(ctx, tx, coordinator); err != nil {
+		return dto.InspectorJoinResponse{}, err
 	}
 
 	inspectorModel := model.Inspector{
@@ -172,6 +198,7 @@ func (i *InspectorServiceImpl) CreateInspectorByCoordinatorQR(ctx context.Contex
 
 	inspectorJoinResponse := dto.InspectorJoinResponse{
 		InspectorID: inspectorModel.InspectorID,
+		SesiID:      coordinator.CoorSesiID,
 		Rak:         rakResponses,
 	}
 
