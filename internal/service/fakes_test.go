@@ -131,9 +131,10 @@ func (f *fakeDeletedProductRepository) FindAllUpdatedAfter(ctx context.Context, 
 }
 
 type fakeInspectorRepository struct {
-	findAllFunc      func(ctx context.Context) ([]*model.InspectorSummary, error)
-	findByCoorIdFunc func(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error)
-	saveFunc         func(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error
+	findAllFunc               func(ctx context.Context) ([]*model.InspectorSummary, error)
+	findByCoorIdFunc          func(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error)
+	findSesiIdByInspectorFunc func(ctx context.Context, tx pgx.Tx, inspectorId int) (int, error)
+	saveFunc                  func(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error
 }
 
 func (f *fakeInspectorRepository) FindAll(ctx context.Context) ([]*model.InspectorSummary, error) {
@@ -142,6 +143,13 @@ func (f *fakeInspectorRepository) FindAll(ctx context.Context) ([]*model.Inspect
 
 func (f *fakeInspectorRepository) FindByCoorId(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error) {
 	return f.findByCoorIdFunc(ctx, coordinatorId)
+}
+
+func (f *fakeInspectorRepository) FindSesiIdByInspector(ctx context.Context, tx pgx.Tx, inspectorId int) (int, error) {
+	if f.findSesiIdByInspectorFunc == nil {
+		return 0, nil
+	}
+	return f.findSesiIdByInspectorFunc(ctx, tx, inspectorId)
 }
 
 func (f *fakeInspectorRepository) Save(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error {
@@ -155,7 +163,6 @@ type fakeProductRepository struct {
 	clearFunc               func(ctx context.Context, tx pgx.Tx) error
 	findAllInPageSearchFn   func(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error)
 	findAllUpdatedAfterFunc func(ctx context.Context, date time.Time, limit int, offset int) ([]*model.Product, int, error)
-	findAllLastSessionFunc  func(ctx context.Context, limit int) ([]*model.ProductLastSession, error)
 	findAllForImportFunc    func(ctx context.Context, tx pgx.Tx) ([]*model.Product, error)
 	findByIdFn              func(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error)
 	findByPLUFn             func(ctx context.Context, tx pgx.Tx, plu string) (*model.Product, error)
@@ -198,10 +205,6 @@ func (f *fakeProductRepository) FindAllUpdatedAfter(ctx context.Context, date ti
 	return f.findAllUpdatedAfterFunc(ctx, date, limit, offset)
 }
 
-func (f *fakeProductRepository) FindAllLastSession(ctx context.Context, limit int) ([]*model.ProductLastSession, error) {
-	return f.findAllLastSessionFunc(ctx, limit)
-}
-
 func (f *fakeProductRepository) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error) {
 	return f.findByIdFn(ctx, tx, id)
 }
@@ -226,6 +229,8 @@ func (f *fakeRackRepository) Save(ctx context.Context, tx pgx.Tx, rack *model.Ra
 
 type fakeSesiRepository struct {
 	findByIdFn            func(ctx context.Context, id int) (*model.Sesi, error)
+	findByIdForShareFn    func(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error)
+	findByIdForUpdateFn   func(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error)
 	findAllInPageSearchFn func(ctx context.Context, limit int, offset int, search string) ([]*model.Sesi, int, error)
 	saveFunc              func(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error
 	updateFunc            func(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error
@@ -234,6 +239,20 @@ type fakeSesiRepository struct {
 
 func (f *fakeSesiRepository) FindById(ctx context.Context, id int) (*model.Sesi, error) {
 	return f.findByIdFn(ctx, id)
+}
+
+func (f *fakeSesiRepository) FindByIdForShare(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error) {
+	if f.findByIdForShareFn == nil {
+		return nil, nil
+	}
+	return f.findByIdForShareFn(ctx, tx, id)
+}
+
+func (f *fakeSesiRepository) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error) {
+	if f.findByIdForUpdateFn == nil {
+		return nil, nil
+	}
+	return f.findByIdForUpdateFn(ctx, tx, id)
 }
 
 func (f *fakeSesiRepository) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Sesi, int, error) {

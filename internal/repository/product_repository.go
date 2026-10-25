@@ -22,5 +22,4 @@ type ProductRepository interface {
 	FindAllForImport(ctx context.Context, tx pgx.Tx) ([]*model.Product, error)
 	FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error)
 	FindAllUpdatedAfter(ctx context.Context, date time.Time, limit int, offset int) ([]*model.Product, int, error)
-	FindAllLastSession(ctx context.Context, limit int) ([]*model.ProductLastSession, error)
 }

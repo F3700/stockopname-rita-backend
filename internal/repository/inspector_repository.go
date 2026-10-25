@@ -10,5 +10,6 @@ import (
 type InspectorRepository interface {
 	FindAll(ctx context.Context) ([]*model.InspectorSummary, error)
 	FindByCoorId(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error)
+	FindSesiIdByInspector(ctx context.Context, tx pgx.Tx, inspectorId int) (int, error)
 	Save(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error
 }

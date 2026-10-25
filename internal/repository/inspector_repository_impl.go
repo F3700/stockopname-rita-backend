@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
@@ -74,6 +75,23 @@ func (i *InspectorRepositoryImpl) FindByCoorId(ctx context.Context, coordinatorI
 	}
 
 	return inspectors, nil
+}
+
+func (i *InspectorRepositoryImpl) FindSesiIdByInspector(ctx context.Context, tx pgx.Tx, inspectorId int) (int, error) {
+	const SQL = `
+		SELECT c.coor_sesi_id
+		FROM inspector i
+		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		WHERE i.inspector_id = $1
+	`
+	var sesiId int
+	if err := tx.QueryRow(ctx, SQL, inspectorId).Scan(&sesiId); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, &model.NotFoundError{Resource: "Inspector", ID: inspectorId}
+		}
+		return 0, err
+	}
+	return sesiId, nil
 }
 
 func (i *InspectorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error {

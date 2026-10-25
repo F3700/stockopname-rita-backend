@@ -122,40 +122,6 @@ func (p *ProductHandlerImpl) GetProducts(writer http.ResponseWriter, req *http.R
 	}
 }
 
-// GetProductsLastSession implements [ProductHandler].
-func (p *ProductHandlerImpl) GetProductsLastSession(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	limit := 20
-	if l := req.URL.Query().Get("limit"); l != "" {
-		parsed, err := helper.ParseIntQueryNotNull(req, "limit")
-		if err != nil {
-			helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
-			return
-		}
-		limit = parsed
-	}
-
-	if err := helper.ValidateLimit(limit); err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid query limit parameter", err)
-		return
-	}
-
-	products, err := p.ProductService.FindAllLastSession(req.Context(), limit)
-	if err != nil {
-		helper.WriteServiceError(writer, err)
-		return
-	}
-
-	response := dto.Response{
-		Message: "Products last session retrieved successfully",
-		Data:    products,
-	}
-
-	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to encode response", err)
-		return
-	}
-}
-
 // SyncProducts implements [ProductHandler].
 func (p *ProductHandlerImpl) SyncProducts(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	page, err := helper.ParseIntQueryNotNull(req, "page")

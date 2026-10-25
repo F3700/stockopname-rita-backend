@@ -153,28 +153,6 @@ func TestProductFindAllUpdatedAfter(t *testing.T) {
 	}
 }
 
-func TestProductFindAllLastSession(t *testing.T) {
-	mock := mustMockPool(t)
-	sessionDate := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	mock.ExpectQuery("DISTINCT ON").WithArgs(20).WillReturnRows(
-		pgxmock.NewRows([]string{"product_id", "barcode", "name", "lastSessionDate", "lastSessionCode"}).
-			AddRow(11, "1002515550011", "Sari Roti", sessionDate, "SESI-01").
-			AddRow(12, nil, "Krat", nil, ""),
-	)
-
-	repo := NewProductRepository(mock)
-	results, err := repo.FindAllLastSession(context.Background(), 20)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(results) != 2 || results[0].Barcode != "1002515550011" {
-		t.Errorf("unexpected results %+v", results)
-	}
-	if results[1].Barcode != "" {
-		t.Errorf("expected empty barcode for NULL, got %q", results[1].Barcode)
-	}
-}
-
 func TestProductUpdate(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)

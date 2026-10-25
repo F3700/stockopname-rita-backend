@@ -97,7 +97,6 @@ type fakeProductService struct {
 	clearFunc             func(ctx context.Context) error
 	findAllFunc           func(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error)
 	findAllUpdatedAfterFn func(ctx context.Context, pagination *dto.Pagination, date time.Time) ([]dto.ProductResponse, error)
-	findAllLastSessionFn  func(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error)
 }
 
 func (f *fakeProductService) Clear(ctx context.Context) error {
@@ -130,10 +129,6 @@ func (f *fakeProductService) FindAll(ctx context.Context, pagination *dto.Pagina
 
 func (f *fakeProductService) FindAllUpdatedAfter(ctx context.Context, pagination *dto.Pagination, date time.Time) ([]dto.ProductResponse, error) {
 	return f.findAllUpdatedAfterFn(ctx, pagination, date)
-}
-
-func (f *fakeProductService) FindAllLastSession(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error) {
-	return f.findAllLastSessionFn(ctx, limit)
 }
 
 type fakeRackService struct {

@@ -13,5 +13,4 @@ type ProductService interface {
 	Clear(ctx context.Context) error
 	FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error)
 	FindAllUpdatedAfter(ctx context.Context, pagination *dto.Pagination, date time.Time) ([]dto.ProductResponse, error)
-	FindAllLastSession(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error)
 }

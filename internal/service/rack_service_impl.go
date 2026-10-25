@@ -8,14 +8,18 @@ import (
 )
 
 type RackServiceImpl struct {
-	RackRepository repository.RackRepository
-	Pool           repository.DBPool
+	RackRepository      repository.RackRepository
+	InspectorRepository repository.InspectorRepository
+	SesiRepository      repository.SesiRepository
+	Pool                repository.DBPool
 }
 
-func NewRackService(rackRepository repository.RackRepository, pool repository.DBPool) RackService {
+func NewRackService(rackRepository repository.RackRepository, inspectorRepository repository.InspectorRepository, sesiRepository repository.SesiRepository, pool repository.DBPool) RackService {
 	return &RackServiceImpl{
-		RackRepository: rackRepository,
-		Pool:           pool,
+		RackRepository:      rackRepository,
+		InspectorRepository: inspectorRepository,
+		SesiRepository:      sesiRepository,
+		Pool:                pool,
 	}
 }
 
@@ -60,6 +64,22 @@ func (r *RackServiceImpl) CreateRack(ctx context.Context, request dto.CreateRack
 		return dto.RackResponse{}, err
 	}
 	defer tx.Rollback(ctx)
+
+	sesiId, err := r.InspectorRepository.FindSesiIdByInspector(ctx, tx, request.InspectorID)
+	if err != nil {
+		return dto.RackResponse{}, err
+	}
+
+	sesi, err := r.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	if err != nil {
+		return dto.RackResponse{}, err
+	}
+	if sesi.SesiStatus == "COMPLETED" || sesi.SesiStatus == "CANCELLED" {
+		return dto.RackResponse{}, &model.ConflictError{
+			Resource: "Session",
+			Detail:   "Session is final",
+		}
+	}
 
 	rack := &model.Rack{
 		RackName:    request.RackName,

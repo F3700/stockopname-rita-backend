@@ -84,6 +84,31 @@ func (s *SesiRepositoryImpl) FindById(ctx context.Context, id int) (*model.Sesi,
 	return &sesi, nil
 }
 
+func (s *SesiRepositoryImpl) FindByIdForShare(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error) {
+	return s.findByIdFor(ctx, tx, id, "FOR SHARE")
+}
+
+func (s *SesiRepositoryImpl) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error) {
+	return s.findByIdFor(ctx, tx, id, "FOR UPDATE")
+}
+
+func (s *SesiRepositoryImpl) findByIdFor(ctx context.Context, tx pgx.Tx, id int, lock string) (*model.Sesi, error) {
+	SQL := `
+		SELECT sesi_id, sesi_location, sesi_code, sesi_status, sesi_startedat, sesi_endedat
+		FROM sesi
+		WHERE sesi_id = $1
+	` + lock
+	var sesi model.Sesi
+	err := tx.QueryRow(ctx, SQL, id).Scan(&sesi.SesiID, &sesi.SesiLocation, &sesi.SesiCode, &sesi.SesiStatus, &sesi.SesiStartedAt, &sesi.SesiEndedAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, &model.NotFoundError{Resource: "Session", ID: id}
+		}
+		return nil, err
+	}
+	return &sesi, nil
+}
+
 // Save implements [SesiRepository].
 func (s *SesiRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error {
 	const SQL = `

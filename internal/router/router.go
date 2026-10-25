@@ -30,11 +30,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, pool, validate)
 	sesiHandler := handler.NewSesiHandler(sesiService)
 
+	inspectorRepository := repository.NewInspectorRepository(pool)
 	rackRepository := repository.NewRackRepository(pool)
-	rackService := service.NewRackService(rackRepository, pool)
+	rackService := service.NewRackService(rackRepository, inspectorRepository, sesiRepository, pool)
 	rackHandler := handler.NewRackHandler(rackService)
 
-	inspectorRepository := repository.NewInspectorRepository(pool)
 	inspectorService := service.NewInspectorService(inspectorRepository, coordinatorRepository, rackRepository, pool)
 	inspectorHandler := handler.NewInspectorHandler(inspectorService)
 
@@ -51,7 +51,6 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.POST("/products", productHandler.CreateProduct)
 	router.GET("/products", productHandler.GetProducts)
-	router.GET("/products/last-session", productHandler.GetProductsLastSession)
 	router.GET("/products/sync", productHandler.SyncProducts)
 	router.POST("/products/import", productHandler.ImportProducts)
 	router.POST("/products/clear", productHandler.ClearProducts)

@@ -210,77 +210,6 @@
         }
       }
     },
-    "/products/last-session": {
-      "get": {
-        "tags": [
-          "Products"
-        ],
-        "summary": "Get products with last session info",
-        "description": "Retrieve products with their last stock opname session date and code.",
-        "parameters": [
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "default": 20
-            },
-            "example": 20
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Products last session retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "message": {
-                      "type": "string",
-                      "example": "Products last session retrieved successfully"
-                    },
-                    "data": {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "id": {
-                            "type": "integer",
-                            "example": 1
-                          },
-                          "barcode": {
-                            "type": "string",
-                            "example": "1234567890123"
-                          },
-                          "name": {
-                            "type": "string",
-                            "example": "Product A"
-                          },
-                          "last_session_date": {
-                            "type": "string",
-                            "format": "date-time",
-                            "example": "2026-09-10T14:30:00+07:00"
-                          },
-                          "last_session_code": {
-                            "type": "string",
-                            "example": "SO-10-09-2026-01"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalServerError"
-          }
-        }
-      }
-    },
     "/products/sync": {
       "get": {
         "tags": [
@@ -1382,7 +1311,7 @@
           "Stock Opname Racks"
         ],
         "summary": "Create a rack for a stock opname session by inspector id",
-        "description": "Create a new rack for a stock opname session associated with a specific inspector.",
+        "description": "Create a new rack for a stock opname session associated with a specific inspector. Rejected with 409 when the session is COMPLETED or CANCELLED.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1432,6 +1361,12 @@
                 }
               }
             }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"

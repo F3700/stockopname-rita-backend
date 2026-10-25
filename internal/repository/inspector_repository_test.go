@@ -59,6 +59,41 @@ func TestInspectorFindByCoorId(t *testing.T) {
 	}
 }
 
+func TestInspectorFindSesiIdByInspector(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("coor_sesi_id").WithArgs(9).WillReturnRows(
+		pgxmock.NewRows([]string{"coor_sesi_id"}).AddRow(7),
+	)
+
+	repo := NewInspectorRepository(mock)
+	sesiId, err := repo.FindSesiIdByInspector(context.Background(), tx, 9)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if sesiId != 7 {
+		t.Errorf("expected session 7, got %d", sesiId)
+	}
+}
+
+func TestInspectorFindSesiIdByInspectorNotFound(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("coor_sesi_id").WithArgs(99).WillReturnRows(
+		pgxmock.NewRows([]string{"coor_sesi_id"}),
+	)
+
+	repo := NewInspectorRepository(mock)
+	_, err := repo.FindSesiIdByInspector(context.Background(), tx, 99)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var notFound *model.NotFoundError
+	if !errors.As(err, &notFound) {
+		t.Errorf("expected NotFoundError, got %T: %v", err, err)
+	}
+}
+
 func TestInspectorSave(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)

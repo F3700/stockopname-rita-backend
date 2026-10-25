@@ -235,29 +235,3 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 
 	return toProductResponse(updatedProduct), nil
 }
-
-// FindAllLastSession implements [ProductService].
-func (p *ProductServiceImpl) FindAllLastSession(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error) {
-	results, err := p.ProductRepository.FindAllLastSession(ctx, limit)
-	if err != nil {
-		return nil, fmt.Errorf("find all last session: %w", err)
-	}
-
-	var responses []dto.ProductLastSessionResponse
-	for _, item := range results {
-		var lastSessionDate string
-		if item.LastSessionDate != nil {
-			lastSessionDate = item.LastSessionDate.Format(time.RFC3339)
-		}
-
-		responses = append(responses, dto.ProductLastSessionResponse{
-			Id:              item.Id,
-			Barcode:         item.Barcode,
-			Name:            item.Name,
-			LastSessionDate: lastSessionDate,
-			LastSessionCode: item.LastSessionCode,
-		})
-	}
-
-	return responses, nil
-}

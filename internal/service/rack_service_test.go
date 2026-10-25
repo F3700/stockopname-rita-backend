@@ -22,7 +22,7 @@ func TestRackFindAllSummary(t *testing.T) {
 				{RackID: 2, RackName: "R2", InspectorID: 1},
 			}, nil
 		},
-	}, nil)
+	}, nil, nil, nil)
 
 	inspectorId := 1
 	responses, err := svc.FindAllSummary(context.Background(), &inspectorId, nil, nil)
@@ -42,7 +42,7 @@ func TestRackFindAllSummaryError(t *testing.T) {
 		findAllFunc: func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]*model.Rack, error) {
 			return nil, errors.New("boom")
 		},
-	}, nil)
+	}, nil, nil, nil)
 
 	_, err := svc.FindAllSummary(context.Background(), nil, nil, nil)
 	if err == nil {
@@ -58,7 +58,7 @@ func TestRackFindProgress(t *testing.T) {
 			}
 			return []*model.RackProgress{{RackAssigned: 5, RackCompleted: 3, TotalItems: 42}}, nil
 		},
-	}, nil)
+	}, nil, nil, nil)
 
 	coorId := 2
 	responses, err := svc.FindProgress(context.Background(), &coorId, nil)
@@ -79,7 +79,7 @@ func TestRackFindProgressError(t *testing.T) {
 		findProgressFunc: func(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackProgress, error) {
 			return nil, errors.New("boom")
 		},
-	}, nil)
+	}, nil, nil, nil)
 
 	_, err := svc.FindProgress(context.Background(), nil, nil)
 	if err == nil {

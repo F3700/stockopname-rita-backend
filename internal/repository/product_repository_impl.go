@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"stockopname-rita-backend/internal/model"
 	"time"
@@ -335,62 +334,4 @@ func (p *ProductRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, product *
 		return &model.NotFoundError{Resource: "Product", ID: product.ProductID}
 	}
 	return nil
-}
-
-func (p *ProductRepositoryImpl) FindAllLastSession(ctx context.Context, limit int) ([]*model.ProductLastSession, error) {
-	const SQL = `
-		SELECT * FROM (
-			SELECT DISTINCT ON (p.product_id)
-				p.product_id,
-				(
-					SELECT b.barcode_code
-					FROM barcode b
-					WHERE b.barcode_product_id = p.product_id
-					ORDER BY b.barcode_id
-					LIMIT 1
-				) AS barcode,
-				p.product_name AS name,
-				s.sesi_startedat AS "lastSessionDate",
-				COALESCE(s.sesi_code, '') AS "lastSessionCode"
-			FROM product p
-			LEFT JOIN stock_opname so ON so.so_product_plu = p.product_plu
-			LEFT JOIN rak r           ON so.stock_opname_rak_id     = r.rak_id
-			LEFT JOIN inspector i     ON r.rak_inspector_id         = i.inspector_id
-			LEFT JOIN coordinator c   ON i.inspector_coor_id        = c.coor_id
-			LEFT JOIN sesi s          ON c.coor_sesi_id             = s.sesi_id
-			ORDER BY p.product_id, s.sesi_startedat DESC NULLS LAST
-		) sub
-		ORDER BY
-			CASE WHEN sub."lastSessionDate" IS NULL THEN 0 ELSE 1 END,
-			sub.product_id
-		LIMIT $1
-	`
-
-	rows, err := p.pool.Query(ctx, SQL, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []*model.ProductLastSession
-	for rows.Next() {
-		var item model.ProductLastSession
-		// barcode / lastSessionDate may be NULL (products without
-		// barcode or never counted). sql.Null* keeps both pgx and
-		// pgxmock scanning happy.
-		var barcode sql.NullString
-		var lastSessionDate sql.NullTime
-		if err := rows.Scan(&item.Id, &barcode, &item.Name, &lastSessionDate, &item.LastSessionCode); err != nil {
-			return nil, err
-		}
-		if barcode.Valid {
-			item.Barcode = barcode.String
-		}
-		if lastSessionDate.Valid {
-			item.LastSessionDate = &lastSessionDate.Time
-		}
-		results = append(results, &item)
-	}
-
-	return results, nil
 }

@@ -108,48 +108,6 @@ func TestProductFindAllUpdatedAfter(t *testing.T) {
 	}
 }
 
-func TestProductFindAllLastSession(t *testing.T) {
-	sessionDate := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	svc := NewProductService(&fakeProductRepository{
-		findAllLastSessionFunc: func(ctx context.Context, limit int) ([]*model.ProductLastSession, error) {
-			if limit != 20 {
-				t.Errorf("expected limit 20, got %d", limit)
-			}
-			return []*model.ProductLastSession{
-				{Id: 1, Barcode: "1002515550011", Name: "Sari Roti", LastSessionDate: &sessionDate, LastSessionCode: "SESI-01"},
-				{Id: 2, Barcode: "", Name: "Krat", LastSessionDate: nil, LastSessionCode: ""},
-			}, nil
-		},
-	}, nil, nil, nil, newTestValidator(t))
-
-	responses, err := svc.FindAllLastSession(context.Background(), 20)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if len(responses) != 2 {
-		t.Fatalf("expected 2 responses, got %d", len(responses))
-	}
-	if responses[0].LastSessionDate != "2026-09-10T08:00:00Z" || responses[0].LastSessionCode != "SESI-01" {
-		t.Errorf("unexpected first response %+v", responses[0])
-	}
-	if responses[1].LastSessionDate != "" || responses[1].Barcode != "" {
-		t.Errorf("expected empty date/barcode for nil session, got %+v", responses[1])
-	}
-}
-
-func TestProductFindAllLastSessionError(t *testing.T) {
-	svc := NewProductService(&fakeProductRepository{
-		findAllLastSessionFunc: func(ctx context.Context, limit int) ([]*model.ProductLastSession, error) {
-			return nil, errors.New("boom")
-		},
-	}, nil, nil, nil, newTestValidator(t))
-
-	_, err := svc.FindAllLastSession(context.Background(), 20)
-	if err == nil {
-		t.Error("expected error, got nil")
-	}
-}
-
 func TestProductCreateValidationFailure(t *testing.T) {
 	repoCalled := false
 	svc := NewProductService(&fakeProductRepository{
