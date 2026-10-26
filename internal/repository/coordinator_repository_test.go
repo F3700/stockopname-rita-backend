@@ -40,9 +40,9 @@ func TestCoordinatorUpdateNotFound(t *testing.T) {
 
 func TestCoordinatorFindAllSummary(t *testing.T) {
 	mock := mustMockPool(t)
-	rows := pgxmock.NewRows([]string{"id", "code", "inspector", "rack_assigned", "rack_completed", "status"}).
-		AddRow(1, "KOR-01", 2, 5, 3, "IN_PROGRESS").
-		AddRow(2, "KOR-02", 1, 4, 4, "COMPLETED")
+	rows := pgxmock.NewRows([]string{"id", "code", "rack_assigned", "rack_completed", "status"}).
+		AddRow(1, "KOR-01", 5, 3, "IN_PROGRESS").
+		AddRow(2, "KOR-02", 4, 4, "COMPLETED")
 	mock.ExpectQuery("FROM coordinator").WillReturnRows(rows)
 
 	repo := NewCoordinatorRepository(mock)
@@ -69,8 +69,8 @@ func TestCoordinatorFindAllSummaryError(t *testing.T) {
 func TestCoordinatorFindByIdSummary(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("WHERE c.coor_id").WithArgs(3).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "code", "inspector", "rack_assigned", "rack_completed", "status"}).
-			AddRow(3, "KOR-03", 1, 2, 2, "IN_REVIEW"),
+		pgxmock.NewRows([]string{"id", "code", "rack_assigned", "rack_completed", "status"}).
+			AddRow(3, "KOR-03", 2, 2, "IN_REVIEW"),
 	)
 
 	repo := NewCoordinatorRepository(mock)
@@ -86,7 +86,7 @@ func TestCoordinatorFindByIdSummary(t *testing.T) {
 func TestCoordinatorFindByIdSummaryNotFound(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("WHERE c.coor_id").WithArgs(99).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "code", "inspector", "rack_assigned", "rack_completed", "status"}),
+		pgxmock.NewRows([]string{"id", "code", "rack_assigned", "rack_completed", "status"}),
 	)
 
 	repo := NewCoordinatorRepository(mock)
@@ -103,8 +103,8 @@ func TestCoordinatorFindByIdSummaryNotFound(t *testing.T) {
 func TestCoordinatorFindByIdReport(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("WHERE c.coor_id").WithArgs(2).WillReturnRows(
-		pgxmock.NewRows([]string{"coor_id", "coor_code", "coor_status", "sesi_code", "inspector", "rack_assigned", "rack_completed"}).
-			AddRow(2, "KOR-02", "COMPLETED", "SESI-01", 1, 4, 4),
+		pgxmock.NewRows([]string{"coor_id", "coor_code", "coor_status", "sesi_code", "rack_assigned", "rack_completed"}).
+			AddRow(2, "KOR-02", "COMPLETED", "SESI-01", 4, 4),
 	)
 
 	repo := NewCoordinatorRepository(mock)
@@ -120,7 +120,7 @@ func TestCoordinatorFindByIdReport(t *testing.T) {
 func TestCoordinatorFindByIdReportNotFound(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("WHERE c.coor_id").WithArgs(99).WillReturnRows(
-		pgxmock.NewRows([]string{"coor_id", "coor_code", "coor_status", "sesi_code", "inspector", "rack_assigned", "rack_completed"}),
+		pgxmock.NewRows([]string{"coor_id", "coor_code", "coor_status", "sesi_code", "rack_assigned", "rack_completed"}),
 	)
 
 	repo := NewCoordinatorRepository(mock)
@@ -137,8 +137,8 @@ func TestCoordinatorFindByIdReportNotFound(t *testing.T) {
 func TestCoordinatorFindBySesiIdSummary(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("c.coor_sesi_id").WithArgs(4).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "code", "inspector", "rack_assigned", "rack_completed", "status"}).
-			AddRow(5, "KOR-05", 0, 0, 0, "IN_PROGRESS"),
+		pgxmock.NewRows([]string{"id", "code", "rack_assigned", "rack_completed", "status"}).
+			AddRow(5, "KOR-05", 0, 0, "IN_PROGRESS"),
 	)
 
 	repo := NewCoordinatorRepository(mock)
@@ -154,18 +154,24 @@ func TestCoordinatorFindBySesiIdSummary(t *testing.T) {
 func TestCoordinatorSave(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectExec("INSERT INTO coordinator").WithArgs("KOR-09", 1, "IN_PROGRESS").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO coordinator").WithArgs("KOR-09", 1, "IN_PROGRESS").WillReturnRows(
+		pgxmock.NewRows([]string{"coor_id"}).AddRow(9),
+	)
 
 	repo := NewCoordinatorRepository(mock)
-	if err := repo.Save(context.Background(), tx, &model.Coordinator{CoorCode: "KOR-09", CoorSesiID: 1, CoorStatus: "IN_PROGRESS"}); err != nil {
+	coordinator := &model.Coordinator{CoorCode: "KOR-09", CoorSesiID: 1, CoorStatus: "IN_PROGRESS"}
+	if err := repo.Save(context.Background(), tx, coordinator); err != nil {
 		t.Fatalf("unexpected error: %v", err)
+	}
+	if coordinator.CoorID != 9 {
+		t.Errorf("expected id 9, got %d", coordinator.CoorID)
 	}
 }
 
 func TestCoordinatorSaveConflict(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectExec("INSERT INTO coordinator").WithArgs("KOR-09", 1, "IN_PROGRESS").WillReturnError(
+	mock.ExpectQuery("INSERT INTO coordinator").WithArgs("KOR-09", 1, "IN_PROGRESS").WillReturnError(
 		&pgconn.PgError{Code: "23505", ConstraintName: "uq_coordinator_sesi_code"},
 	)
 

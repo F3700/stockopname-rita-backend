@@ -103,43 +103,44 @@ CREATE TABLE coordinator (
 );
 
 
-CREATE TABLE inspector (
-    inspector_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    inspector_code VARCHAR(20) NOT NULL,
-    inspector_startedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    inspector_endedat TIMESTAMPTZ,
-    inspector_coor_id INTEGER NOT NULL,
+CREATE TABLE upload (
+    upload_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    upload_coor_id INTEGER NOT NULL,
+    upload_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_inspector_coordinator
-        FOREIGN KEY (inspector_coor_id)
+    CONSTRAINT fk_upload_coordinator
+        FOREIGN KEY (upload_coor_id)
         REFERENCES coordinator(coor_id)
-        ON DELETE CASCADE,
-
-    CONSTRAINT uq_inspector_coor_code
-        UNIQUE (inspector_coor_id, inspector_code),
-
-    CONSTRAINT chk_inspector_time
-        CHECK (
-            inspector_endedat IS NULL
-            OR inspector_endedat >= inspector_startedat
-        )
+        ON DELETE CASCADE
 );
+
+CREATE INDEX idx_upload_coor ON upload(upload_coor_id);
 
 
 CREATE TABLE rak (
     rak_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     rak_name VARCHAR(15) NOT NULL,
     rak_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    rak_inspector_id INTEGER NOT NULL,
+    rak_coor_id INTEGER NOT NULL,
+    rak_upload_id INTEGER,
+    -- Snapshot item saat submit. Dipakai PDF; tidak berubah oleh koreksi web.
+    rak_upload_snapshot JSONB NOT NULL DEFAULT '[]'::jsonb,
 
-    CONSTRAINT fk_rak_inspector
-        FOREIGN KEY (rak_inspector_id)
-        REFERENCES inspector(inspector_id)
+    CONSTRAINT fk_rak_coordinator
+        FOREIGN KEY (rak_coor_id)
+        REFERENCES coordinator(coor_id)
         ON DELETE CASCADE,
 
-    CONSTRAINT uq_rak_inspector_name
-        UNIQUE (rak_inspector_id, rak_name)
+    CONSTRAINT fk_rak_upload
+        FOREIGN KEY (rak_upload_id)
+        REFERENCES upload(upload_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_rak_coor_name
+        UNIQUE (rak_coor_id, rak_name)
 );
+
+CREATE INDEX idx_rak_upload ON rak(rak_upload_id);
 
 
 CREATE TABLE stock_opname (
@@ -221,39 +222,37 @@ END;
 $$;
 
 
+CREATE OR REPLACE FUNCTION recalc_coordinator_status(p_coor_id INTEGER)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE coordinator c
+    SET coor_status = 'IN_REVIEW'
+    WHERE c.coor_id = p_coor_id
+      AND c.coor_status = 'IN_PROGRESS'
+      AND EXISTS (SELECT 1 FROM rak r WHERE r.rak_coor_id = c.coor_id)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM rak r
+          WHERE r.rak_coor_id = c.coor_id
+            AND NOT EXISTS (
+                SELECT 1
+                FROM stock_opname so
+                WHERE so.stock_opname_rak_id = r.rak_id
+            )
+      );
+END;
+$$ LANGUAGE plpgsql;
+
+
 CREATE OR REPLACE FUNCTION sync_coordinator_status()
 RETURNS TRIGGER AS $$
 BEGIN
 
-    UPDATE coordinator c
-    SET coor_status = 'IN_REVIEW'
-    WHERE c.coor_id = (
-        SELECT i.inspector_coor_id
+    PERFORM recalc_coordinator_status((
+        SELECT r.rak_coor_id
         FROM rak r
-        JOIN inspector i
-            ON i.inspector_id = r.rak_inspector_id
         WHERE r.rak_id = NEW.stock_opname_rak_id
-    )
-    AND c.coor_status = 'IN_PROGRESS'
-    AND EXISTS (
-    SELECT 1
-    FROM rak r
-    JOIN inspector i
-        ON i.inspector_id = r.rak_inspector_id
-    WHERE i.inspector_coor_id = c.coor_id
-    )
-    AND NOT EXISTS (
-        SELECT 1
-        FROM rak r
-        JOIN inspector i
-            ON i.inspector_id = r.rak_inspector_id
-        WHERE i.inspector_coor_id = c.coor_id
-        AND NOT EXISTS (
-            SELECT 1
-            FROM stock_opname so
-            WHERE so.stock_opname_rak_id = r.rak_id
-        )
-    );
+    ));
 
     RETURN NEW;
 END;

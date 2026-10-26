@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/pashagolub/pgxmock/v4"
 
@@ -21,6 +22,7 @@ func newSesiServiceWithMock(mock pgxmock.PgxPoolIface, t *testing.T) SesiService
 		repository.NewCoordinatorRepository(mock),
 		repository.NewProductRepository(mock),
 		repository.NewStockOpnameRepository(mock),
+		repository.NewRackRepository(mock),
 		mock,
 		newTestValidator(t),
 	)
@@ -43,13 +45,26 @@ func TestSesiCreateTx(t *testing.T) {
 		pgxmock.NewRows([]string{"sesi_id", "sesi_startedat", "sesi_endedat"}).
 			AddRow(1, started, pgtype.Timestamptz{Valid: false}),
 	)
-	mock.ExpectExec("INSERT INTO coordinator").WithArgs("KOR-01", 1, "IN_PROGRESS").WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectExec("INSERT INTO coordinator").WithArgs("KOR-02", 1, "IN_PROGRESS").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("INSERT INTO coordinator").WithArgs("KOR-01", 1, "IN_PROGRESS").WillReturnRows(
+		pgxmock.NewRows([]string{"coor_id"}).AddRow(1),
+	)
+	mock.ExpectQuery("INSERT INTO rak").WithArgs("Rak 3", 1).WillReturnRows(
+		pgxmock.NewRows([]string{"rak_id"}).AddRow(1),
+	)
+	mock.ExpectQuery("INSERT INTO rak").WithArgs("Rak 4", 1).WillReturnRows(
+		pgxmock.NewRows([]string{"rak_id"}).AddRow(2),
+	)
 	mock.ExpectCommit()
 	mock.ExpectRollback()
 
 	svc := newSesiServiceWithMock(mock, t)
-	res, err := svc.Create(context.Background(), dto.CreateSesiRequest{Code: "SESI-01", Location: "Gudang A", Coordinator: []string{"KOR-01", "KOR-02"}})
+	res, err := svc.Create(context.Background(), dto.CreateSesiRequest{
+		Code:     "SESI-01",
+		Location: "Gudang A",
+		Coordinators: []dto.CoordinatorInput{
+			{Code: "KOR-01", RackStart: 3, RackEnd: 4},
+		},
+	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -75,13 +90,102 @@ func TestSesiCreateTxCoordinatorError(t *testing.T) {
 		pgxmock.NewRows([]string{"sesi_id", "sesi_startedat", "sesi_endedat"}).
 			AddRow(1, started, pgtype.Timestamptz{Valid: false}),
 	)
-	mock.ExpectExec("INSERT INTO coordinator").WithArgs("KOR-01", 1, "IN_PROGRESS").WillReturnError(errors.New("boom"))
+	mock.ExpectQuery("INSERT INTO coordinator").WithArgs("KOR-01", 1, "IN_PROGRESS").WillReturnError(errors.New("boom"))
 	mock.ExpectRollback()
 
 	svc := newSesiServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateSesiRequest{Code: "SESI-01", Location: "Gudang A", Coordinator: []string{"KOR-01"}})
+	_, err = svc.Create(context.Background(), dto.CreateSesiRequest{
+		Code:         "SESI-01",
+		Location:     "Gudang A",
+		Coordinators: []dto.CoordinatorInput{{Code: "KOR-01", RackStart: 1, RackEnd: 1}},
+	})
 	if err == nil {
 		t.Fatal("expected error, got nil")
+	}
+}
+
+func TestSesiCreateRejectsOverlappingRanges(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newSesiServiceWithMock(mock, t)
+	_, err = svc.Create(context.Background(), dto.CreateSesiRequest{
+		Code:     "SESI-01",
+		Location: "Gudang A",
+		Coordinators: []dto.CoordinatorInput{
+			{Code: "KOR-01", RackStart: 1, RackEnd: 5},
+			{Code: "KOR-02", RackStart: 4, RackEnd: 8},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var validation *model.ValidationError
+	if !errors.As(err, &validation) {
+		t.Errorf("expected ValidationError, got %T: %v", err, err)
+	}
+}
+
+func TestSesiCreateRejectsOversizedRange(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newSesiServiceWithMock(mock, t)
+	_, err = svc.Create(context.Background(), dto.CreateSesiRequest{
+		Code:     "SESI-01",
+		Location: "Gudang A",
+		Coordinators: []dto.CoordinatorInput{
+			{Code: "KOR-01", RackStart: 1, RackEnd: 201},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var validation *model.ValidationError
+	if !errors.As(err, &validation) {
+		t.Errorf("expected ValidationError, got %T: %v", err, err)
+	}
+}
+
+func TestSesiCreateRejectsInvertedRange(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newSesiServiceWithMock(mock, t)
+	_, err = svc.Create(context.Background(), dto.CreateSesiRequest{
+		Code:     "SESI-01",
+		Location: "Gudang A",
+		Coordinators: []dto.CoordinatorInput{
+			{Code: "KOR-01", RackStart: 5, RackEnd: 3},
+		},
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var validationErrs validator.ValidationErrors
+	if !errors.As(err, &validationErrs) {
+		t.Errorf("expected validator error, got %T: %v", err, err)
 	}
 }
 

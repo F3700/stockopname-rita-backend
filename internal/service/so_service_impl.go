@@ -136,7 +136,6 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 		Name:            modelSummary.Name,
 		Quantity:        modelSummary.Quantity,
 		RackName:        modelSummary.RackName,
-		InspectorCode:   modelSummary.InspectorCode,
 		CoordinatorCode: modelSummary.CoordinatorCode,
 		UpdatedAt:       modelSummary.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -182,7 +181,6 @@ func (s *StockOpnameServiceImpl) FindAll(ctx context.Context, pagination *dto.Pa
 			Name:            so.Name,
 			Quantity:        so.Quantity,
 			RackName:        so.RackName,
-			InspectorCode:   so.InspectorCode,
 			CoordinatorCode: so.CoordinatorCode,
 			UpdatedAt:       so.UpdatedAt.Format(time.RFC3339),
 		})
@@ -213,7 +211,6 @@ func (s *StockOpnameServiceImpl) FindById(ctx context.Context, id int) (dto.Stoc
 		Name:            modelSummary.Name,
 		Quantity:        modelSummary.Quantity,
 		RackName:        modelSummary.RackName,
-		InspectorCode:   modelSummary.InspectorCode,
 		CoordinatorCode: modelSummary.CoordinatorCode,
 		UpdatedAt:       modelSummary.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -263,51 +260,9 @@ func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.Upd
 		Name:            result.Name,
 		Quantity:        result.Quantity,
 		RackName:        result.RackName,
-		InspectorCode:   result.InspectorCode,
 		CoordinatorCode: result.CoordinatorCode,
 		UpdatedAt:       result.UpdatedAt.Format(time.RFC3339),
 	}, nil
-}
-
-func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
-	if err := s.Validator.Struct(req); err != nil {
-		return err
-	}
-	for _, item := range req.Items {
-		if item.Quantity == nil {
-			return &model.ValidationError{Detail: "quantity is required"}
-		}
-		if item.Barcode == "" && item.PLU == "" {
-			return &model.ValidationError{Detail: "barcode or plu is required"}
-		}
-	}
-
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	sesiId, err := s.StockOpnameRepository.FindSesiIdByRak(ctx, tx, req.RackID)
-	if err != nil {
-		return err
-	}
-	if err := s.checkSessionReady(ctx, tx, sesiId); err != nil {
-		return err
-	}
-
-	for _, item := range req.Items {
-		product, err := s.resolveProduct(ctx, tx, sesiId, item.Barcode, item.PLU)
-		if err != nil {
-			return err
-		}
-		modelSO := snapshot(*item.Quantity, req.RackID, product, item.Barcode)
-		if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit(ctx)
 }
 
 // FindAllForExport implements [StockOpnameService].
@@ -327,7 +282,6 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId in
 			SellPrice:       export.SellPrice,
 			Quantity:        export.Quantity,
 			RackName:        export.RackName,
-			InspectorCode:   export.InspectorCode,
 			CoordinatorCode: export.CoordinatorCode,
 			UpdatedAt:       export.UpdatedAt.Format(time.RFC3339),
 		})

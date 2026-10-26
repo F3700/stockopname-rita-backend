@@ -64,20 +64,10 @@ func (r *RackHandlerImpl) GetRackProgress(writer http.ResponseWriter, req *http.
 
 // GetRacks implements [RackHandler].
 func (r *RackHandlerImpl) GetRacks(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	inspectorIdStr := req.URL.Query().Get("inspectorId")
 	coordinatorIdStr := req.URL.Query().Get("coordinatorId")
 	sessionIdStr := req.URL.Query().Get("sessionId")
 
-	var inspectorId, coordinatorId, sessionId *int
-
-	if inspectorIdStr != "" {
-		parsedInspectorId, err := strconv.Atoi(inspectorIdStr)
-		if err != nil {
-			helper.WriteError(writer, http.StatusBadRequest, "Invalid inspectorId parameter", err)
-			return
-		}
-		inspectorId = &parsedInspectorId
-	}
+	var coordinatorId, sessionId *int
 
 	if coordinatorIdStr != "" {
 		parsedCoordinatorId, err := strconv.Atoi(coordinatorIdStr)
@@ -97,7 +87,7 @@ func (r *RackHandlerImpl) GetRacks(writer http.ResponseWriter, req *http.Request
 		sessionId = &parsedSessionId
 	}
 
-	racks, err := r.RackService.FindAllSummary(req.Context(), inspectorId, coordinatorId, sessionId)
+	racks, err := r.RackService.FindAllSummary(req.Context(), coordinatorId, sessionId)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return
@@ -114,25 +104,25 @@ func (r *RackHandlerImpl) GetRacks(writer http.ResponseWriter, req *http.Request
 	}
 }
 
-func (r *RackHandlerImpl) CreateRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	var rackRequest dto.CreateRackRequest
-	if err := helper.ReadFromRequestBody(req, &rackRequest); err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+// DeleteRack implements [RackHandler].
+func (r *RackHandlerImpl) DeleteRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid rack ID", err)
 		return
 	}
 
-	rack, err := r.RackService.CreateRack(req.Context(), rackRequest)
-	if err != nil {
+	if err := r.RackService.DeleteRack(req.Context(), id); err != nil {
 		helper.WriteServiceError(writer, err)
 		return
 	}
 
 	response := dto.Response{
-		Message: "Rack created successfully",
-		Data:    rack,
+		Message: "Rack deleted successfully",
+		Data:    nil,
 	}
 
-	if err := helper.ResponseJson(writer, http.StatusCreated, response); err != nil {
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
 		helper.WriteError(writer, http.StatusInternalServerError, "Error occurred while sending response", err)
 		return
 	}

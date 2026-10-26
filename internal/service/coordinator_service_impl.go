@@ -3,20 +3,28 @@ package service
 import (
 	"context"
 	"stockopname-rita-backend/internal/dto"
+	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+	"time"
+
+	"github.com/jackc/pgx/v5"
 )
 
 type CoordinatorServiceImpl struct {
 	CoordinatorRepository repository.CoordinatorRepository
 	SesiRepository        repository.SesiRepository
+	ProductRepository     repository.ProductRepository
+	RackRepository        repository.RackRepository
 	Pool                  repository.DBPool
 }
 
-func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepository, sesiRepository repository.SesiRepository, pool repository.DBPool) CoordinatorService {
+func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepository, sesiRepository repository.SesiRepository, productRepository repository.ProductRepository, rackRepository repository.RackRepository, pool repository.DBPool) CoordinatorService {
 	return &CoordinatorServiceImpl{
 		CoordinatorRepository: coordinatorRepository,
 		SesiRepository:        sesiRepository,
+		ProductRepository:     productRepository,
+		RackRepository:        rackRepository,
 		Pool:                  pool,
 	}
 }
@@ -53,6 +61,82 @@ func (c *CoordinatorServiceImpl) Update(ctx context.Context, id int, req *dto.Up
 	return tx.Commit(ctx)
 }
 
+// checkJoinAllowed enforces D3 + D6 for coordinator joins.
+func (c *CoordinatorServiceImpl) checkJoinAllowed(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error {
+	sesi, err := c.SesiRepository.FindById(ctx, coordinator.CoorSesiID)
+	if err != nil {
+		return err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return err
+	}
+	if coordinator.CoorStatus != "IN_PROGRESS" {
+		return &model.ConflictError{
+			Resource: "Coordinator",
+			Detail:   "Coordinator is not active",
+		}
+	}
+	total, err := c.ProductRepository.CountBySesi(ctx, tx, coordinator.CoorSesiID)
+	if err != nil {
+		return err
+	}
+	if total == 0 {
+		return &model.ConflictError{Resource: "Session", Detail: "Session has no products yet"}
+	}
+	return nil
+}
+
+// JoinByCoordinatorQR implements [CoordinatorService].
+func (c *CoordinatorServiceImpl) JoinByCoordinatorQR(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error) {
+	if req.CoordinatorQR == "" {
+		return dto.CoordinatorJoinResponse{}, &model.ValidationError{Detail: "coordinator_qr is required"}
+	}
+
+	coorID, err := helper.ParseCoordinatorQR(req.CoordinatorQR)
+	if err != nil {
+		return dto.CoordinatorJoinResponse{}, err
+	}
+
+	tx, err := c.Pool.Begin(ctx)
+	if err != nil {
+		return dto.CoordinatorJoinResponse{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	coordinator, err := c.CoordinatorRepository.FindById(ctx, tx, coorID)
+	if err != nil {
+		return dto.CoordinatorJoinResponse{}, err
+	}
+
+	if err := c.checkJoinAllowed(ctx, tx, coordinator); err != nil {
+		return dto.CoordinatorJoinResponse{}, err
+	}
+
+	racks, err := c.RackRepository.FindAll(ctx, &coorID, nil)
+	if err != nil {
+		return dto.CoordinatorJoinResponse{}, err
+	}
+
+	joinRacks := make([]dto.JoinRackResponse, 0, len(racks))
+	for _, rack := range racks {
+		uploadedAt := ""
+		if rack.UploadedAt.Valid {
+			uploadedAt = rack.UploadedAt.Time.Format(time.RFC3339)
+		}
+		joinRacks = append(joinRacks, dto.JoinRackResponse{
+			ID:         rack.RakID,
+			Name:       rack.RakName,
+			UploadedAt: uploadedAt,
+		})
+	}
+
+	return dto.CoordinatorJoinResponse{
+		CoordinatorID: coordinator.CoorID,
+		SesiID:        coordinator.CoorSesiID,
+		Rak:           joinRacks,
+	}, nil
+}
+
 // FindAllSummary implements [CoordinatorService].
 func (c *CoordinatorServiceImpl) FindAllSummary(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error) {
 	var coordinators []*model.CoordinatorSummary
@@ -75,7 +159,6 @@ func (c *CoordinatorServiceImpl) FindAllSummary(ctx context.Context, sesiId *int
 		response = append(response, &dto.CoordinatorResponse{
 			ID:            coordinator.ID,
 			Code:          coordinator.Code,
-			Inspector:     coordinator.Inspector,
 			RackAssigned:  coordinator.RackAssigned,
 			RackCompleted: coordinator.RackCompleted,
 			Status:        coordinator.Status,
@@ -95,7 +178,6 @@ func (c *CoordinatorServiceImpl) FindByIdSummary(ctx context.Context, id int) (*
 	return &dto.CoordinatorResponse{
 		ID:            coordinator.ID,
 		Code:          coordinator.Code,
-		Inspector:     coordinator.Inspector,
 		RackAssigned:  coordinator.RackAssigned,
 		RackCompleted: coordinator.RackCompleted,
 		Status:        coordinator.Status,
@@ -112,7 +194,6 @@ func (c *CoordinatorServiceImpl) FindByIdDetail(ctx context.Context, id int) (*d
 	return &dto.CoordinatorDetailResponse{
 		ID:              coordinator.ID,
 		Code:            coordinator.Code,
-		Inspector:       coordinator.Inspector,
 		RackAssigned:    coordinator.RackAssigned,
 		RackCompleted:   coordinator.RackCompleted,
 		Status:          coordinator.Status,
@@ -126,5 +207,5 @@ func (c *CoordinatorServiceImpl) FindByIdReport(ctx context.Context, id int) (*d
 	if err != nil {
 		return nil, err
 	}
-	return &dto.CoordinatorReportResponse{Coordinator: dto.CoordinatorResponse{ID: report.ID, Code: report.Code, Inspector: report.Inspector, RackAssigned: report.RackAssigned, RackCompleted: report.RackCompleted, Status: report.Status}, SessionCode: report.SessionCode}, nil
+	return &dto.CoordinatorReportResponse{Coordinator: dto.CoordinatorResponse{ID: report.ID, Code: report.Code, RackAssigned: report.RackAssigned, RackCompleted: report.RackCompleted, Status: report.Status}, SessionCode: report.SessionCode}, nil
 }

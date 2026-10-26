@@ -23,7 +23,6 @@ type StockOpnameSummary struct {
 	Name            string    `json:"product_name"`
 	Quantity        int       `json:"quantity"`
 	RackName        string    `json:"rak_name"`
-	InspectorCode   string    `json:"inspector_code"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -39,7 +38,6 @@ type StockOpnameExport struct {
 	SellPrice       float64   `json:"sell_price"`
 	Quantity        int       `json:"quantity"`
 	RackName        string    `json:"rak_name"`
-	InspectorCode   string    `json:"inspector_code"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }

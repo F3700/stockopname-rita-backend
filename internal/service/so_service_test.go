@@ -17,7 +17,6 @@ func soSummaryModel() *model.StockOpnameSummary {
 		Name:            "Sari Roti",
 		Quantity:        10,
 		RackName:        "R1",
-		InspectorCode:   "INSP-01",
 		CoordinatorCode: "KOR-01",
 		UpdatedAt:       time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC),
 	}
@@ -66,7 +65,7 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 				t.Errorf("expected sesi 3, got %d", sesiId)
 			}
 			return []*model.StockOpnameExport{
-				{Id: 7, Barcode: "8991001010016", Name: "Sari Roti", BuyPrice: 14500, SellPrice: 17200, Quantity: 10, RackName: "R1", InspectorCode: "INSP-01", CoordinatorCode: "KOR-01", UpdatedAt: time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)},
+				{Id: 7, Barcode: "8991001010016", Name: "Sari Roti", BuyPrice: 14500, SellPrice: 17200, Quantity: 10, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)},
 			}, nil
 		},
 	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))

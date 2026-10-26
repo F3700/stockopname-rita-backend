@@ -91,42 +91,22 @@ INSERT INTO coordinator (coor_code, coor_sesi_id, coor_status) VALUES
 ('Siti', 3, 'IN_REVIEW');
 
 -- ============================================
--- INSPECTOR (nama orang Indonesia)
--- ============================================
-INSERT INTO inspector (inspector_code, inspector_startedat, inspector_endedat, inspector_coor_id) VALUES
--- Sesi 1, Budi
-('Ahmad', '2026-09-10 08:15:00+07', '2026-09-10 11:00:00+07', 1),
-('Dewi', '2026-09-10 08:15:00+07', '2026-09-10 11:30:00+07', 1),
--- Sesi 1, Andi
-('Rudi', '2026-09-10 08:20:00+07', '2026-09-10 11:15:00+07', 2),
-('Maya', '2026-09-10 08:20:00+07', '2026-09-10 12:00:00+07', 2),
--- Sesi 2, Dedi
-('Hendra', '2026-09-10 08:15:00+07', '2026-09-10 12:00:00+07', 3),
--- Sesi 2, Rina
-('Lina', '2026-09-10 08:25:00+07', '2026-09-10 12:30:00+07', 4),
--- Sesi 3, Eko (IN_PROGRESS) -> inspector masih jalan
-('Fajar', '2026-09-11 09:10:00+07', NULL, 5),
--- Sesi 3, Siti (IN_REVIEW) -> inspector sudah selesai
-('Yuni', '2026-09-11 09:10:00+07', '2026-09-11 11:30:00+07', 6);
-
--- ============================================
 -- RAK
 -- ============================================
-INSERT INTO rak (rak_name, rak_updatedat, rak_inspector_id) VALUES
--- Sesi 1, Ahmad
+INSERT INTO rak (rak_name, rak_updatedat, rak_coor_id) VALUES
+-- Sesi 1, Budi
 ('Rak A1', '2026-09-10 08:30:00+07', 1),
 ('Rak A2', '2026-09-10 08:35:00+07', 1),
--- Sesi 1, Dewi
-('Rak B1', '2026-09-10 08:35:00+07', 2),
--- Sesi 1, Rudi
-('Rak C1', '2026-09-10 08:40:00+07', 3),
--- Sesi 2, Hendra
-('Rak E1', '2026-09-10 08:30:00+07', 5),
-('Rak E2', '2026-09-10 08:35:00+07', 5),
--- Sesi 2, Lina
-('Rak F1', '2026-09-10 08:45:00+07', 6),
--- Sesi 3, Fajar (IN_PROGRESS)
-('Rak G1', '2026-09-11 09:20:00+07', 7);
+('Rak B1', '2026-09-10 08:35:00+07', 1),
+-- Sesi 1, Andi
+('Rak C1', '2026-09-10 08:40:00+07', 2),
+-- Sesi 2, Dedi
+('Rak E1', '2026-09-10 08:30:00+07', 3),
+('Rak E2', '2026-09-10 08:35:00+07', 3),
+-- Sesi 2, Rina
+('Rak F1', '2026-09-10 08:45:00+07', 4),
+-- Sesi 3, Eko (IN_PROGRESS)
+('Rak G1', '2026-09-11 09:20:00+07', 5);
 
 -- ============================================
 -- STOCK OPNAME (snapshot, tanpa FK ke product)
@@ -152,6 +132,36 @@ INSERT INTO stock_opname (stock_opname_quantity, so_product_plu, so_product_name
 -- Sesi 3 (IN_PROGRESS), Rak G1
 (8, '900110', 'Tolak Angin Cair 15ml', '9001105550094', 12500.00, 15200.00, 8),
 (5, '900111', 'Mamy Poko Pants M34', '8991001110113', 52000.00, 61500.00, 8);
+
+-- ============================================
+-- TANDAI RAK YANG SUDAH DIUPLOAD + SNAPSHOT
+-- Satu upload per koordinator; satu rak hanya menunjuk satu upload.
+-- Harus setelah seluruh INSERT stock_opname.
+-- ============================================
+INSERT INTO upload (upload_coor_id, upload_createdat)
+SELECT c.coor_id, MAX(so.stock_opname_updatedat)
+FROM coordinator c
+JOIN rak r ON r.rak_coor_id = c.coor_id
+JOIN stock_opname so ON so.stock_opname_rak_id = r.rak_id
+GROUP BY c.coor_id;
+
+UPDATE rak r
+SET rak_upload_id = u.upload_id
+FROM upload u
+WHERE u.upload_coor_id = r.rak_coor_id;
+
+UPDATE rak r
+SET rak_upload_snapshot = (
+        SELECT jsonb_agg(jsonb_build_object(
+            'plu', so.so_product_plu,
+            'barcode', so.so_barcode,
+            'name', so.so_product_name,
+            'qty', so.stock_opname_quantity
+        ) ORDER BY so.so_product_name)
+        FROM stock_opname so
+        WHERE so.stock_opname_rak_id = r.rak_id
+    )
+WHERE r.rak_upload_id IS NOT NULL;
 
 -- ============================================
 -- VERIFIKASI

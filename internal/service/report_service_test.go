@@ -28,7 +28,7 @@ func TestSessionPDF(t *testing.T) {
 				return []*dto.CoordinatorResponse{{ID: 1, Code: "KOR-01", Status: "COMPLETED"}}, nil
 			},
 		},
-		&fakeInspectorService{},
+		&fakeUploadService{},
 		&fakeStockOpnameService{
 			findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
 				if sesiId == nil || *sesiId != 1 {
@@ -38,7 +38,7 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", Quantity: 48, RackName: "R1", InspectorCode: "INSP-01"},
+					{Id: 1, Barcode: "8991234567890", Name: "Indomie", Quantity: 48, RackName: "R1"},
 				}, nil
 			},
 		},
@@ -67,7 +67,7 @@ func TestSessionPDFSesiError(t *testing.T) {
 			},
 		},
 		&fakeCoordinatorService{},
-		&fakeInspectorService{},
+		&fakeUploadService{},
 		&fakeStockOpnameService{},
 	)
 
@@ -94,7 +94,7 @@ func TestSessionPDFCoordinatorError(t *testing.T) {
 				return nil, errors.New("boom")
 			},
 		},
-		&fakeInspectorService{},
+		&fakeUploadService{},
 		&fakeStockOpnameService{
 			findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
 				stockCalled = true
@@ -132,14 +132,7 @@ func TestCoordinatorPDF(t *testing.T) {
 				}, nil
 			},
 		},
-		&fakeInspectorService{
-			findAllSummaryFunc: func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error) {
-				if coorId == nil || *coorId != 2 {
-					t.Errorf("expected coorId 2, got %v", coorId)
-				}
-				return []dto.InspectorResponse{{ID: 1, Code: "INSP-01", RackAssigned: 2, RackCompleted: 2, TotalItems: 10}}, nil
-			},
-		},
+		&fakeUploadService{},
 		&fakeStockOpnameService{
 			findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
 				if coorId == nil || *coorId != 2 {
@@ -166,7 +159,6 @@ func TestCoordinatorPDF(t *testing.T) {
 }
 
 func TestCoordinatorPDFCoordinatorError(t *testing.T) {
-	inspectorCalled := false
 	svc := NewReportService(
 		&fakeSesiService{},
 		&fakeCoordinatorService{
@@ -174,12 +166,7 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 				return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
 			},
 		},
-		&fakeInspectorService{
-			findAllSummaryFunc: func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error) {
-				inspectorCalled = true
-				return nil, nil
-			},
-		},
+		&fakeUploadService{},
 		&fakeStockOpnameService{},
 	)
 
@@ -190,9 +177,6 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 	var notFound *model.NotFoundError
 	if !errors.As(err, &notFound) {
 		t.Errorf("expected NotFoundError to propagate, got %T: %v", err, err)
-	}
-	if inspectorCalled {
-		t.Error("inspector lookup must not run when coordinator lookup fails")
 	}
 }
 
@@ -209,5 +193,46 @@ func TestFormatReportDate(t *testing.T) {
 	got := formatReportDate("2026-09-10T08:00:00+07:00")
 	if got == "-" || got == "" {
 		t.Errorf("expected formatted date, got %q", got)
+	}
+}
+
+func TestUploadPDF(t *testing.T) {
+	svc := NewReportService(
+		&fakeSesiService{},
+		&fakeCoordinatorService{},
+		&fakeUploadService{
+			findDetailFunc: func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error) {
+				if uploadID != 12 {
+					t.Errorf("expected uploadID 12, got %d", uploadID)
+				}
+				return dto.UploadDetailResponse{
+					UploadResponse:  dto.UploadResponse{UploadID: 12, RackCount: 2, ItemCount: 3, CreatedAt: "2026-10-26T10:14:00+07:00"},
+					CoordinatorCode: "KOR-01",
+					SessionCode:     "SESI-01",
+					SessionLocation: "Gudang A",
+					Racks: []dto.UploadDetailRackResponse{
+						{RakID: 1, RakName: "Rak 1", ItemCount: 2, Items: []dto.UploadItemResponse{
+							{Barcode: "111", Name: "Indomie", Qty: 5},
+							{Barcode: "222", Name: "Soto", Qty: 3},
+						}},
+						{RakID: 2, RakName: "Rak 2", ItemCount: 1, Items: []dto.UploadItemResponse{
+							{Barcode: "333", Name: "Teh", Qty: 1},
+						}},
+					},
+				}, nil
+			},
+		},
+		&fakeStockOpnameService{},
+	)
+
+	data, filename, err := svc.UploadPDF(context.Background(), 12)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "SESI-01_KOR-01_upload-12.pdf" {
+		t.Errorf("unexpected filename %q", filename)
+	}
+	if !bytes.HasPrefix(data, []byte("%PDF")) {
+		t.Error("expected PDF magic header")
 	}
 }

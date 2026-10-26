@@ -13,8 +13,8 @@ import (
 func TestCoordinatorFindByIdDetail(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("JOIN sesi").WithArgs(5).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "code", "session_code", "session_location", "inspector", "rack_assigned", "rack_completed", "status"}).
-			AddRow(5, "KOR-05", "SESI-01", "Gudang A", 1, 2, 1, "IN_PROGRESS"),
+		pgxmock.NewRows([]string{"id", "code", "session_code", "session_location", "rack_assigned", "rack_completed", "status"}).
+			AddRow(5, "KOR-05", "SESI-01", "Gudang A", 2, 1, "IN_PROGRESS"),
 	)
 
 	repo := NewCoordinatorRepository(mock)
@@ -30,7 +30,7 @@ func TestCoordinatorFindByIdDetail(t *testing.T) {
 func TestCoordinatorFindByIdDetailNotFound(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("JOIN sesi").WithArgs(99).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "code", "session_code", "session_location", "inspector", "rack_assigned", "rack_completed", "status"}),
+		pgxmock.NewRows([]string{"id", "code", "session_code", "session_location", "rack_assigned", "rack_completed", "status"}),
 	)
 
 	repo := NewCoordinatorRepository(mock)

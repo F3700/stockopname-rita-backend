@@ -46,16 +46,13 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 			so.so_product_name AS name,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name AS rackName,
-			i.inspector_code AS inspectorCode,
 			c.coor_code AS coordinatorCode,
 			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
-		JOIN inspector i
-			ON r.rak_inspector_id = i.inspector_id
 		JOIN coordinator c
-			ON i.inspector_coor_id = c.coor_id
+			ON r.rak_coor_id = c.coor_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
 		AND (so.so_barcode ILIKE $3 OR so.so_product_name ILIKE $3 OR so.so_product_plu ILIKE $3)
@@ -81,10 +78,8 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 		FROM stock_opname so
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
-		JOIN inspector i
-			ON r.rak_inspector_id = i.inspector_id
 		JOIN coordinator c
-			ON i.inspector_coor_id = c.coor_id
+			ON r.rak_coor_id = c.coor_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
 		AND (so.so_barcode ILIKE $3 OR so.so_product_name ILIKE $3 OR so.so_product_plu ILIKE $3)
@@ -105,7 +100,6 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 			so.so_product_name,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name,
-			i.inspector_code,
 			c.coor_code,
 			so.stock_opname_updatedat AS "updatedAt"
 
@@ -114,17 +108,14 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
 
-		JOIN inspector i
-			ON r.rak_inspector_id = i.inspector_id
-
 		JOIN coordinator c
-			ON i.inspector_coor_id = c.coor_id
+			ON r.rak_coor_id = c.coor_id
 
 		WHERE so.stock_opname_id = $1;
 	`
 
 	var stockOpname model.StockOpnameSummary
-	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.RackName, &stockOpname.InspectorCode, &stockOpname.CoordinatorCode, &stockOpname.UpdatedAt)
+	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.RackName, &stockOpname.CoordinatorCode, &stockOpname.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &model.NotFoundError{Resource: "Stock Opname", ID: id}
@@ -136,8 +127,8 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 }
 
 // Save implements [StockOpnameRepository].
-// It is an idempotent upsert on (rak_id, product_plu): re-uploading a rack
-// after a local edit refreshes the snapshot instead of failing with a
+// It is an idempotent upsert on (rak_id, product_plu): correcting an item
+// from the web refreshes the snapshot instead of failing with a
 // unique-constraint conflict.
 func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
 	const SQL = `
@@ -188,16 +179,13 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			so.so_sellprice AS sellPrice,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name AS rackName,
-			i.inspector_code AS inspectorCode,
 			c.coor_code AS coordinatorCode,
 			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
 		JOIN rak r
 			ON so.stock_opname_rak_id = r.rak_id
-		JOIN inspector i
-			ON r.rak_inspector_id = i.inspector_id
 		JOIN coordinator c
-			ON i.inspector_coor_id = c.coor_id
+			ON r.rak_coor_id = c.coor_id
 		WHERE c.coor_sesi_id = $1
 		ORDER BY so.stock_opname_id;
 	`
@@ -221,8 +209,7 @@ func (s *StockOpnameRepositoryImpl) FindSesiIdByRak(ctx context.Context, tx pgx.
 	const SQL = `
 		SELECT c.coor_sesi_id
 		FROM rak r
-		JOIN inspector i ON i.inspector_id = r.rak_inspector_id
-		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
 		WHERE r.rak_id = $1
 	`
 	var sesiId int
@@ -241,8 +228,7 @@ func (s *StockOpnameRepositoryImpl) FindSesiIdByStockOpnameID(ctx context.Contex
 		SELECT c.coor_sesi_id
 		FROM stock_opname so
 		JOIN rak r ON r.rak_id = so.stock_opname_rak_id
-		JOIN inspector i ON i.inspector_id = r.rak_inspector_id
-		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
 		WHERE so.stock_opname_id = $1
 	`
 	var sesiId int
@@ -261,12 +247,21 @@ func (s *StockOpnameRepositoryImpl) CountBySesi(ctx context.Context, tx pgx.Tx, 
 		SELECT COUNT(*)
 		FROM stock_opname so
 		JOIN rak r ON r.rak_id = so.stock_opname_rak_id
-		JOIN inspector i ON i.inspector_id = r.rak_inspector_id
-		JOIN coordinator c ON c.coor_id = i.inspector_coor_id
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
 		WHERE c.coor_sesi_id = $1
 	`
 	var total int
 	if err := tx.QueryRow(ctx, SQL, sesiId).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// CountByRak implements [StockOpnameRepository].
+func (s *StockOpnameRepositoryImpl) CountByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error) {
+	const SQL = `SELECT COUNT(*) FROM stock_opname WHERE stock_opname_rak_id = $1`
+	var total int
+	if err := tx.QueryRow(ctx, SQL, rakID).Scan(&total); err != nil {
 		return 0, err
 	}
 	return total, nil

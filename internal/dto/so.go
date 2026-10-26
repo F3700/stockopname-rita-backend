@@ -6,7 +6,6 @@ type StockOpnameResponse struct {
 	Name            string `json:"product_name"`
 	Quantity        int    `json:"quantity"`
 	RackName        string `json:"rak_name"`
-	InspectorCode   string `json:"inspector_code"`
 	CoordinatorCode string `json:"coor_code"`
 	UpdatedAt       string `json:"updatedAt"`
 }
@@ -22,7 +21,6 @@ type StockOpnameExportResponse struct {
 	SellPrice       float64 `json:"sell_price"`
 	Quantity        int     `json:"quantity"`
 	RackName        string  `json:"rak_name"`
-	InspectorCode   string  `json:"inspector_code"`
 	CoordinatorCode string  `json:"coor_code"`
 	UpdatedAt       string  `json:"updatedAt"`
 }
@@ -39,9 +37,4 @@ type CreateStockOpnameRequest struct {
 
 type UpdateStockOpnameRequest struct {
 	Quantity *int `json:"quantity" validate:"required,gte=0"`
-}
-
-type CreateStockOpnameByRackRequest struct {
-	RackID int                        `json:"rak_id" validate:"required"`
-	Items  []CreateStockOpnameRequest `json:"so_products" validate:"required,dive"`
 }

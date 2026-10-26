@@ -10,7 +10,6 @@ type Coordinator struct {
 type CoordinatorSummary struct {
 	ID            int
 	Code          string
-	Inspector     int
 	RackAssigned  int
 	RackCompleted int
 	Status        string

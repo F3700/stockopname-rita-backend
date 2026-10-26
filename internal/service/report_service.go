@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"stockopname-rita-backend/internal/dto"
+	"strings"
 	"time"
 
 	"github.com/phpdave11/gofpdf"
@@ -24,6 +25,7 @@ var reportLocation = mustLoadReportLocation()
 type ReportService interface {
 	SessionPDF(ctx context.Context, id int) ([]byte, string, error)
 	CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error)
+	UploadPDF(ctx context.Context, id int) ([]byte, string, error)
 	SessionExcel(ctx context.Context, id int) ([]byte, string, error)
 	SessionDBF(ctx context.Context, id int) ([]byte, string, error)
 }
@@ -31,12 +33,12 @@ type ReportService interface {
 type ReportServiceImpl struct {
 	SesiService        SesiService
 	CoordinatorService CoordinatorService
-	InspectorService   InspectorService
+	UploadService      UploadService
 	StockOpnameService StockOpnameService
 }
 
-func NewReportService(sesi SesiService, coordinator CoordinatorService, inspector InspectorService, stock StockOpnameService) ReportService {
-	return &ReportServiceImpl{SesiService: sesi, CoordinatorService: coordinator, InspectorService: inspector, StockOpnameService: stock}
+func NewReportService(sesi SesiService, coordinator CoordinatorService, upload UploadService, stock StockOpnameService) ReportService {
+	return &ReportServiceImpl{SesiService: sesi, CoordinatorService: coordinator, UploadService: upload, StockOpnameService: stock}
 }
 
 func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
@@ -80,10 +82,6 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	if err != nil {
 		return nil, "", err
 	}
-	inspectors, err := r.InspectorService.FindAllSummary(ctx, &id)
-	if err != nil {
-		return nil, "", err
-	}
 	results, err := r.StockOpnameService.FindAll(ctx, &dto.Pagination{Page: 1, Limit: 100000}, "", &id, nil)
 	if err != nil {
 		return nil, "", err
@@ -98,19 +96,48 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	label(pdf, "Coordinator Code", coordinator.Code)
 	label(pdf, "Session", report.SessionCode)
 	label(pdf, "Status", coordinator.Status)
-	section(pdf, "INSPECTORS")
-	table(pdf, []string{"Code", "Rack Assigned", "Rack Completed", "Items"}, func() [][]string {
-		rows := make([][]string, 0, len(inspectors))
-		for _, i := range inspectors {
-			rows = append(rows, []string{i.Code, fmt.Sprint(i.RackAssigned), fmt.Sprint(i.RackCompleted), fmt.Sprint(i.TotalItems)})
-		}
-		return rows
-	}())
 	section(pdf, "STOCK OPNAME RESULTS")
 	resultTable(pdf, results)
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
+}
+
+// UploadPDF renders the immutable snapshot taken when the batch was uploaded.
+func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
+	detail, err := r.UploadService.FindDetail(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pdf := newPDF("STOCK OPNAME UPLOAD")
+	pdf.Ln(4)
+	section(pdf, "UPLOAD INFORMATION")
+	label(pdf, "Coordinator", detail.CoordinatorCode)
+	label(pdf, "Session", detail.SessionCode)
+	label(pdf, "Location", detail.SessionLocation)
+	label(pdf, "Uploaded At", formatReportDate(detail.CreatedAt))
+	label(pdf, "Rack Count", fmt.Sprint(detail.RackCount))
+	label(pdf, "Item Count", fmt.Sprint(detail.ItemCount))
+
+	for _, rack := range detail.Racks {
+		section(pdf, "RACK "+rack.RakName)
+		table(pdf, []string{"Barcode", "Product", "Qty"}, func() [][]string {
+			rows := make([][]string, 0, len(rack.Items))
+			for _, item := range rack.Items {
+				rows = append(rows, []string{item.Barcode, item.Name, fmt.Sprint(item.Qty)})
+			}
+			return rows
+		}(), 35, 115, 30)
+	}
+	footer(pdf)
+
+	data, err := pdfBytes(pdf)
+	if err != nil {
+		return nil, "", err
+	}
+	filename := fmt.Sprintf("%s_%s_upload-%d.pdf", sanitizeReportName(detail.SessionCode), sanitizeReportName(detail.CoordinatorCode), detail.UploadID)
+	return data, filename, nil
 }
 
 func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, string, error) {
@@ -130,12 +157,12 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 	}
 	file.DeleteSheet("Sheet1")
 
-	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Inspector", "Coordinator", "Session Code", "Updated At"}
+	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Coordinator", "Session Code", "Updated At"}
 	if err := file.SetSheetRow(sheet, "A1", &headers); err != nil {
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.InspectorCode, export.CoordinatorCode, session.Code, export.UpdatedAt}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -161,7 +188,6 @@ type dbfExportRow struct {
 	SellPrice float64 `dbase:"SELLPRICE"`
 	Quantity  int     `dbase:"QTY"`
 	Rak       string  `dbase:"RAK"`
-	Inspector string  `dbase:"INSPECTOR"`
 	CoorCode  string  `dbase:"COOR"`
 	SesiCode  string  `dbase:"SESI_CODE"`
 	Updated   string  `dbase:"UPDATED"`
@@ -180,7 +206,6 @@ func sessionDBFColumns() ([]*dbase.Column, error) {
 		{"SELLPRICE", dbase.Numeric, 15, 2},
 		{"QTY", dbase.Numeric, 10, 0},
 		{"RAK", dbase.Character, 15, 0},
-		{"INSPECTOR", dbase.Character, 20, 0},
 		{"COOR", dbase.Character, 20, 0},
 		{"SESI_CODE", dbase.Character, 20, 0},
 		{"UPDATED", dbase.Character, 25, 0},
@@ -247,7 +272,6 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 			SellPrice: export.SellPrice,
 			Quantity:  export.Quantity,
 			Rak:       export.RackName,
-			Inspector: export.InspectorCode,
 			CoorCode:  export.CoordinatorCode,
 			SesiCode:  session.Code,
 			Updated:   export.UpdatedAt,
@@ -445,13 +469,13 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 	pdf.Ln(2)
 }
 func resultTable(pdf *gofpdf.Fpdf, results []dto.StockOpnameResponse) {
-	table(pdf, []string{"Barcode", "Product", "Rack", "Inspector", "Qty"}, func() [][]string {
+	table(pdf, []string{"Barcode", "Product", "Rack", "Qty"}, func() [][]string {
 		rows := make([][]string, 0, len(results))
 		for _, result := range results {
-			rows = append(rows, []string{result.Barcode, result.Name, result.RackName, result.InspectorCode, fmt.Sprint(result.Quantity)})
+			rows = append(rows, []string{result.Barcode, result.Name, result.RackName, fmt.Sprint(result.Quantity)})
 		}
 		return rows
-	}(), 30, 70, 30, 30, 20)
+	}(), 30, 90, 40, 20)
 }
 func footer(pdf *gofpdf.Fpdf) {
 	pdf.Ln(4)
@@ -465,6 +489,22 @@ func mustLoadReportLocation() *time.Location {
 		return time.FixedZone("WIB", 7*60*60)
 	}
 	return location
+}
+
+func sanitizeReportName(value string) string {
+	var b strings.Builder
+	for _, r := range value {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9', r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	if b.Len() == 0 {
+		return "report"
+	}
+	return b.String()
 }
 
 func formatReportDate(value string) string {

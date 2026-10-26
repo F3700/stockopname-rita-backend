@@ -47,8 +47,8 @@ func soResolveBarcodeRows() *pgxmock.Rows {
 
 func soSummaryRows() *pgxmock.Rows {
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	return pgxmock.NewRows([]string{"id", "barcode", "name", "quantity", "rackName", "inspectorCode", "coordinatorCode", "updatedAt"}).
-		AddRow(7, "8991001010016", "Sari Roti", 10, "R1", "INSP-01", "KOR-01", updatedAt)
+	return pgxmock.NewRows([]string{"id", "barcode", "name", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
+		AddRow(7, "8991001010016", "Sari Roti", 10, "R1", "KOR-01", updatedAt)
 }
 
 func TestStockOpnameCreateByBarcodeTx(t *testing.T) {
@@ -238,8 +238,8 @@ func TestStockOpnameUpdateTx(t *testing.T) {
 	mock.ExpectExec("UPDATE stock_opname").WithArgs(25, 4).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("WHERE so.stock_opname_id").WithArgs(4).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "barcode", "name", "quantity", "rackName", "inspectorCode", "coordinatorCode", "updatedAt"}).
-			AddRow(4, "8991001010016", "Sari Roti", 25, "R1", "INSP-01", "KOR-01", updatedAt),
+		pgxmock.NewRows([]string{"id", "barcode", "name", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(4, "8991001010016", "Sari Roti", 25, "R1", "KOR-01", updatedAt),
 	)
 	mock.ExpectCommit()
 	mock.ExpectRollback()
@@ -276,91 +276,6 @@ func TestStockOpnameFindByIdTx(t *testing.T) {
 	}
 	if res.Id != 7 || res.Barcode != "8991001010016" {
 		t.Errorf("unexpected response %+v", res)
-	}
-}
-
-func TestStockOpnameCreateByRackTx(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("unfulfilled expectations: %v", err)
-		}
-	})
-
-	mock.ExpectBegin()
-	mock.ExpectQuery("FROM rak r").WithArgs(5).WillReturnRows(soSesiIdByRakRows())
-	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
-	mock.ExpectQuery("COUNT").WithArgs(3).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("JOIN barcode").WithArgs(3, "8991001010016").WillReturnRows(soResolveProductRows())
-	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10, 5, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
-		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(20),
-	)
-	mock.ExpectQuery("WHERE p.product_sesi_id").WithArgs(3, "100252").WillReturnRows(
-		pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}).
-			AddRow(12, 3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0, time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC), time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)),
-	)
-	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(12, "1002525550018"),
-	)
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(5, 5, "100252", "Ultra Milk", "1002525550018", 18900.0, 21500.0).WillReturnRows(
-		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(21),
-	)
-	mock.ExpectCommit()
-	mock.ExpectRollback()
-
-	svc := newStockOpnameServiceWithMock(mock, t)
-	req := dto.CreateStockOpnameByRackRequest{
-		RackID: 5,
-		Items: []dto.CreateStockOpnameRequest{
-			{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 5},
-			{Quantity: intPtr(5), PLU: "100252", RakID: 5},
-		},
-	}
-	if err := svc.CreateByRack(context.Background(), req); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-}
-
-func TestStockOpnameCreateByRackRejectsInvalidQuantity(t *testing.T) {
-	mock, err := pgxmock.NewPool()
-	if err != nil {
-		t.Fatalf("failed to create mock: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("unfulfilled expectations: %v", err)
-		}
-	})
-
-	svc := newStockOpnameServiceWithMock(mock, t)
-
-	// No DB expectations: an invalid item must be rejected before Pool.Begin.
-	for _, tt := range []struct {
-		name string
-		qty  *int
-	}{
-		{"missing quantity", nil},
-		{"negative quantity", intPtr(-1)},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			err := svc.CreateByRack(context.Background(), dto.CreateStockOpnameByRackRequest{
-				RackID: 5,
-				Items: []dto.CreateStockOpnameRequest{{
-					Quantity: tt.qty,
-					Barcode:  "8991001010016",
-					RakID:    5,
-				}},
-			})
-
-			var validationErrs validator.ValidationErrors
-			if !errors.As(err, &validationErrs) {
-				t.Fatalf("expected validation error, got %T: %v", err, err)
-			}
-		})
 	}
 }
 

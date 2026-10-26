@@ -17,4 +17,5 @@ type StockOpnameRepository interface {
 	FindSesiIdByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
 	FindSesiIdByStockOpnameID(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error)
 	CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
+	CountByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
 }

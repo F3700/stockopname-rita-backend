@@ -14,15 +14,16 @@ import (
 
 var _ repository.BarcodeRepository = (*fakeBarcodeRepository)(nil)
 var _ repository.CoordinatorRepository = (*fakeCoordinatorRepository)(nil)
-var _ repository.InspectorRepository = (*fakeInspectorRepository)(nil)
 var _ repository.ProductRepository = (*fakeProductRepository)(nil)
 var _ repository.RackRepository = (*fakeRackRepository)(nil)
 var _ repository.SesiRepository = (*fakeSesiRepository)(nil)
 var _ repository.StockOpnameRepository = (*fakeStockOpnameRepository)(nil)
+var _ repository.UploadRepository = (*fakeUploadRepository)(nil)
 
 var _ SesiService = (*fakeSesiService)(nil)
 var _ CoordinatorService = (*fakeCoordinatorService)(nil)
-var _ InspectorService = (*fakeInspectorService)(nil)
+var _ RackService = (*fakeRackService)(nil)
+var _ UploadService = (*fakeUploadService)(nil)
 var _ StockOpnameService = (*fakeStockOpnameService)(nil)
 
 func newTestValidator(t *testing.T) *validator.Validate {
@@ -59,6 +60,8 @@ type fakeCoordinatorRepository struct {
 	findByIdReportFunc     func(ctx context.Context, id int) (*model.CoordinatorReport, error)
 	findByIdDetailFunc     func(ctx context.Context, id int) (*model.CoordinatorDetail, error)
 	updateFunc             func(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error
+	lockByIdFunc           func(ctx context.Context, tx pgx.Tx, coorID int) error
+	recalcStatusFunc       func(ctx context.Context, tx pgx.Tx, coorID int) error
 	findBySesiAndCoorCodeF func(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error)
 	findByIdFunc           func(ctx context.Context, tx pgx.Tx, id int) (*model.Coordinator, error)
 }
@@ -94,6 +97,20 @@ func (f *fakeCoordinatorRepository) Update(ctx context.Context, tx pgx.Tx, coord
 	return f.updateFunc(ctx, tx, coordinator)
 }
 
+func (f *fakeCoordinatorRepository) LockById(ctx context.Context, tx pgx.Tx, coorID int) error {
+	if f.lockByIdFunc == nil {
+		return nil
+	}
+	return f.lockByIdFunc(ctx, tx, coorID)
+}
+
+func (f *fakeCoordinatorRepository) RecalcStatus(ctx context.Context, tx pgx.Tx, coorID int) error {
+	if f.recalcStatusFunc == nil {
+		return nil
+	}
+	return f.recalcStatusFunc(ctx, tx, coorID)
+}
+
 func (f *fakeCoordinatorRepository) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {
 	return f.findBySesiAndCoorCodeF(ctx, tx, sesiCode, coorCode)
 }
@@ -103,32 +120,6 @@ func (f *fakeCoordinatorRepository) FindById(ctx context.Context, tx pgx.Tx, id 
 		return nil, nil
 	}
 	return f.findByIdFunc(ctx, tx, id)
-}
-
-type fakeInspectorRepository struct {
-	findAllFunc               func(ctx context.Context) ([]*model.InspectorSummary, error)
-	findByCoorIdFunc          func(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error)
-	findSesiIdByInspectorFunc func(ctx context.Context, tx pgx.Tx, inspectorId int) (int, error)
-	saveFunc                  func(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error
-}
-
-func (f *fakeInspectorRepository) FindAll(ctx context.Context) ([]*model.InspectorSummary, error) {
-	return f.findAllFunc(ctx)
-}
-
-func (f *fakeInspectorRepository) FindByCoorId(ctx context.Context, coordinatorId int) ([]*model.InspectorSummary, error) {
-	return f.findByCoorIdFunc(ctx, coordinatorId)
-}
-
-func (f *fakeInspectorRepository) FindSesiIdByInspector(ctx context.Context, tx pgx.Tx, inspectorId int) (int, error) {
-	if f.findSesiIdByInspectorFunc == nil {
-		return 0, nil
-	}
-	return f.findSesiIdByInspectorFunc(ctx, tx, inspectorId)
-}
-
-func (f *fakeInspectorRepository) Save(ctx context.Context, tx pgx.Tx, inspector *model.Inspector) error {
-	return f.saveFunc(ctx, tx, inspector)
 }
 
 type fakeProductRepository struct {
@@ -188,13 +179,19 @@ func (f *fakeProductRepository) FindById(ctx context.Context, tx pgx.Tx, id int)
 }
 
 type fakeRackRepository struct {
-	findAllFunc      func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]*model.Rack, error)
-	findProgressFunc func(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackProgress, error)
-	saveFunc         func(ctx context.Context, tx pgx.Tx, rack *model.Rack) error
+	findAllFunc            func(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackState, error)
+	findProgressFunc       func(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackProgress, error)
+	saveFunc               func(ctx context.Context, tx pgx.Tx, rack *model.Rack) error
+	claimForUploadFunc     func(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32, coorID int) (int64, error)
+	setSnapshotFunc        func(ctx context.Context, tx pgx.Tx, rakID int, snapshot string) error
+	findByIdFunc           func(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error)
+	findByIdForUpdateFunc  func(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error)
+	countByCoordinatorFunc func(ctx context.Context, tx pgx.Tx, coorID int) (int, error)
+	deleteFunc             func(ctx context.Context, tx pgx.Tx, rakID int) error
 }
 
-func (f *fakeRackRepository) FindAll(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]*model.Rack, error) {
-	return f.findAllFunc(ctx, inspectorId, coordinatorId, sessionId)
+func (f *fakeRackRepository) FindAll(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackState, error) {
+	return f.findAllFunc(ctx, coordinatorId, sessionId)
 }
 
 func (f *fakeRackRepository) FindProgress(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackProgress, error) {
@@ -203,6 +200,76 @@ func (f *fakeRackRepository) FindProgress(ctx context.Context, coordinatorId *in
 
 func (f *fakeRackRepository) Save(ctx context.Context, tx pgx.Tx, rack *model.Rack) error {
 	return f.saveFunc(ctx, tx, rack)
+}
+
+func (f *fakeRackRepository) ClaimForUpload(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32, coorID int) (int64, error) {
+	if f.claimForUploadFunc == nil {
+		return int64(len(rakIDs)), nil
+	}
+	return f.claimForUploadFunc(ctx, tx, uploadID, rakIDs, coorID)
+}
+
+func (f *fakeRackRepository) SetSnapshot(ctx context.Context, tx pgx.Tx, rakID int, snapshot string) error {
+	if f.setSnapshotFunc == nil {
+		return nil
+	}
+	return f.setSnapshotFunc(ctx, tx, rakID, snapshot)
+}
+
+func (f *fakeRackRepository) FindById(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
+	if f.findByIdFunc == nil {
+		return nil, nil
+	}
+	return f.findByIdFunc(ctx, tx, rakID)
+}
+
+func (f *fakeRackRepository) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
+	if f.findByIdForUpdateFunc == nil {
+		return nil, nil
+	}
+	return f.findByIdForUpdateFunc(ctx, tx, rakID)
+}
+
+func (f *fakeRackRepository) CountByCoordinator(ctx context.Context, tx pgx.Tx, coorID int) (int, error) {
+	if f.countByCoordinatorFunc == nil {
+		return 0, nil
+	}
+	return f.countByCoordinatorFunc(ctx, tx, coorID)
+}
+
+func (f *fakeRackRepository) Delete(ctx context.Context, tx pgx.Tx, rakID int) error {
+	if f.deleteFunc == nil {
+		return nil
+	}
+	return f.deleteFunc(ctx, tx, rakID)
+}
+
+type fakeUploadRepository struct {
+	saveFunc           func(ctx context.Context, tx pgx.Tx, upload *model.Upload) error
+	findAllSummaryFunc func(ctx context.Context, coordinatorId int) ([]*model.UploadSummary, error)
+	findDetailFunc     func(ctx context.Context, uploadID int) (*model.UploadDetail, error)
+}
+
+func (f *fakeUploadRepository) Save(ctx context.Context, tx pgx.Tx, upload *model.Upload) error {
+	if f.saveFunc == nil {
+		upload.UploadID = 1
+		return nil
+	}
+	return f.saveFunc(ctx, tx, upload)
+}
+
+func (f *fakeUploadRepository) FindAllSummary(ctx context.Context, coordinatorId int) ([]*model.UploadSummary, error) {
+	if f.findAllSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findAllSummaryFunc(ctx, coordinatorId)
+}
+
+func (f *fakeUploadRepository) FindDetail(ctx context.Context, uploadID int) (*model.UploadDetail, error) {
+	if f.findDetailFunc == nil {
+		return nil, nil
+	}
+	return f.findDetailFunc(ctx, uploadID)
 }
 
 type fakeSesiRepository struct {
@@ -259,6 +326,7 @@ type fakeStockOpnameRepository struct {
 	findSesiIdByRakFunc         func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
 	findSesiIdByStockOpnameFunc func(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error)
 	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
+	countByRakFunc              func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
 }
 
 func (f *fakeStockOpnameRepository) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
@@ -304,6 +372,13 @@ func (f *fakeStockOpnameRepository) CountBySesi(ctx context.Context, tx pgx.Tx, 
 		return 0, nil
 	}
 	return f.countBySesiFunc(ctx, tx, sesiId)
+}
+
+func (f *fakeStockOpnameRepository) CountByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error) {
+	if f.countByRakFunc == nil {
+		return 0, nil
+	}
+	return f.countByRakFunc(ctx, tx, rakID)
 }
 
 type fakeSesiService struct {
@@ -354,24 +429,66 @@ func (f *fakeCoordinatorService) FindAllSummary(ctx context.Context, sesiId *int
 	return f.findAllSummaryFunc(ctx, sesiId)
 }
 
+func (f *fakeCoordinatorService) JoinByCoordinatorQR(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error) {
+	return dto.CoordinatorJoinResponse{}, nil
+}
+
 func (f *fakeCoordinatorService) Update(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error {
 	return nil
 }
 
-type fakeInspectorService struct {
-	findAllSummaryFunc func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error)
+type fakeRackService struct {
+	findAllSummaryFunc func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error)
+	findProgressFunc   func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackProgressResponse, error)
+	deleteFunc         func(ctx context.Context, rakID int) error
 }
 
-func (f *fakeInspectorService) FindAllSummary(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error) {
-	return f.findAllSummaryFunc(ctx, coorId)
+func (f *fakeRackService) FindAllSummary(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
+	if f.findAllSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findAllSummaryFunc(ctx, coordinatorId, sessionId)
 }
 
-func (f *fakeInspectorService) CreateInspector(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error) {
-	return dto.InspectorJoinResponse{}, nil
+func (f *fakeRackService) FindProgress(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackProgressResponse, error) {
+	if f.findProgressFunc == nil {
+		return nil, nil
+	}
+	return f.findProgressFunc(ctx, coordinatorId, sessionId)
 }
 
-func (f *fakeInspectorService) CreateInspectorByCoordinatorQR(ctx context.Context, request dto.InspectorJoinByCoordinatorQRRequest) (dto.InspectorJoinResponse, error) {
-	return dto.InspectorJoinResponse{}, nil
+func (f *fakeRackService) DeleteRack(ctx context.Context, rakID int) error {
+	if f.deleteFunc == nil {
+		return nil
+	}
+	return f.deleteFunc(ctx, rakID)
+}
+
+type fakeUploadService struct {
+	createFunc         func(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error)
+	findAllSummaryFunc func(ctx context.Context, coordinatorId int) ([]dto.UploadResponse, error)
+	findDetailFunc     func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error)
+}
+
+func (f *fakeUploadService) Create(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error) {
+	if f.createFunc == nil {
+		return dto.UploadResponse{}, nil
+	}
+	return f.createFunc(ctx, req)
+}
+
+func (f *fakeUploadService) FindAllSummary(ctx context.Context, coordinatorId int) ([]dto.UploadResponse, error) {
+	if f.findAllSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findAllSummaryFunc(ctx, coordinatorId)
+}
+
+func (f *fakeUploadService) FindDetail(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error) {
+	if f.findDetailFunc == nil {
+		return dto.UploadDetailResponse{}, nil
+	}
+	return f.findDetailFunc(ctx, uploadID)
 }
 
 type fakeStockOpnameService struct {
@@ -395,10 +512,6 @@ func (f *fakeStockOpnameService) FindById(ctx context.Context, id int) (dto.Stoc
 
 func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
 	return f.findAllFunc(ctx, pagination, search, coorId, sesiId)
-}
-
-func (f *fakeStockOpnameService) CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
-	return nil
 }
 
 func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {

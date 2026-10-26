@@ -74,6 +74,31 @@ func (c *CoordinatorHandlerImpl) GetCoordinatorById(writer http.ResponseWriter, 
 	}
 }
 
+// JoinByCoordinatorQR implements [CoordinatorHandler].
+func (c *CoordinatorHandlerImpl) JoinByCoordinatorQR(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	var joinReq dto.JoinByCoordinatorQRRequest
+	if err := helper.ReadFromRequestBody(req, &joinReq); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	result, err := c.CoordinatorService.JoinByCoordinatorQR(req.Context(), joinReq)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Coordinator joined successfully",
+		Data:    result,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to send response", err)
+		return
+	}
+}
+
 // GetCoordinators implements [CoordinatorHandler].
 func (c *CoordinatorHandlerImpl) GetCoordinators(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	sesiIdStr := req.URL.Query().Get("sessionId")

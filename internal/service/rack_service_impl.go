@@ -5,36 +5,44 @@ import (
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+	"time"
 )
 
 type RackServiceImpl struct {
-	RackRepository      repository.RackRepository
-	InspectorRepository repository.InspectorRepository
-	SesiRepository      repository.SesiRepository
-	Pool                repository.DBPool
+	RackRepository        repository.RackRepository
+	CoordinatorRepository repository.CoordinatorRepository
+	SesiRepository        repository.SesiRepository
+	StockOpnameRepository repository.StockOpnameRepository
+	Pool                  repository.DBPool
 }
 
-func NewRackService(rackRepository repository.RackRepository, inspectorRepository repository.InspectorRepository, sesiRepository repository.SesiRepository, pool repository.DBPool) RackService {
+func NewRackService(rackRepository repository.RackRepository, coordinatorRepository repository.CoordinatorRepository, sesiRepository repository.SesiRepository, stockOpnameRepository repository.StockOpnameRepository, pool repository.DBPool) RackService {
 	return &RackServiceImpl{
-		RackRepository:      rackRepository,
-		InspectorRepository: inspectorRepository,
-		SesiRepository:      sesiRepository,
-		Pool:                pool,
+		RackRepository:        rackRepository,
+		CoordinatorRepository: coordinatorRepository,
+		SesiRepository:        sesiRepository,
+		StockOpnameRepository: stockOpnameRepository,
+		Pool:                  pool,
 	}
 }
 
 // FindAllSummary implements [RackService].
-func (r *RackServiceImpl) FindAllSummary(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
-	racks, err := r.RackRepository.FindAll(ctx, inspectorId, coordinatorId, sessionId)
+func (r *RackServiceImpl) FindAllSummary(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
+	racks, err := r.RackRepository.FindAll(ctx, coordinatorId, sessionId)
 	if err != nil {
 		return nil, err
 	}
 
 	var responses []dto.RackResponse
 	for _, rack := range racks {
+		uploadedAt := ""
+		if rack.UploadedAt.Valid {
+			uploadedAt = rack.UploadedAt.Time.Format(time.RFC3339)
+		}
 		responses = append(responses, dto.RackResponse{
-			RackID:   rack.RackID,
-			RackName: rack.RackName,
+			RackID:     rack.RakID,
+			RackName:   rack.RakName,
+			UploadedAt: uploadedAt,
 		})
 	}
 	return responses, nil
@@ -58,46 +66,66 @@ func (r *RackServiceImpl) FindProgress(ctx context.Context, coordinatorId *int, 
 	return responses, nil
 }
 
-func (r *RackServiceImpl) CreateRack(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error) {
+// DeleteRack implements [RackService].
+func (r *RackServiceImpl) DeleteRack(ctx context.Context, rakID int) error {
 	tx, err := r.Pool.Begin(ctx)
 	if err != nil {
-		return dto.RackResponse{}, err
+		return err
 	}
 	defer tx.Rollback(ctx)
 
-	sesiId, err := r.InspectorRepository.FindSesiIdByInspector(ctx, tx, request.InspectorID)
+	rack, err := r.RackRepository.FindById(ctx, tx, rakID)
 	if err != nil {
-		return dto.RackResponse{}, err
+		return err
 	}
 
-	sesi, err := r.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	coordinator, err := r.CoordinatorRepository.FindById(ctx, tx, rack.CoorID)
 	if err != nil {
-		return dto.RackResponse{}, err
-	}
-	if sesi.SesiStatus == "COMPLETED" || sesi.SesiStatus == "CANCELLED" {
-		return dto.RackResponse{}, &model.ConflictError{
-			Resource: "Session",
-			Detail:   "Session is final",
-		}
+		return err
 	}
 
-	rack := &model.Rack{
-		RackName:    request.RackName,
-		InspectorID: request.InspectorID,
+	sesi, err := r.SesiRepository.FindByIdForShare(ctx, tx, coordinator.CoorSesiID)
+	if err != nil {
+		return err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return err
 	}
 
-	if err := r.RackRepository.Save(ctx, tx, rack); err != nil {
-		return dto.RackResponse{}, err
+	locked, err := r.RackRepository.FindByIdForUpdate(ctx, tx, rakID)
+	if err != nil {
+		return err
+	}
+	if locked.UploadedAt.Valid {
+		return &model.ConflictError{Resource: "Rack", Detail: "Rack already uploaded"}
 	}
 
-	response := dto.RackResponse{
-		RackID:   rack.RackID,
-		RackName: rack.RackName,
+	items, err := r.StockOpnameRepository.CountByRak(ctx, tx, rakID)
+	if err != nil {
+		return err
+	}
+	if items > 0 {
+		return &model.ConflictError{Resource: "Rack", Detail: "Rack has items"}
 	}
 
-	if err := tx.Commit(ctx); err != nil {
-		return dto.RackResponse{}, err
+	if err := r.CoordinatorRepository.LockById(ctx, tx, rack.CoorID); err != nil {
+		return err
 	}
 
-	return response, nil
+	total, err := r.RackRepository.CountByCoordinator(ctx, tx, rack.CoorID)
+	if err != nil {
+		return err
+	}
+	if total <= 1 {
+		return &model.ConflictError{Resource: "Coordinator", Detail: "Coordinator must have at least one rack"}
+	}
+
+	if err := r.RackRepository.Delete(ctx, tx, rakID); err != nil {
+		return err
+	}
+	if err := r.CoordinatorRepository.RecalcStatus(ctx, tx, rack.CoorID); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }

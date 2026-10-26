@@ -21,7 +21,10 @@ func TestNewRouterRegisters(t *testing.T) {
 		{"POST", "/products/clear"},
 		{"DELETE", "/stockopname/sessions/:id"},
 		{"POST", "/stockopname/results"},
-		{"POST", "/stockopname/results/racks"},
+		{"POST", "/stockopname/uploads"},
+		{"GET", "/stockopname/uploads"},
+		{"GET", "/stockopname/uploads/:id/pdf"},
+		{"DELETE", "/stockopname/racks/:id"},
 	} {
 		handle, _, _ := router.Lookup(route.method, route.path)
 		if handle == nil {
@@ -34,6 +37,8 @@ func TestNewRouterRegisters(t *testing.T) {
 		{"GET", "/products/sync"},
 		{"GET", "/products/last-session"},
 		{"GET", "/deleted/products"},
+		{"POST", "/stockopname/results/racks"},
+		{"GET", "/stockopname/inspectors"},
 	} {
 		handle, _, _ := router.Lookup(route.method, route.path)
 		if handle != nil {

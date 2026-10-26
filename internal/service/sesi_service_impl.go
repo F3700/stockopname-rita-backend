@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"sort"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
@@ -19,9 +20,10 @@ type SesiServiceImpl struct {
 	CoordinatorRepository repository.CoordinatorRepository
 	ProductRepository     repository.ProductRepository
 	StockOpnameRepository repository.StockOpnameRepository
+	RackRepository        repository.RackRepository
 }
 
-func NewSesiService(sesiRepository repository.SesiRepository, coordinatorRepository repository.CoordinatorRepository, productRepository repository.ProductRepository, stockOpnameRepository repository.StockOpnameRepository, pool repository.DBPool, validate *validator.Validate) SesiService {
+func NewSesiService(sesiRepository repository.SesiRepository, coordinatorRepository repository.CoordinatorRepository, productRepository repository.ProductRepository, stockOpnameRepository repository.StockOpnameRepository, rackRepository repository.RackRepository, pool repository.DBPool, validate *validator.Validate) SesiService {
 	return &SesiServiceImpl{
 		Validator:             validate,
 		Pool:                  pool,
@@ -29,6 +31,7 @@ func NewSesiService(sesiRepository repository.SesiRepository, coordinatorReposit
 		CoordinatorRepository: coordinatorRepository,
 		ProductRepository:     productRepository,
 		StockOpnameRepository: stockOpnameRepository,
+		RackRepository:        rackRepository,
 	}
 }
 
@@ -62,6 +65,9 @@ func (s *SesiServiceImpl) Create(ctx context.Context, req dto.CreateSesiRequest)
 	if err := s.Validator.Struct(req); err != nil {
 		return dto.SesiResponse{}, err
 	}
+	if err := validateRackRanges(req.Coordinators); err != nil {
+		return dto.SesiResponse{}, err
+	}
 
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
@@ -79,14 +85,24 @@ func (s *SesiServiceImpl) Create(ctx context.Context, req dto.CreateSesiRequest)
 		return dto.SesiResponse{}, err
 	}
 
-	for _, coordinator := range req.Coordinator {
+	for _, input := range req.Coordinators {
 		coordinatorModel := &model.Coordinator{
-			CoorCode:   coordinator,
+			CoorCode:   input.Code,
 			CoorStatus: "IN_PROGRESS",
 			CoorSesiID: sesiModel.SesiID,
 		}
 		if err := s.CoordinatorRepository.Save(ctx, tx, coordinatorModel); err != nil {
-			return dto.SesiResponse{}, fmt.Errorf("failed to create coordinator %s: %w", coordinator, err)
+			return dto.SesiResponse{}, fmt.Errorf("failed to create coordinator %s: %w", input.Code, err)
+		}
+
+		for n := input.RackStart; n <= input.RackEnd; n++ {
+			rack := &model.Rack{
+				RackName: fmt.Sprintf("Rak %d", n),
+				CoorID:   coordinatorModel.CoorID,
+			}
+			if err := s.RackRepository.Save(ctx, tx, rack); err != nil {
+				return dto.SesiResponse{}, fmt.Errorf("failed to create rack %s for coordinator %s: %w", rack.RackName, input.Code, err)
+			}
 		}
 	}
 
@@ -214,4 +230,36 @@ func (s *SesiServiceImpl) FindAll(ctx context.Context, pagination *dto.Paginatio
 	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
 
 	return sesiResponses, nil
+}
+
+// maxRackSpan caps how many racks one coordinator may own.
+const maxRackSpan = 200
+
+// validateRackRanges rejects overlapping or oversized rack ranges. Overlap is
+// checked here (not by a DB constraint) because rack names are unique per
+// coordinator, while numbering is session-wide.
+func validateRackRanges(coordinators []dto.CoordinatorInput) error {
+	ranges := make([]dto.CoordinatorInput, len(coordinators))
+	copy(ranges, coordinators)
+
+	for _, coordinator := range ranges {
+		span := coordinator.RackEnd - coordinator.RackStart + 1
+		if span < 1 || span > maxRackSpan {
+			return &model.ValidationError{Detail: fmt.Sprintf(
+				"rack range for %s must cover 1 to %d racks", coordinator.Code, maxRackSpan,
+			)}
+		}
+	}
+
+	sort.Slice(ranges, func(i, j int) bool {
+		return ranges[i].RackStart < ranges[j].RackStart
+	})
+	for i := 1; i < len(ranges); i++ {
+		if ranges[i].RackStart <= ranges[i-1].RackEnd {
+			return &model.ValidationError{Detail: fmt.Sprintf(
+				"rack ranges of %s and %s overlap", ranges[i-1].Code, ranges[i].Code,
+			)}
+		}
+	}
+	return nil
 }

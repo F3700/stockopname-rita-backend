@@ -21,7 +21,7 @@ func TestCreateSesi(t *testing.T) {
 		},
 	})
 
-	body := `{"sesi_code":"SESI-01","location":"Gudang A","coor_code":["KOR-01"]}`
+	body := `{"sesi_code":"SESI-01","location":"Gudang A","coordinators":[{"code":"KOR-01","rack_start":1,"rack_end":3}]}`
 	req := newJSONRequest(t, http.MethodPost, "/sessions", body)
 	rec := httptest.NewRecorder()
 	h.CreateSesi(rec, req, nil)

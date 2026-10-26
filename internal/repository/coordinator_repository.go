@@ -15,6 +15,8 @@ type CoordinatorRepository interface {
 	FindByIdReport(ctx context.Context, id int) (*model.CoordinatorReport, error)
 	FindByIdDetail(ctx context.Context, id int) (*model.CoordinatorDetail, error)
 	Update(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error
+	LockById(ctx context.Context, tx pgx.Tx, coorID int) error
+	RecalcStatus(ctx context.Context, tx pgx.Tx, coorID int) error
 	FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error)
 	FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Coordinator, error)
 }

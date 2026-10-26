@@ -95,10 +95,7 @@ func TestGetRackProgressServiceError(t *testing.T) {
 
 func TestGetRacks(t *testing.T) {
 	h := NewRackHandler(&fakeRackService{
-		findAllSummaryFunc: func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
-			if inspectorId == nil || *inspectorId != 1 {
-				t.Errorf("expected inspectorId 1, got %v", inspectorId)
-			}
+		findAllSummaryFunc: func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
 			if coordinatorId == nil || *coordinatorId != 2 {
 				t.Errorf("expected coordinatorId 2, got %v", coordinatorId)
 			}
@@ -109,7 +106,7 @@ func TestGetRacks(t *testing.T) {
 		},
 	})
 
-	req := newJSONRequest(t, http.MethodGet, "/racks?inspectorId=1&coordinatorId=2&sessionId=3", "")
+	req := newJSONRequest(t, http.MethodGet, "/racks?coordinatorId=2&sessionId=3", "")
 	rec := httptest.NewRecorder()
 	h.GetRacks(rec, req, nil)
 
@@ -121,31 +118,10 @@ func TestGetRacks(t *testing.T) {
 	}
 }
 
-func TestGetRacksInvalidInspector(t *testing.T) {
-	called := false
-	h := NewRackHandler(&fakeRackService{
-		findAllSummaryFunc: func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
-			called = true
-			return nil, nil
-		},
-	})
-
-	req := newJSONRequest(t, http.MethodGet, "/racks?inspectorId=bad", "")
-	rec := httptest.NewRecorder()
-	h.GetRacks(rec, req, nil)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
-	if called {
-		t.Error("service must not be called on invalid inspectorId")
-	}
-}
-
 func TestGetRacksInvalidCoordinator(t *testing.T) {
 	called := false
 	h := NewRackHandler(&fakeRackService{
-		findAllSummaryFunc: func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
+		findAllSummaryFunc: func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
 			called = true
 			return nil, nil
 		},
@@ -166,7 +142,7 @@ func TestGetRacksInvalidCoordinator(t *testing.T) {
 func TestGetRacksInvalidSession(t *testing.T) {
 	called := false
 	h := NewRackHandler(&fakeRackService{
-		findAllSummaryFunc: func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
+		findAllSummaryFunc: func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
 			called = true
 			return nil, nil
 		},
@@ -184,45 +160,45 @@ func TestGetRacksInvalidSession(t *testing.T) {
 	}
 }
 
-func TestCreateRack(t *testing.T) {
+func TestDeleteRack(t *testing.T) {
 	h := NewRackHandler(&fakeRackService{
-		createFunc: func(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error) {
-			if request.RackName != "R9" || request.InspectorID != 3 {
-				t.Errorf("unexpected request %+v", request)
+		deleteFunc: func(ctx context.Context, rakID int) error {
+			if rakID != 9 {
+				t.Errorf("expected rakID 9, got %d", rakID)
 			}
-			return dto.RackResponse{RackID: 9, RackName: "R9"}, nil
+			return nil
 		},
 	})
 
-	req := newJSONRequest(t, http.MethodPost, "/racks", `{"inspector_id":3,"rak_name":"R9"}`)
+	req := newJSONRequest(t, http.MethodDelete, "/racks/9", "")
 	rec := httptest.NewRecorder()
-	h.CreateRack(rec, req, nil)
+	h.DeleteRack(rec, req, paramsWithID("9"))
 
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
 	}
-	if msg := decodeMessage(t, rec); msg != "Rack created successfully" {
+	if msg := decodeMessage(t, rec); msg != "Rack deleted successfully" {
 		t.Errorf("unexpected message %q", msg)
 	}
 }
 
-func TestCreateRackInvalidBody(t *testing.T) {
+func TestDeleteRackInvalidID(t *testing.T) {
 	called := false
 	h := NewRackHandler(&fakeRackService{
-		createFunc: func(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error) {
+		deleteFunc: func(ctx context.Context, rakID int) error {
 			called = true
-			return dto.RackResponse{}, nil
+			return nil
 		},
 	})
 
-	req := newJSONRequest(t, http.MethodPost, "/racks", `{"rak_name":`)
+	req := newJSONRequest(t, http.MethodDelete, "/racks/bad", "")
 	rec := httptest.NewRecorder()
-	h.CreateRack(rec, req, nil)
+	h.DeleteRack(rec, req, paramsWithID("bad"))
 
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
 	}
 	if called {
-		t.Error("service must not be called on invalid body")
+		t.Error("service must not be called on invalid id")
 	}
 }

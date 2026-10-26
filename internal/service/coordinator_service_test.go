@@ -13,14 +13,14 @@ func TestCoordinatorFindAllSummaryWithoutFilter(t *testing.T) {
 	svc := NewCoordinatorService(&fakeCoordinatorRepository{
 		findAllSummaryFunc: func(ctx context.Context) ([]*model.CoordinatorSummary, error) {
 			return []*model.CoordinatorSummary{
-				{ID: 1, Code: "KOR-01", Inspector: 2, RackAssigned: 5, RackCompleted: 3, Status: "IN_PROGRESS"},
+				{ID: 1, Code: "KOR-01", RackAssigned: 5, RackCompleted: 3, Status: "IN_PROGRESS"},
 			}, nil
 		},
 		findBySesiIdSummaryFn: func(ctx context.Context, sesiId int) ([]*model.CoordinatorSummary, error) {
 			bySesiCalled = true
 			return nil, nil
 		},
-	}, nil, nil)
+	}, nil, nil, nil, nil)
 
 	responses, err := svc.FindAllSummary(context.Background(), nil)
 	if err != nil {
@@ -33,7 +33,7 @@ func TestCoordinatorFindAllSummaryWithoutFilter(t *testing.T) {
 		t.Fatalf("expected 1 response, got %d", len(responses))
 	}
 	got := responses[0]
-	if got.ID != 1 || got.Code != "KOR-01" || got.Inspector != 2 || got.RackAssigned != 5 || got.RackCompleted != 3 || got.Status != "IN_PROGRESS" {
+	if got.ID != 1 || got.Code != "KOR-01" || got.RackAssigned != 5 || got.RackCompleted != 3 || got.Status != "IN_PROGRESS" {
 		t.Errorf("unexpected response %+v", got)
 	}
 }
@@ -51,7 +51,7 @@ func TestCoordinatorFindAllSummaryWithFilter(t *testing.T) {
 			}
 			return []*model.CoordinatorSummary{}, nil
 		},
-	}, nil, nil)
+	}, nil, nil, nil, nil)
 
 	sesiId := 4
 	responses, err := svc.FindAllSummary(context.Background(), &sesiId)
@@ -71,7 +71,7 @@ func TestCoordinatorFindAllSummaryError(t *testing.T) {
 		findAllSummaryFunc: func(ctx context.Context) ([]*model.CoordinatorSummary, error) {
 			return nil, errors.New("boom")
 		},
-	}, nil, nil)
+	}, nil, nil, nil, nil)
 
 	_, err := svc.FindAllSummary(context.Background(), nil)
 	if err == nil {
@@ -87,7 +87,7 @@ func TestCoordinatorFindByIdSummary(t *testing.T) {
 			}
 			return &model.CoordinatorSummary{ID: 3, Code: "KOR-03", Status: "COMPLETED"}, nil
 		},
-	}, nil, nil)
+	}, nil, nil, nil, nil)
 
 	res, err := svc.FindByIdSummary(context.Background(), 3)
 	if err != nil {
@@ -103,7 +103,7 @@ func TestCoordinatorFindByIdSummaryNotFound(t *testing.T) {
 		findByIdSummaryFunc: func(ctx context.Context, id int) (*model.CoordinatorSummary, error) {
 			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
 		},
-	}, nil, nil)
+	}, nil, nil, nil, nil)
 
 	_, err := svc.FindByIdSummary(context.Background(), 99)
 	if err == nil {
@@ -122,11 +122,11 @@ func TestCoordinatorFindByIdReport(t *testing.T) {
 				t.Errorf("expected id 2, got %d", id)
 			}
 			return &model.CoordinatorReport{
-				CoordinatorSummary: model.CoordinatorSummary{ID: 2, Code: "KOR-02", Inspector: 1, RackAssigned: 4, RackCompleted: 4, Status: "COMPLETED"},
+				CoordinatorSummary: model.CoordinatorSummary{ID: 2, Code: "KOR-02", RackAssigned: 4, RackCompleted: 4, Status: "COMPLETED"},
 				SessionCode:        "SESI-01",
 			}, nil
 		},
-	}, nil, nil)
+	}, nil, nil, nil, nil)
 
 	res, err := svc.FindByIdReport(context.Background(), 2)
 	if err != nil {

@@ -15,10 +15,10 @@ import (
 )
 
 var _ service.CoordinatorService = (*fakeCoordinatorService)(nil)
-var _ service.InspectorService = (*fakeInspectorService)(nil)
 var _ service.ProductService = (*fakeProductService)(nil)
 var _ service.ImportService = (*fakeImportService)(nil)
 var _ service.RackService = (*fakeRackService)(nil)
+var _ service.UploadService = (*fakeUploadService)(nil)
 var _ service.SesiService = (*fakeSesiService)(nil)
 var _ service.StockOpnameService = (*fakeStockOpnameService)(nil)
 var _ service.ReportService = (*fakeReportService)(nil)
@@ -28,6 +28,7 @@ type fakeCoordinatorService struct {
 	findByIdDetailFunc  func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	findByIdReportFunc  func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 	findAllSummaryFunc  func(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
+	joinFunc            func(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error)
 	updateFunc          func(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error
 }
 
@@ -50,29 +51,15 @@ func (f *fakeCoordinatorService) FindAllSummary(ctx context.Context, sesiId *int
 	return f.findAllSummaryFunc(ctx, sesiId)
 }
 
+func (f *fakeCoordinatorService) JoinByCoordinatorQR(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error) {
+	if f.joinFunc == nil {
+		return dto.CoordinatorJoinResponse{}, nil
+	}
+	return f.joinFunc(ctx, req)
+}
+
 func (f *fakeCoordinatorService) Update(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error {
 	return f.updateFunc(ctx, id, req)
-}
-
-type fakeInspectorService struct {
-	findAllSummaryFunc        func(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error)
-	createFunc                func(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error)
-	createByCoordinatorQRFunc func(ctx context.Context, request dto.InspectorJoinByCoordinatorQRRequest) (dto.InspectorJoinResponse, error)
-}
-
-func (f *fakeInspectorService) FindAllSummary(ctx context.Context, coorId *int) ([]dto.InspectorResponse, error) {
-	return f.findAllSummaryFunc(ctx, coorId)
-}
-
-func (f *fakeInspectorService) CreateInspector(ctx context.Context, request dto.InspectorRequest) (dto.InspectorJoinResponse, error) {
-	return f.createFunc(ctx, request)
-}
-
-func (f *fakeInspectorService) CreateInspectorByCoordinatorQR(ctx context.Context, request dto.InspectorJoinByCoordinatorQRRequest) (dto.InspectorJoinResponse, error) {
-	if f.createByCoordinatorQRFunc == nil {
-		return dto.InspectorJoinResponse{}, nil
-	}
-	return f.createByCoordinatorQRFunc(ctx, request)
 }
 
 type fakeProductService struct {
@@ -112,21 +99,51 @@ func (f *fakeProductService) FindAll(ctx context.Context, sesiId int, pagination
 }
 
 type fakeRackService struct {
-	findAllSummaryFunc func(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error)
+	findAllSummaryFunc func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error)
 	findProgressFunc   func(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackProgressResponse, error)
-	createFunc         func(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error)
+	deleteFunc         func(ctx context.Context, rakID int) error
 }
 
-func (f *fakeRackService) FindAllSummary(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
-	return f.findAllSummaryFunc(ctx, inspectorId, coordinatorId, sessionId)
+func (f *fakeRackService) FindAllSummary(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackResponse, error) {
+	return f.findAllSummaryFunc(ctx, coordinatorId, sessionId)
 }
 
 func (f *fakeRackService) FindProgress(ctx context.Context, coordinatorId *int, sessionId *int) ([]dto.RackProgressResponse, error) {
 	return f.findProgressFunc(ctx, coordinatorId, sessionId)
 }
 
-func (f *fakeRackService) CreateRack(ctx context.Context, request dto.CreateRackRequest) (dto.RackResponse, error) {
-	return f.createFunc(ctx, request)
+func (f *fakeRackService) DeleteRack(ctx context.Context, rakID int) error {
+	if f.deleteFunc == nil {
+		return nil
+	}
+	return f.deleteFunc(ctx, rakID)
+}
+
+type fakeUploadService struct {
+	createFunc         func(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error)
+	findAllSummaryFunc func(ctx context.Context, coordinatorId int) ([]dto.UploadResponse, error)
+	findDetailFunc     func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error)
+}
+
+func (f *fakeUploadService) Create(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error) {
+	if f.createFunc == nil {
+		return dto.UploadResponse{}, nil
+	}
+	return f.createFunc(ctx, req)
+}
+
+func (f *fakeUploadService) FindAllSummary(ctx context.Context, coordinatorId int) ([]dto.UploadResponse, error) {
+	if f.findAllSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findAllSummaryFunc(ctx, coordinatorId)
+}
+
+func (f *fakeUploadService) FindDetail(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error) {
+	if f.findDetailFunc == nil {
+		return dto.UploadDetailResponse{}, nil
+	}
+	return f.findDetailFunc(ctx, uploadID)
 }
 
 type fakeSesiService struct {
@@ -163,7 +180,6 @@ type fakeStockOpnameService struct {
 	deleteFunc           func(ctx context.Context, id int) error
 	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
-	createByRackFn       func(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error
 	findAllForExportFunc func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
 }
 
@@ -194,13 +210,10 @@ func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pa
 	return f.findAllFunc(ctx, pagination, search, coorId, sesiId)
 }
 
-func (f *fakeStockOpnameService) CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
-	return f.createByRackFn(ctx, req)
-}
-
 type fakeReportService struct {
 	sessionPDFFunc     func(ctx context.Context, id int) ([]byte, string, error)
 	coordinatorPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
+	uploadPDFFunc      func(ctx context.Context, id int) ([]byte, string, error)
 	sessionExcelFunc   func(ctx context.Context, id int) ([]byte, string, error)
 	sessionDBFFunc     func(ctx context.Context, id int) ([]byte, string, error)
 }
@@ -211,6 +224,13 @@ func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, str
 
 func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error) {
 	return f.coordinatorPDFFunc(ctx, id)
+}
+
+func (f *fakeReportService) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
+	if f.uploadPDFFunc == nil {
+		return nil, "", nil
+	}
+	return f.uploadPDFFunc(ctx, id)
 }
 
 func (f *fakeReportService) SessionExcel(ctx context.Context, id int) ([]byte, string, error) {
