@@ -26,7 +26,7 @@ func dbfTestReportService(t *testing.T, sesiErr, exportErr error) ReportService 
 			},
 		},
 		&fakeCoordinatorService{},
-		&fakeInspectorService{},
+		&fakeUploadService{},
 		&fakeStockOpnameService{
 			findAllForExportFunc: func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
 				if exportErr != nil {
@@ -36,8 +36,8 @@ func dbfTestReportService(t *testing.T, sesiErr, exportErr error) ReportService 
 					t.Errorf("expected sesiId 1, got %d", sesiId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48, RackName: "R1", InspectorCode: "INSP-01", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
-					{Id: 2, Barcode: "8991234567891", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, Quantity: 36, RackName: "R1", InspectorCode: "INSP-01", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 2, Barcode: "8991234567891", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 				}, nil
 			},
 		},
@@ -75,14 +75,14 @@ func TestSessionDBF(t *testing.T) {
 	if count := binary.LittleEndian.Uint32(data[4:8]); count != 2 {
 		t.Errorf("expected 2 records in header, got %d", count)
 	}
-	// Strict dBase III layout: header(32) + 10 descriptors(320) + terminator(1).
-	if first := binary.LittleEndian.Uint16(data[8:10]); first != 353 {
-		t.Errorf("expected first-row offset 353, got %d", first)
+	// Strict dBase III layout: header(32) + 9 descriptors(288) + terminator(1).
+	if first := binary.LittleEndian.Uint16(data[8:10]); first != 321 {
+		t.Errorf("expected first-row offset 321, got %d", first)
 	}
-	if data[352] != 0x0D {
-		t.Errorf("expected header terminator 0x0D at offset 352, got 0x%02x", data[352])
+	if data[320] != 0x0D {
+		t.Errorf("expected header terminator 0x0D at offset 320, got 0x%02x", data[320])
 	}
-	if want := 353 + 2*311 + 1; len(data) != want {
+	if want := 321 + 2*291 + 1; len(data) != want {
 		t.Errorf("expected exact file size %d, got %d", want, len(data))
 	}
 	if data[len(data)-1] != 0x1A {
@@ -124,7 +124,7 @@ func TestSessionDBFEmpty(t *testing.T) {
 			},
 		},
 		&fakeCoordinatorService{},
-		&fakeInspectorService{},
+		&fakeUploadService{},
 		&fakeStockOpnameService{
 			findAllForExportFunc: func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
 				return nil, nil
@@ -173,8 +173,8 @@ func TestSessionDBFColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(columns) != 10 {
-		t.Fatalf("expected 10 columns, got %d", len(columns))
+	if len(columns) != 9 {
+		t.Fatalf("expected 9 columns, got %d", len(columns))
 	}
 	for _, column := range columns {
 		if len(column.Name()) > 10 {

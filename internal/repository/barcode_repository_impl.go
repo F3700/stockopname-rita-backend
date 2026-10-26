@@ -18,10 +18,10 @@ func NewBarcodeRepository(pool DBPool) BarcodeRepository {
 }
 
 // SaveBatch implements [BarcodeRepository].
-func (b *BarcodeRepositoryImpl) SaveBatch(ctx context.Context, tx pgx.Tx, productID int, codes []string) error {
-	const SQL = `INSERT INTO barcode (barcode_product_id, barcode_code) VALUES ($1, $2)`
+func (b *BarcodeRepositoryImpl) SaveBatch(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error {
+	const SQL = `INSERT INTO barcode (barcode_sesi_id, barcode_product_id, barcode_code) VALUES ($1, $2, $3)`
 	for _, code := range codes {
-		if _, err := tx.Exec(ctx, SQL, productID, code); err != nil {
+		if _, err := tx.Exec(ctx, SQL, sesiId, productID, code); err != nil {
 			return model.MapPgError("Barcode", err)
 		}
 	}
@@ -29,10 +29,10 @@ func (b *BarcodeRepositoryImpl) SaveBatch(ctx context.Context, tx pgx.Tx, produc
 }
 
 // Replace implements [BarcodeRepository].
-func (b *BarcodeRepositoryImpl) Replace(ctx context.Context, tx pgx.Tx, productID int, codes []string) error {
-	const SQL = `DELETE FROM barcode WHERE barcode_product_id = $1`
-	if _, err := tx.Exec(ctx, SQL, productID); err != nil {
+func (b *BarcodeRepositoryImpl) Replace(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error {
+	const SQL = `DELETE FROM barcode WHERE barcode_product_id = $1 AND barcode_sesi_id = $2`
+	if _, err := tx.Exec(ctx, SQL, productID, sesiId); err != nil {
 		return model.MapPgError("Barcode", err)
 	}
-	return b.SaveBatch(ctx, tx, productID, codes)
+	return b.SaveBatch(ctx, tx, sesiId, productID, codes)
 }

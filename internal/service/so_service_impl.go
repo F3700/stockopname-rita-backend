@@ -16,27 +16,55 @@ type StockOpnameServiceImpl struct {
 	Pool                  repository.DBPool
 	StockOpnameRepository repository.StockOpnameRepository
 	ProductRepository     repository.ProductRepository
+	SesiRepository        repository.SesiRepository
 	Validator             *validator.Validate
 }
 
-func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, productRepository repository.ProductRepository, pool repository.DBPool, validate *validator.Validate) StockOpnameService {
+func NewStockOpnameService(stockOpnameRepository repository.StockOpnameRepository, productRepository repository.ProductRepository, sesiRepository repository.SesiRepository, pool repository.DBPool, validate *validator.Validate) StockOpnameService {
 	return &StockOpnameServiceImpl{
 		Pool:                  pool,
 		StockOpnameRepository: stockOpnameRepository,
 		ProductRepository:     productRepository,
+		SesiRepository:        sesiRepository,
 		Validator:             validate,
 	}
 }
 
-// resolveProduct finds the master product by scanned barcode or PLU.
-func (s *StockOpnameServiceImpl) resolveProduct(ctx context.Context, tx pgx.Tx, barcode string, plu string) (*model.Product, error) {
+// resolveProduct finds the master product by scanned barcode or PLU inside
+// the given session.
+func (s *StockOpnameServiceImpl) resolveProduct(ctx context.Context, tx pgx.Tx, sesiId int, barcode string, plu string) (*model.Product, error) {
 	if barcode != "" {
-		return s.ProductRepository.FindByBarcode(ctx, tx, barcode)
+		return s.ProductRepository.FindByBarcode(ctx, tx, sesiId, barcode)
 	}
 	if plu != "" {
-		return s.ProductRepository.FindByPLU(ctx, tx, plu)
+		return s.ProductRepository.FindByPLU(ctx, tx, sesiId, plu)
 	}
 	return nil, &model.ValidationError{Detail: "barcode or plu is required"}
+}
+
+// checkSessionWritable locks the session and enforces D3.
+func (s *StockOpnameServiceImpl) checkSessionWritable(ctx context.Context, tx pgx.Tx, sesiId int) error {
+	sesi, err := s.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	if err != nil {
+		return err
+	}
+	return ensureSessionWritable(sesi)
+}
+
+// checkSessionReady locks the session, enforces D3, and requires at least
+// one product (D6).
+func (s *StockOpnameServiceImpl) checkSessionReady(ctx context.Context, tx pgx.Tx, sesiId int) error {
+	if err := s.checkSessionWritable(ctx, tx, sesiId); err != nil {
+		return err
+	}
+	total, err := s.ProductRepository.CountBySesi(ctx, tx, sesiId)
+	if err != nil {
+		return err
+	}
+	if total == 0 {
+		return &model.ConflictError{Resource: "Session", Detail: "Session has no products yet"}
+	}
+	return nil
 }
 
 // snapshot builds the immutable history row from the resolved product.
@@ -46,7 +74,7 @@ func (s *StockOpnameServiceImpl) resolveProduct(ctx context.Context, tx pgx.Tx, 
 func snapshot(quantity int, rakID int, product *model.Product, scannedBarcode string) *model.StockOpname {
 	soBarcode := scannedBarcode
 	if soBarcode == "" {
-		soBarcode = product.PrimaryBarcode()
+		soBarcode = product.FirstBarcode()
 	}
 	return &model.StockOpname{
 		StockOpnameQuantity: quantity,
@@ -74,12 +102,20 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 	}
 	defer tx.Rollback(ctx)
 
-	product, err := s.resolveProduct(ctx, tx, req.Barcode, req.PLU)
+	sesiId, err := s.StockOpnameRepository.FindSesiIdByRak(ctx, tx, req.RakID)
+	if err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+	if err := s.checkSessionReady(ctx, tx, sesiId); err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+
+	product, err := s.resolveProduct(ctx, tx, sesiId, req.Barcode, req.PLU)
 	if err != nil {
 		return dto.StockOpnameResponse{}, err
 	}
 
-	modelSO := snapshot(req.Quantity, req.RakID, product, req.Barcode)
+	modelSO := snapshot(*req.Quantity, req.RakID, product, req.Barcode)
 
 	if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
 		return dto.StockOpnameResponse{}, err
@@ -100,7 +136,6 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 		Name:            modelSummary.Name,
 		Quantity:        modelSummary.Quantity,
 		RackName:        modelSummary.RackName,
-		InspectorCode:   modelSummary.InspectorCode,
 		CoordinatorCode: modelSummary.CoordinatorCode,
 		UpdatedAt:       modelSummary.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -113,6 +148,14 @@ func (s *StockOpnameServiceImpl) Delete(ctx context.Context, id int) error {
 		return err
 	}
 	defer tx.Rollback(ctx)
+
+	sesiId, err := s.StockOpnameRepository.FindSesiIdByStockOpnameID(ctx, tx, id)
+	if err != nil {
+		return err
+	}
+	if err := s.checkSessionWritable(ctx, tx, sesiId); err != nil {
+		return err
+	}
 
 	if err := s.StockOpnameRepository.Delete(ctx, tx, id); err != nil {
 		return err
@@ -138,7 +181,6 @@ func (s *StockOpnameServiceImpl) FindAll(ctx context.Context, pagination *dto.Pa
 			Name:            so.Name,
 			Quantity:        so.Quantity,
 			RackName:        so.RackName,
-			InspectorCode:   so.InspectorCode,
 			CoordinatorCode: so.CoordinatorCode,
 			UpdatedAt:       so.UpdatedAt.Format(time.RFC3339),
 		})
@@ -169,7 +211,6 @@ func (s *StockOpnameServiceImpl) FindById(ctx context.Context, id int) (dto.Stoc
 		Name:            modelSummary.Name,
 		Quantity:        modelSummary.Quantity,
 		RackName:        modelSummary.RackName,
-		InspectorCode:   modelSummary.InspectorCode,
 		CoordinatorCode: modelSummary.CoordinatorCode,
 		UpdatedAt:       modelSummary.UpdatedAt.Format(time.RFC3339),
 	}, nil
@@ -177,15 +218,27 @@ func (s *StockOpnameServiceImpl) FindById(ctx context.Context, id int) (dto.Stoc
 
 // Update implements [StockOpnameService].
 func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error) {
+	if err := s.Validator.Struct(req); err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
 		return dto.StockOpnameResponse{}, err
 	}
 	defer tx.Rollback(ctx)
 
+	sesiId, err := s.StockOpnameRepository.FindSesiIdByStockOpnameID(ctx, tx, id)
+	if err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+	if err := s.checkSessionWritable(ctx, tx, sesiId); err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+
 	modelSO := &model.StockOpname{
 		StockOpnameID:       id,
-		StockOpnameQuantity: req.Quantity,
+		StockOpnameQuantity: *req.Quantity,
 	}
 
 	if err := s.StockOpnameRepository.Update(ctx, tx, modelSO); err != nil {
@@ -207,40 +260,9 @@ func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.Upd
 		Name:            result.Name,
 		Quantity:        result.Quantity,
 		RackName:        result.RackName,
-		InspectorCode:   result.InspectorCode,
 		CoordinatorCode: result.CoordinatorCode,
 		UpdatedAt:       result.UpdatedAt.Format(time.RFC3339),
 	}, nil
-}
-
-func (s *StockOpnameServiceImpl) CreateByRack(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
-	if err := s.Validator.Struct(req); err != nil {
-		return err
-	}
-	for _, item := range req.Items {
-		if item.Barcode == "" && item.PLU == "" {
-			return &model.ValidationError{Detail: "barcode or plu is required"}
-		}
-	}
-
-	tx, err := s.Pool.Begin(ctx)
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback(ctx)
-
-	for _, item := range req.Items {
-		product, err := s.resolveProduct(ctx, tx, item.Barcode, item.PLU)
-		if err != nil {
-			return err
-		}
-		modelSO := snapshot(item.Quantity, req.RackID, product, item.Barcode)
-		if err := s.StockOpnameRepository.Save(ctx, tx, modelSO); err != nil {
-			return err
-		}
-	}
-
-	return tx.Commit(ctx)
 }
 
 // FindAllForExport implements [StockOpnameService].
@@ -260,7 +282,6 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId in
 			SellPrice:       export.SellPrice,
 			Quantity:        export.Quantity,
 			RackName:        export.RackName,
-			InspectorCode:   export.InspectorCode,
 			CoordinatorCode: export.CoordinatorCode,
 			UpdatedAt:       export.UpdatedAt.Format(time.RFC3339),
 		})

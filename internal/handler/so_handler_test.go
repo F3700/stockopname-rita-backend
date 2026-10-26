@@ -14,7 +14,7 @@ import (
 func TestCreateStockOpname(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
 		createFunc: func(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
-			if req.Quantity != 10 || req.Barcode != "8991001010016" || req.RakID != 2 {
+			if req.Quantity == nil || *req.Quantity != 10 || req.Barcode != "8991001010016" || req.RakID != 2 {
 				t.Errorf("unexpected request %+v", req)
 			}
 			return dto.StockOpnameResponse{Id: 1, Quantity: 10}, nil
@@ -247,7 +247,7 @@ func TestGetStockOpnameByIdNotFound(t *testing.T) {
 func TestUpdateStockOpname(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
 		updateFunc: func(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error) {
-			if id != 3 || req.Quantity != 25 {
+			if id != 3 || req.Quantity == nil || *req.Quantity != 25 {
 				t.Errorf("unexpected id/request: %d %+v", id, req)
 			}
 			return dto.StockOpnameResponse{Id: 3, Quantity: 25}, nil
@@ -279,49 +279,5 @@ func TestUpdateStockOpnameServiceError(t *testing.T) {
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
-	}
-}
-
-func TestCreateStockOpnameByRack(t *testing.T) {
-	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		createByRackFn: func(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
-			if req.RackID != 5 || len(req.Items) != 1 {
-				t.Errorf("unexpected request %+v", req)
-			}
-			return nil
-		},
-	})
-
-	body := `{"rak_id":5,"so_products":[{"quantity":10,"barcode":"8991001010016","rak_id":5}]}`
-	req := newJSONRequest(t, http.MethodPost, "/stock-opnames/by-rack", body)
-	rec := httptest.NewRecorder()
-	h.CreateStockOpnameByRack(rec, req, nil)
-
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
-	}
-	if msg := decodeMessage(t, rec); msg != "Stock opname by rack created successfully" {
-		t.Errorf("unexpected message %q", msg)
-	}
-}
-
-func TestCreateStockOpnameByRackInvalidBody(t *testing.T) {
-	called := false
-	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		createByRackFn: func(ctx context.Context, req dto.CreateStockOpnameByRackRequest) error {
-			called = true
-			return nil
-		},
-	})
-
-	req := newJSONRequest(t, http.MethodPost, "/stock-opnames/by-rack", `{"rak_id":`)
-	rec := httptest.NewRecorder()
-	h.CreateStockOpnameByRack(rec, req, nil)
-
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
-	}
-	if called {
-		t.Error("service must not be called on invalid body")
 	}
 }

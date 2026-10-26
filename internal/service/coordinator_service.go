@@ -10,5 +10,6 @@ type CoordinatorService interface {
 	FindByIdDetail(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 	FindAllSummary(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
+	JoinByCoordinatorQR(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error)
 	Update(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error
 }

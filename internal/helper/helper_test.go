@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/julienschmidt/httprouter"
 
 	"stockopname-rita-backend/internal/model"
@@ -184,6 +185,48 @@ func TestParseIntQueryNotNull(t *testing.T) {
 	}
 }
 
+func TestValidatePage(t *testing.T) {
+	tests := []struct {
+		name    string
+		page    int
+		wantErr bool
+	}{
+		{"valid", 1, false},
+		{"zero", 0, true},
+		{"negative", -1, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidatePage(tt.page); (err != nil) != tt.wantErr {
+				t.Errorf("ValidatePage(%d) error = %v, wantErr %v", tt.page, err, tt.wantErr)
+			}
+		})
+	}
+}
+
+func TestValidateLimit(t *testing.T) {
+	tests := []struct {
+		name    string
+		limit   int
+		wantErr bool
+	}{
+		{"minimum", 1, false},
+		{"maximum", maxLimit, false},
+		{"zero", 0, true},
+		{"negative", -1, true},
+		{"too large", maxLimit + 1, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if err := ValidateLimit(tt.limit); (err != nil) != tt.wantErr {
+				t.Errorf("ValidateLimit(%d) error = %v, wantErr %v", tt.limit, err, tt.wantErr)
+			}
+		})
+	}
+}
+
 func TestParseDateNullable(t *testing.T) {
 	if got := ParseDateNullable(nil); got != "" {
 		t.Errorf("expected empty string for nil, got %q", got)
@@ -193,5 +236,20 @@ func TestParseDateNullable(t *testing.T) {
 	got := ParseDateNullable(&date)
 	if !strings.HasPrefix(got, "2026-09-10T08:00:00Z") {
 		t.Errorf("unexpected formatted date: %q", got)
+	}
+}
+
+func TestMapServiceErrorValidation(t *testing.T) {
+	type request struct {
+		Quantity *int `validate:"required,gte=0"`
+	}
+
+	err := validator.New().Struct(request{})
+	status, message := mapServiceError(err)
+	if status != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
+	}
+	if message != "Quantity is required" {
+		t.Errorf("unexpected message %q", message)
 	}
 }

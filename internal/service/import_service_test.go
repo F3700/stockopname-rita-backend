@@ -96,18 +96,33 @@ func toAny[T any](rows []T) []interface{} {
 }
 
 func newImportServiceWithMock(mock pgxmock.PgxPoolIface) ImportService {
-	return NewImportService(repository.NewProductRepository(mock), repository.NewBarcodeRepository(mock), mock)
+	return NewImportService(
+		repository.NewProductRepository(mock),
+		repository.NewBarcodeRepository(mock),
+		repository.NewSesiRepository(mock),
+		mock,
+	)
+}
+
+func sesiWritableRows() *pgxmock.Rows {
+	started := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	return pgxmock.NewRows([]string{"sesi_id", "sesi_location", "sesi_code", "sesi_status", "sesi_startedat", "sesi_endedat"}).
+		AddRow(3, "Gudang B", "SESI-03", "IN_PROGRESS", started, nil)
+}
+
+func productExportRows() []string {
+	return []string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}
 }
 
 func existingProductRows() *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	return pgxmock.NewRows([]string{"product_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}).
-		AddRow(11, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+	return pgxmock.NewRows(productExportRows()).
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
 }
 
 func TestImportInsertNew(t *testing.T) {
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
 		{PLU: "100251", BARCODE: "1002515550011"},
@@ -125,17 +140,18 @@ func TestImportInsertNew(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM product p").WillReturnRows(pgxmock.NewRows([]string{"product_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}))
-	mock.ExpectQuery("INSERT INTO product").WithArgs("100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(pgxmock.NewRows(productExportRows()))
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(11),
 	)
-	mock.ExpectExec("INSERT INTO barcode").WithArgs(11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectExec("INSERT INTO barcode").WithArgs(11, "8991001010016").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "8991001010016").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
 	mock.ExpectRollback()
 
 	svc := newImportServiceWithMock(mock)
-	result, err := svc.Import(context.Background(), produk, barcodes, false)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -149,7 +165,7 @@ func TestImportInsertNew(t *testing.T) {
 
 func TestImportIdempotentDryRun(t *testing.T) {
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
 		{PLU: "100251", BARCODE: "1002515550011"},
@@ -167,7 +183,8 @@ func TestImportIdempotentDryRun(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM product p").WillReturnRows(existingProductRows())
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(existingProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).
 			AddRow(11, "1002515550011").
@@ -176,7 +193,7 @@ func TestImportIdempotentDryRun(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newImportServiceWithMock(mock)
-	result, err := svc.Import(context.Background(), produk, barcodes, true)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, true)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -191,7 +208,7 @@ func TestImportIdempotentDryRun(t *testing.T) {
 func TestImportUpdateChanged(t *testing.T) {
 	// Existing price 14000 -> fixture 14500, and one extra barcode.
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
 		{PLU: "100251", BARCODE: "1002515550011"},
@@ -210,22 +227,23 @@ func TestImportUpdateChanged(t *testing.T) {
 
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM product p").WillReturnRows(
-		pgxmock.NewRows([]string{"product_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}).
-			AddRow(11, "100251", "Sari Roti", "1138", 14000.0, 17200.0, ts, ts),
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(
+		pgxmock.NewRows(productExportRows()).
+			AddRow(11, 3, "100251", "Sari Roti", "1138", 14000.0, 17200.0, ts, ts),
 	)
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
 	)
 	mock.ExpectExec("UPDATE product").WithArgs("100251", "Sari Roti", "1138", 14500.0, 17200.0, 11).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectExec("DELETE FROM barcode").WithArgs(11).WillReturnResult(pgxmock.NewResult("DELETE", 1))
-	mock.ExpectExec("INSERT INTO barcode").WithArgs(11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
-	mock.ExpectExec("INSERT INTO barcode").WithArgs(11, "8991001010016").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "8991001010016").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
 	mock.ExpectRollback()
 
 	svc := newImportServiceWithMock(mock)
-	result, err := svc.Import(context.Background(), produk, barcodes, false)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -236,7 +254,7 @@ func TestImportUpdateChanged(t *testing.T) {
 
 func TestImportOrphanAndInvalid(t *testing.T) {
 	produk := produkFixture(t, toAny([]fixtureProdukRow{
-		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 14500, RPBELI: 17200},
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
 		{PLU: "100252", NAMABRG: "", KODEDPT: "1138", HRGJUAL: 1000, RPBELI: 900},
 	}))
 	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
@@ -256,16 +274,17 @@ func TestImportOrphanAndInvalid(t *testing.T) {
 	})
 
 	mock.ExpectBegin()
-	mock.ExpectQuery("FROM product p").WillReturnRows(pgxmock.NewRows([]string{"product_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}))
-	mock.ExpectQuery("INSERT INTO product").WithArgs("100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(pgxmock.NewRows(productExportRows()))
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(11),
 	)
-	mock.ExpectExec("INSERT INTO barcode").WithArgs(11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectCommit()
 	mock.ExpectRollback()
 
 	svc := newImportServiceWithMock(mock)
-	result, err := svc.Import(context.Background(), produk, barcodes, false)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -299,8 +318,179 @@ func TestImportNoValidProdukRows(t *testing.T) {
 	})
 
 	svc := newImportServiceWithMock(mock)
-	_, err = svc.Import(context.Background(), produk, barcodes, false)
+	_, err = svc.Import(context.Background(), 3, produk, barcodes, false)
 	if err == nil {
 		t.Fatal("expected error for empty valid produk rows, got nil")
+	}
+}
+
+func TestParseProdukPriceMapping(t *testing.T) {
+	produk := produkFixture(t, toAny([]fixtureProdukRow{
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
+	}))
+
+	products, invalid := parseProdukFile(produk)
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid rows: %+v", invalid)
+	}
+	if len(products) != 1 {
+		t.Fatalf("expected 1 product, got %d", len(products))
+	}
+	if products[0].buy != 14500 || products[0].sell != 17200 {
+		t.Errorf("prices mapped wrong: buy=%v sell=%v", products[0].buy, products[0].sell)
+	}
+}
+
+func importFixtureProdukA(t *testing.T) []byte {
+	t.Helper()
+	return produkFixture(t, toAny([]fixtureProdukRow{
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
+		{PLU: "100252", NAMABRG: "Ultra Milk", KODEDPT: "1139", HRGJUAL: 21500, RPBELI: 18900},
+	}))
+}
+
+func importFixtureProdukABC(t *testing.T) []byte {
+	t.Helper()
+	return produkFixture(t, toAny([]fixtureProdukRow{
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500},
+		{PLU: "100252", NAMABRG: "Ultra Milk", KODEDPT: "1139", HRGJUAL: 21500, RPBELI: 18900},
+		{PLU: "100253", NAMABRG: "Chitato", KODEDPT: "1138", HRGJUAL: 11500, RPBELI: 9500},
+	}))
+}
+
+func existingAWithBarcodeRows() *pgxmock.Rows {
+	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	return pgxmock.NewRows(productExportRows()).
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+}
+
+func TestImportBarcodeMovesToAnotherPLU(t *testing.T) {
+	produk := importFixtureProdukA(t)
+	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
+		{PLU: "100252", BARCODE: "1002515550011"},
+	}))
+
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(existingAWithBarcodeRows())
+	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
+		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
+	)
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0).WillReturnRows(
+		pgxmock.NewRows([]string{"product_id"}).AddRow(12),
+	)
+	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 12, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	svc := newImportServiceWithMock(mock)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ProductsInserted != 1 || result.ProductsUpdated != 1 || result.BarcodesAdded != 1 || result.BarcodesRemoved != 1 {
+		t.Errorf("unexpected result %+v", result)
+	}
+	if len(result.InvalidRows) != 0 {
+		t.Errorf("expected no invalid rows, got %+v", result.InvalidRows)
+	}
+}
+
+func TestImportBarcodeMultiClaimOwnerReleases(t *testing.T) {
+	produk := importFixtureProdukABC(t)
+	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
+		{PLU: "100252", BARCODE: "1002515550011"},
+		{PLU: "100253", BARCODE: "1002515550011"},
+	}))
+
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(existingAWithBarcodeRows())
+	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
+		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
+	)
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0).WillReturnRows(
+		pgxmock.NewRows([]string{"product_id"}).AddRow(12),
+	)
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100253", "Chitato", "1138", 9500.0, 11500.0).WillReturnRows(
+		pgxmock.NewRows([]string{"product_id"}).AddRow(13),
+	)
+	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	svc := newImportServiceWithMock(mock)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.InvalidRows) != 2 {
+		t.Errorf("expected 2 invalid claims, got %+v", result.InvalidRows)
+	}
+	if result.BarcodesRemoved != 1 || result.BarcodesAdded != 0 {
+		t.Errorf("owner release must remove one barcode: %+v", result)
+	}
+}
+
+func TestImportBarcodeOwnerKeepsAgainstClaimant(t *testing.T) {
+	produk := importFixtureProdukA(t)
+	barcodes := barcodeFixture(t, toAny([]fixtureBarcodeRow{
+		{PLU: "100251", BARCODE: "1002515550011"},
+		{PLU: "100252", BARCODE: "1002515550011"},
+	}))
+
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
+	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(existingAWithBarcodeRows())
+	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
+		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
+	)
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0).WillReturnRows(
+		pgxmock.NewRows([]string{"product_id"}).AddRow(12),
+	)
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	svc := newImportServiceWithMock(mock)
+	result, err := svc.Import(context.Background(), 3, produk, barcodes, false)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(result.InvalidRows) != 1 {
+		t.Errorf("expected 1 invalid claim, got %+v", result.InvalidRows)
+	}
+	if result.BarcodesAdded != 0 || result.BarcodesRemoved != 0 {
+		t.Errorf("owner keeps barcode, no barcode writes expected: %+v", result)
 	}
 }

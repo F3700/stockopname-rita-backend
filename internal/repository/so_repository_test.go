@@ -22,12 +22,12 @@ func newTestStockOpname() *model.StockOpname {
 	}
 }
 
-var soSummaryColumns = []string{"id", "barcode", "name", "quantity", "rackName", "inspectorCode", "coordinatorCode", "updatedAt"}
+var soSummaryColumns = []string{"id", "barcode", "name", "quantity", "rackName", "coordinatorCode", "updatedAt"}
 
 func soTestSummaryRow() *pgxmock.Rows {
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(soSummaryColumns).
-		AddRow(7, "8991001010016", "Sari Roti", 10, "R1", "INSP-01", "KOR-01", updatedAt)
+		AddRow(7, "8991001010016", "Sari Roti", 10, "R1", "KOR-01", updatedAt)
 }
 
 func TestStockOpnameFindAll(t *testing.T) {
@@ -102,8 +102,8 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	mock := mustMockPool(t)
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(3).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "barcode", "name", "buyPrice", "sellPrice", "quantity", "rackName", "inspectorCode", "coordinatorCode", "updatedAt"}).
-			AddRow(7, "8991001010016", "Sari Roti", 14500.0, 17200.0, 10, "R1", "INSP-01", "KOR-01", updatedAt),
+		pgxmock.NewRows([]string{"id", "barcode", "name", "buyPrice", "sellPrice", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(7, "8991001010016", "Sari Roti", 14500.0, 17200.0, 10, "R1", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock)

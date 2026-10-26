@@ -83,6 +83,16 @@ func (s *StockOpnameHandlerImpl) GetAllStockOpname(writer http.ResponseWriter, r
 		return
 	}
 
+	if err := helper.ValidatePage(page); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query parameter", err)
+		return
+	}
+
+	if err := helper.ValidateLimit(limit); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid query parameter", err)
+		return
+	}
+
 	search := req.URL.Query().Get("search")
 
 	sesiIdStr := req.URL.Query().Get("sessionId")
@@ -179,29 +189,6 @@ func (s *StockOpnameHandlerImpl) UpdateStockOpname(writer http.ResponseWriter, r
 	response := dto.Response{
 		Message: "Stock opname updated successfully",
 		Data:    stockOpnameResponse,
-	}
-
-	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
-		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
-		return
-	}
-}
-
-func (s *StockOpnameHandlerImpl) CreateStockOpnameByRack(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
-	soByRackRequest := dto.CreateStockOpnameByRackRequest{}
-	if err := helper.ReadFromRequestBody(req, &soByRackRequest); err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
-		return
-	}
-
-	if err := s.StockOpnameService.CreateByRack(req.Context(), soByRackRequest); err != nil {
-		helper.WriteServiceError(writer, err)
-		return
-	}
-
-	response := dto.Response{
-		Message: "Stock opname by rack created successfully",
-		Data:    nil,
 	}
 
 	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {

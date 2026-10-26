@@ -31,7 +31,7 @@ func TestSesiFindById(t *testing.T) {
 			}
 			return sesiModel(), nil
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, nil, nil, newTestValidator(t))
 
 	res, err := svc.FindById(context.Background(), 1)
 	if err != nil {
@@ -43,8 +43,8 @@ func TestSesiFindById(t *testing.T) {
 	if res.StartDate != "2026-09-10T08:00:00Z" {
 		t.Errorf("unexpected startDate %q", res.StartDate)
 	}
-	if res.EndDate != "0001-01-01T00:00:00Z" {
-		t.Errorf("expected zero-time endDate for invalid timestamptz, got %q", res.EndDate)
+	if res.EndDate != "" {
+		t.Errorf("expected empty endDate for invalid timestamptz, got %q", res.EndDate)
 	}
 }
 
@@ -53,7 +53,7 @@ func TestSesiFindByIdNotFound(t *testing.T) {
 		findByIdFn: func(ctx context.Context, id int) (*model.Sesi, error) {
 			return nil, &model.NotFoundError{Resource: "Session", ID: id}
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, nil, nil, newTestValidator(t))
 
 	_, err := svc.FindById(context.Background(), 99)
 	if err == nil {
@@ -76,7 +76,7 @@ func TestSesiFindAll(t *testing.T) {
 			}
 			return []*model.Sesi{sesiModel()}, 1, nil
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, nil, nil, newTestValidator(t))
 
 	pagination := &dto.Pagination{Page: 1, Limit: 10}
 	responses, err := svc.FindAll(context.Background(), pagination, "gudang")
@@ -96,7 +96,7 @@ func TestSesiFindAllRepoError(t *testing.T) {
 		findAllInPageSearchFn: func(ctx context.Context, limit int, offset int, search string) ([]*model.Sesi, int, error) {
 			return nil, 0, errors.New("boom")
 		},
-	}, nil, nil, newTestValidator(t))
+	}, nil, nil, nil, nil, nil, newTestValidator(t))
 
 	_, err := svc.FindAll(context.Background(), &dto.Pagination{Page: 1, Limit: 10}, "")
 	if err == nil {
@@ -105,7 +105,7 @@ func TestSesiFindAllRepoError(t *testing.T) {
 }
 
 func TestSesiCreateValidationFailure(t *testing.T) {
-	svc := NewSesiService(&fakeSesiRepository{}, nil, nil, newTestValidator(t))
+	svc := NewSesiService(&fakeSesiRepository{}, nil, nil, nil, nil, nil, newTestValidator(t))
 
 	_, err := svc.Create(context.Background(), dto.CreateSesiRequest{})
 	if err == nil {

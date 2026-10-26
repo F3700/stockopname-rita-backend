@@ -34,25 +34,25 @@ func (c *CoordinatorRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, coord
 	return nil
 }
 
+const coordinatorSummarySelect = `
+	SELECT
+		c.coor_id AS id,
+		c.coor_code AS code,
+		COUNT(DISTINCT r.rak_id) AS rack_assigned,
+		COUNT(DISTINCT r.rak_id) FILTER (
+			WHERE so.stock_opname_id IS NOT NULL
+		) AS rack_completed,
+		c.coor_status AS status
+	FROM coordinator c
+	LEFT JOIN rak r
+		ON r.rak_coor_id = c.coor_id
+	LEFT JOIN stock_opname so
+		ON so.stock_opname_rak_id = r.rak_id
+`
+
 // FindAll implements [CoordinatorRepository].
 func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context) ([]*model.CoordinatorSummary, error) {
-	const SQL = `
-		SELECT
-			c.coor_id AS id,
-			c.coor_code AS code,
-			COUNT(DISTINCT i.inspector_id) AS inspector,
-			COUNT(DISTINCT r.rak_id) AS rack_assigned,
-			COUNT(DISTINCT r.rak_id) FILTER (
-				WHERE so.stock_opname_id IS NOT NULL
-			) AS rack_completed,
-			c.coor_status AS status
-		FROM coordinator c
-		LEFT JOIN inspector i
-			ON i.inspector_coor_id = c.coor_id
-		LEFT JOIN rak r
-			ON r.rak_inspector_id = i.inspector_id
-		LEFT JOIN stock_opname so
-			ON so.stock_opname_rak_id = r.rak_id
+	const SQL = coordinatorSummarySelect + `
 		GROUP BY
 			c.coor_id,
 			c.coor_code,
@@ -68,7 +68,7 @@ func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context) ([]*mode
 	var coordinatorsSummary []*model.CoordinatorSummary
 	for rows.Next() {
 		var coordinatorSummary model.CoordinatorSummary
-		err := rows.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.Inspector, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
+		err := rows.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
 		if err != nil {
 			return nil, err
 		}
@@ -78,25 +78,9 @@ func (c *CoordinatorRepositoryImpl) FindAllSummary(ctx context.Context) ([]*mode
 	return coordinatorsSummary, nil
 }
 
-// FindById implements [CoordinatorRepository].
+// FindByIdSummary implements [CoordinatorRepository].
 func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, id int) (*model.CoordinatorSummary, error) {
-	const SQL = `
-		SELECT
-			c.coor_id AS id,
-			c.coor_code AS code,
-			COUNT(DISTINCT i.inspector_id) AS inspector,
-			COUNT(DISTINCT r.rak_id) AS rack_assigned,
-			COUNT(DISTINCT r.rak_id) FILTER (
-				WHERE so.stock_opname_id IS NOT NULL
-			) AS rack_completed,
-			c.coor_status AS status
-		FROM coordinator c
-		LEFT JOIN inspector i
-			ON i.inspector_coor_id = c.coor_id
-		LEFT JOIN rak r
-			ON r.rak_inspector_id = i.inspector_id
-		LEFT JOIN stock_opname so
-			ON so.stock_opname_rak_id = r.rak_id
+	const SQL = coordinatorSummarySelect + `
 		WHERE c.coor_id = $1
 		GROUP BY
 			c.coor_id,
@@ -106,7 +90,7 @@ func (c *CoordinatorRepositoryImpl) FindByIdSummary(ctx context.Context, id int)
 	`
 	row := c.Pool.QueryRow(ctx, SQL, id)
 	var coordinatorSummary model.CoordinatorSummary
-	err := row.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.Inspector, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
+	err := row.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
@@ -123,7 +107,6 @@ func (c *CoordinatorRepositoryImpl) FindByIdDetail(ctx context.Context, id int) 
 			c.coor_code AS code,
 			s.sesi_code AS session_code,
 			s.sesi_location AS session_location,
-			COUNT(DISTINCT i.inspector_id) AS inspector,
 			COUNT(DISTINCT r.rak_id) AS rack_assigned,
 			COUNT(DISTINCT r.rak_id) FILTER (
 				WHERE so.stock_opname_id IS NOT NULL
@@ -131,10 +114,8 @@ func (c *CoordinatorRepositoryImpl) FindByIdDetail(ctx context.Context, id int) 
 			c.coor_status AS status
 		FROM coordinator c
 		JOIN sesi s ON s.sesi_id = c.coor_sesi_id
-		LEFT JOIN inspector i
-			ON i.inspector_coor_id = c.coor_id
 		LEFT JOIN rak r
-			ON r.rak_inspector_id = i.inspector_id
+			ON r.rak_coor_id = c.coor_id
 		LEFT JOIN stock_opname so
 			ON so.stock_opname_rak_id = r.rak_id
 		WHERE c.coor_id = $1
@@ -147,7 +128,7 @@ func (c *CoordinatorRepositoryImpl) FindByIdDetail(ctx context.Context, id int) 
 	`
 	row := c.Pool.QueryRow(ctx, SQL, id)
 	var detail model.CoordinatorDetail
-	err := row.Scan(&detail.ID, &detail.Code, &detail.SessionCode, &detail.SessionLocation, &detail.Inspector, &detail.RackAssigned, &detail.RackCompleted, &detail.Status)
+	err := row.Scan(&detail.ID, &detail.Code, &detail.SessionCode, &detail.SessionLocation, &detail.RackAssigned, &detail.RackCompleted, &detail.Status)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
@@ -160,18 +141,17 @@ func (c *CoordinatorRepositoryImpl) FindByIdDetail(ctx context.Context, id int) 
 func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, id int) (*model.CoordinatorReport, error) {
 	const SQL = `
 		SELECT c.coor_id, c.coor_code, c.coor_status, s.sesi_code,
-			COUNT(DISTINCT i.inspector_id), COUNT(DISTINCT r.rak_id),
+			COUNT(DISTINCT r.rak_id),
 			COUNT(DISTINCT r.rak_id) FILTER (WHERE so.stock_opname_id IS NOT NULL)
 		FROM coordinator c
 		JOIN sesi s ON s.sesi_id = c.coor_sesi_id
-		LEFT JOIN inspector i ON i.inspector_coor_id = c.coor_id
-		LEFT JOIN rak r ON r.rak_inspector_id = i.inspector_id
+		LEFT JOIN rak r ON r.rak_coor_id = c.coor_id
 		LEFT JOIN stock_opname so ON so.stock_opname_rak_id = r.rak_id
 		WHERE c.coor_id = $1
 		GROUP BY c.coor_id, c.coor_code, c.coor_status, s.sesi_code
 	`
 	var report model.CoordinatorReport
-	err := c.Pool.QueryRow(ctx, SQL, id).Scan(&report.ID, &report.Code, &report.Status, &report.SessionCode, &report.Inspector, &report.RackAssigned, &report.RackCompleted)
+	err := c.Pool.QueryRow(ctx, SQL, id).Scan(&report.ID, &report.Code, &report.Status, &report.SessionCode, &report.RackAssigned, &report.RackCompleted)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
@@ -183,23 +163,7 @@ func (c *CoordinatorRepositoryImpl) FindByIdReport(ctx context.Context, id int) 
 
 // FindBySesiId implements [CoordinatorRepository].
 func (c *CoordinatorRepositoryImpl) FindBySesiIdSummary(ctx context.Context, sesiId int) ([]*model.CoordinatorSummary, error) {
-	const SQL = `
-		SELECT
-			c.coor_id AS id,
-			c.coor_code AS code,
-			COUNT(DISTINCT i.inspector_id) AS inspector,
-			COUNT(DISTINCT r.rak_id) AS rack_assigned,
-			COUNT(DISTINCT r.rak_id) FILTER (
-				WHERE so.stock_opname_id IS NOT NULL
-			) AS rack_completed,
-			c.coor_status AS status
-		FROM coordinator c
-		LEFT JOIN inspector i
-			ON i.inspector_coor_id = c.coor_id
-		LEFT JOIN rak r
-			ON r.rak_inspector_id = i.inspector_id
-		LEFT JOIN stock_opname so
-			ON so.stock_opname_rak_id = r.rak_id
+	const SQL = coordinatorSummarySelect + `
 		WHERE c.coor_sesi_id = $1
 		GROUP BY
 			c.coor_id,
@@ -216,7 +180,7 @@ func (c *CoordinatorRepositoryImpl) FindBySesiIdSummary(ctx context.Context, ses
 	var coordinatorsSummary []*model.CoordinatorSummary
 	for rows.Next() {
 		var coordinatorSummary model.CoordinatorSummary
-		err := rows.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.Inspector, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
+		err := rows.Scan(&coordinatorSummary.ID, &coordinatorSummary.Code, &coordinatorSummary.RackAssigned, &coordinatorSummary.RackCompleted, &coordinatorSummary.Status)
 		if err != nil {
 			return nil, err
 		}
@@ -231,8 +195,9 @@ func (c *CoordinatorRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, coordin
 	const SQL = `
 		INSERT INTO coordinator (coor_code, coor_sesi_id, coor_status)
 		VALUES ($1, $2, $3)
+		RETURNING coor_id
 	`
-	_, err := tx.Exec(ctx, SQL, coordinator.CoorCode, coordinator.CoorSesiID, coordinator.CoorStatus)
+	err := tx.QueryRow(ctx, SQL, coordinator.CoorCode, coordinator.CoorSesiID, coordinator.CoorStatus).Scan(&coordinator.CoorID)
 	if err != nil {
 		return model.MapPgError("Coordinator", err)
 	}
@@ -259,6 +224,26 @@ func (c *CoordinatorRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 		return nil, err
 	}
 	return &coordinator, nil
+}
+
+// LockById serializes rack deletes for the same coordinator.
+func (c *CoordinatorRepositoryImpl) LockById(ctx context.Context, tx pgx.Tx, coorID int) error {
+	const SQL = `SELECT coor_id FROM coordinator WHERE coor_id = $1 FOR UPDATE`
+	var id int
+	if err := tx.QueryRow(ctx, SQL, coorID).Scan(&id); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return &model.NotFoundError{Resource: "Coordinator", ID: coorID}
+		}
+		return err
+	}
+	return nil
+}
+
+// RecalcStatus recomputes the coordinator status after a rack is deleted.
+func (c *CoordinatorRepositoryImpl) RecalcStatus(ctx context.Context, tx pgx.Tx, coorID int) error {
+	const SQL = `SELECT recalc_coordinator_status($1)`
+	_, err := tx.Exec(ctx, SQL, coorID)
+	return err
 }
 
 func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {

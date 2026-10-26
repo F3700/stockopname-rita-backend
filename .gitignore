@@ -19,3 +19,5 @@
 Thumbs.db
 
 migrations/dockercmd.txt
+# Playwright MCP artifacts
+.playwright-mcp/

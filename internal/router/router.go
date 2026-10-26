@@ -12,36 +12,33 @@ import (
 )
 
 func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Router {
-	deletedProductRepository := repository.NewDeletedProductRepository(pool)
-	deletedProductService := service.NewDeletedProductService(deletedProductRepository)
-	deletedProductHandler := handler.NewDeletedProductHandler(deletedProductService)
-
+	sesiRepository := repository.NewSesiRepository(pool)
+	coordinatorRepository := repository.NewCoordinatorRepository(pool)
 	productRepository := repository.NewProductRepository(pool)
 	barcodeRepository := repository.NewBarcodeRepository(pool)
-	productService := service.NewProductService(productRepository, barcodeRepository, deletedProductRepository, pool, validate)
-	importService := service.NewImportService(productRepository, barcodeRepository, pool)
+	rackRepository := repository.NewRackRepository(pool)
+	uploadRepository := repository.NewUploadRepository(pool)
+	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
+
+	productService := service.NewProductService(productRepository, barcodeRepository, sesiRepository, pool, validate)
+	importService := service.NewImportService(productRepository, barcodeRepository, sesiRepository, pool)
 	productHandler := handler.NewProductHandler(productService, importService)
 
-	coordinatorRepository := repository.NewCoordinatorRepository(pool)
-	coordinatorService := service.NewCoordinatorService(coordinatorRepository, pool)
+	coordinatorService := service.NewCoordinatorService(coordinatorRepository, sesiRepository, productRepository, rackRepository, pool)
 	coordinatorHandler := handler.NewCoordinatorHandler(coordinatorService)
 
-	sesiRepository := repository.NewSesiRepository(pool)
-	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, pool, validate)
+	sesiService := service.NewSesiService(sesiRepository, coordinatorRepository, productRepository, stockOpnameRepository, rackRepository, pool, validate)
 	sesiHandler := handler.NewSesiHandler(sesiService)
 
-	rackRepository := repository.NewRackRepository(pool)
-	rackService := service.NewRackService(rackRepository, pool)
+	rackService := service.NewRackService(rackRepository, coordinatorRepository, sesiRepository, stockOpnameRepository, pool)
 	rackHandler := handler.NewRackHandler(rackService)
 
-	inspectorRepository := repository.NewInspectorRepository(pool)
-	inspectorService := service.NewInspectorService(inspectorRepository, coordinatorRepository, rackRepository, pool)
-	inspectorHandler := handler.NewInspectorHandler(inspectorService)
+	uploadService := service.NewUploadService(uploadRepository, rackRepository, coordinatorRepository, sesiRepository, productRepository, stockOpnameRepository, pool, validate)
+	uploadHandler := handler.NewUploadHandler(uploadService)
 
-	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
-	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, pool, validate)
+	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, sesiRepository, pool, validate)
 	stockOpnameHandler := handler.NewStockOpnameHandler(stockOpnameService)
-	reportService := service.NewReportService(sesiService, coordinatorService, inspectorService, stockOpnameService)
+	reportService := service.NewReportService(sesiService, coordinatorService, uploadService, stockOpnameService)
 	reportHandler := handler.NewReportHandler(reportService)
 
 	router := httprouter.New()
@@ -51,20 +48,15 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.POST("/products", productHandler.CreateProduct)
 	router.GET("/products", productHandler.GetProducts)
-	router.GET("/products/last-session", productHandler.GetProductsLastSession)
-	router.GET("/products/sync", productHandler.SyncProducts)
 	router.POST("/products/import", productHandler.ImportProducts)
 	router.POST("/products/clear", productHandler.ClearProducts)
-	router.DELETE("/products", productHandler.ClearProducts)
 	router.PATCH("/products/:id", productHandler.UpdateProduct)
 	router.DELETE("/products/:id", productHandler.DeleteProduct)
-
-	router.GET("/deleted/products", deletedProductHandler.GetDeletedProducts)
-	router.DELETE("/deleted/products", deletedProductHandler.DeleteDeletedProducts)
 
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
 	router.GET("/stockopname/coordinators/:id/pdf", reportHandler.CoordinatorPDF)
+	router.POST("/stockopname/coordinators/join-by-qr", coordinatorHandler.JoinByCoordinatorQR)
 	router.PATCH("/stockopname/coordinators/:id", coordinatorHandler.UpdateCoordinator)
 
 	router.POST("/stockopname/sessions", sesiHandler.CreateSesi)
@@ -76,20 +68,19 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.PATCH("/stockopname/sessions/:id", sesiHandler.UpdateSesi)
 	router.DELETE("/stockopname/sessions/:id", sesiHandler.DeleteSesi)
 
-	router.GET("/stockopname/inspectors", inspectorHandler.GetInspectors)
-	router.POST("/stockopname/inspectors", inspectorHandler.CreateInspector)
-	router.POST("/stockopname/inspectors/join-by-coordinator-qr", inspectorHandler.CreateInspectorByCoordinatorQR)
-
 	router.GET("/stockopname/racks/progress", rackHandler.GetRackProgress)
 	router.GET("/stockopname/racks", rackHandler.GetRacks)
-	router.POST("/stockopname/racks", rackHandler.CreateRack)
+	router.DELETE("/stockopname/racks/:id", rackHandler.DeleteRack)
+
+	router.POST("/stockopname/uploads", uploadHandler.CreateUpload)
+	router.GET("/stockopname/uploads", uploadHandler.GetUploads)
+	router.GET("/stockopname/uploads/:id/pdf", reportHandler.UploadPDF)
 
 	router.GET("/stockopname/results", stockOpnameHandler.GetAllStockOpname)
 	router.GET("/stockopname/results/:id", stockOpnameHandler.GetStockOpnameById)
 	router.POST("/stockopname/results", stockOpnameHandler.CreateStockOpname)
 	router.PATCH("/stockopname/results/:id", stockOpnameHandler.UpdateStockOpname)
 	router.DELETE("/stockopname/results/:id", stockOpnameHandler.DeleteStockOpname)
-	router.POST("/stockopname/results/racks", stockOpnameHandler.CreateStockOpnameByRack)
 
 	return router
 }

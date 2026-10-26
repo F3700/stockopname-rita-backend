@@ -1,6 +1,7 @@
 package dto
 
 type ProductCreateRequest struct {
+	SesiID         int      `json:"sesi_id" validate:"required,gte=1"`
 	PLU            string   `json:"plu" validate:"required"`
 	Name           string   `json:"name" validate:"required"`
 	DepartmentCode string   `json:"department_code" validate:"required"`
@@ -23,7 +24,6 @@ type ProductUpdateRequest struct {
 type ProductResponse struct {
 	Id             int      `json:"id"`
 	PLU            string   `json:"plu"`
-	Barcode        string   `json:"barcode"`
 	Barcodes       []string `json:"barcodes"`
 	Name           string   `json:"name"`
 	BuyPrice       float64  `json:"buy_price"`
@@ -31,12 +31,4 @@ type ProductResponse struct {
 	DateCreated    string   `json:"date_created"`
 	DateUpdated    string   `json:"date_updated"`
 	DepartmentCode string   `json:"department_code"`
-}
-
-type ProductLastSessionResponse struct {
-	Id              int    `json:"id"`
-	Barcode         string `json:"barcode"`
-	Name            string `json:"name"`
-	LastSessionDate string `json:"last_session_date"`
-	LastSessionCode string `json:"last_session_code"`
 }

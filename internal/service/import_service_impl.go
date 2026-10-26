@@ -10,7 +10,6 @@ import (
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/valentin-kaiser/go-dbase/dbase"
 	"golang.org/x/text/encoding/charmap"
 )
@@ -18,6 +17,7 @@ import (
 type ImportServiceImpl struct {
 	ProductRepository repository.ProductRepository
 	BarcodeRepository repository.BarcodeRepository
+	SesiRepository    repository.SesiRepository
 	Pool              repository.DBPool
 }
 
@@ -28,7 +28,54 @@ type importProduct struct {
 	dept  string
 	buy   float64
 	sell  float64
-	codes []string
+	codes []importCode
+}
+
+type importCode struct {
+	code string
+	line int
+}
+
+func (p *importProduct) codeStrings() []string {
+	codes := make([]string, 0, len(p.codes))
+	for _, c := range p.codes {
+		codes = append(codes, c.code)
+	}
+	return codes
+}
+
+func (p *importProduct) hasCode(code string) bool {
+	for _, c := range p.codes {
+		if c.code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func (p *importProduct) removeCode(code string) {
+	filtered := p.codes[:0]
+	for _, c := range p.codes {
+		if c.code != code {
+			filtered = append(filtered, c)
+		}
+	}
+	p.codes = filtered
+}
+
+func (p *importProduct) codeLine(code string) int {
+	for _, c := range p.codes {
+		if c.code == code {
+			return c.line
+		}
+	}
+	return p.line
+}
+
+type barcodeWrite struct {
+	productID int
+	oldCodes  []string
+	newCodes  []string
 }
 
 func openDBF(data []byte) (*dbase.File, error) {
@@ -57,7 +104,7 @@ func requireColumns(table *dbase.File, names ...string) error {
 }
 
 // Import implements [ImportService].
-func (s *ImportServiceImpl) Import(ctx context.Context, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
+func (s *ImportServiceImpl) Import(ctx context.Context, sesiId int, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error) {
 	result := dto.ImportResultResponse{
 		InvalidRows:            []dto.ImportInvalidRow{},
 		OrphanBarcodes:         []string{},
@@ -96,13 +143,7 @@ func (s *ImportServiceImpl) Import(ctx context.Context, produkData []byte, barco
 			continue
 		}
 		seenBarcode[key] = true
-		p.codes = append(p.codes, b.code)
-	}
-
-	for _, p := range products {
-		if len(p.codes) == 0 {
-			result.ProductsWithoutBarcode = append(result.ProductsWithoutBarcode, p.plu)
-		}
+		p.codes = append(p.codes, importCode{code: b.code, line: b.line})
 	}
 
 	tx, err := s.Pool.Begin(ctx)
@@ -111,34 +152,114 @@ func (s *ImportServiceImpl) Import(ctx context.Context, produkData []byte, barco
 	}
 	defer tx.Rollback(ctx)
 
-	existing, err := s.ProductRepository.FindAllForImport(ctx, tx)
+	sesi, err := s.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	if err != nil {
+		return result, err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return result, err
+	}
+
+	existing, err := s.ProductRepository.FindAllForImport(ctx, tx, sesiId)
 	if err != nil {
 		return result, fmt.Errorf("load existing products: %w", err)
 	}
 	byExistingPLU := make(map[string]*model.Product, len(existing))
+	ownerByCode := make(map[string]string)
 	for _, e := range existing {
 		byExistingPLU[e.ProductPLU] = e
+		for _, code := range e.ProductBarcodes {
+			ownerByCode[code] = e.ProductPLU
+		}
 	}
 
+	s.resolveBarcodeClaims(products, byPLU, ownerByCode, &result)
+
 	for _, p := range products {
-		inserted, updated, added, removed, err := s.upsertProduct(ctx, tx, byExistingPLU[p.plu], p)
-		if err != nil {
-			return result, err
+		if len(p.codes) == 0 {
+			result.ProductsWithoutBarcode = append(result.ProductsWithoutBarcode, p.plu)
 		}
-		switch {
-		case inserted:
+	}
+
+	writes := make([]barcodeWrite, 0, len(products))
+	for _, p := range products {
+		old := byExistingPLU[p.plu]
+		newCodes := p.codeStrings()
+
+		if old == nil {
+			product := &model.Product{
+				ProductSesiID:         sesiId,
+				ProductPLU:            p.plu,
+				ProductName:           p.name,
+				ProductDepartmentCode: p.dept,
+				ProductBuyPrice:       p.buy,
+				ProductSellPrice:      p.sell,
+			}
+			if err := s.ProductRepository.Save(ctx, tx, product); err != nil {
+				return result, fmt.Errorf("save product %s: %w", p.plu, err)
+			}
 			result.ProductsInserted++
-		case updated:
+			result.BarcodesAdded += len(newCodes)
+			writes = append(writes, barcodeWrite{productID: product.ProductID, oldCodes: nil, newCodes: newCodes})
+			continue
+		}
+
+		oldSet := toSet(old.ProductBarcodes)
+		newSet := toSet(newCodes)
+		added, removed := diffSets(oldSet, newSet)
+
+		fieldsChanged := old.ProductName != p.name ||
+			old.ProductDepartmentCode != p.dept ||
+			old.ProductBuyPrice != p.buy ||
+			old.ProductSellPrice != p.sell
+		barcodesChanged := added > 0 || removed > 0
+
+		if fieldsChanged {
+			old.ProductName = p.name
+			old.ProductDepartmentCode = p.dept
+			old.ProductBuyPrice = p.buy
+			old.ProductSellPrice = p.sell
+			if err := s.ProductRepository.Update(ctx, tx, old); err != nil {
+				return result, fmt.Errorf("update product %s: %w", p.plu, err)
+			}
+		}
+
+		if barcodesChanged {
 			result.ProductsUpdated++
-		default:
+		} else if fieldsChanged {
+			result.ProductsUpdated++
+		} else {
 			result.ProductsUnchanged++
 		}
 		result.BarcodesAdded += added
 		result.BarcodesRemoved += removed
+		if barcodesChanged {
+			writes = append(writes, barcodeWrite{productID: old.ProductID, oldCodes: old.ProductBarcodes, newCodes: newCodes})
+		}
 	}
 
 	if dryRun {
 		return result, nil
+	}
+
+	// Phase 2: delete first for every changed product, then insert. This
+	// lets a barcode move from one PLU to another without tripping the
+	// immediate unique constraint.
+	for _, w := range writes {
+		if len(w.oldCodes) == 0 {
+			continue
+		}
+		if err := s.BarcodeRepository.Replace(ctx, tx, sesiId, w.productID, nil); err != nil {
+			return result, fmt.Errorf("clear barcodes product %d: %w", w.productID, err)
+		}
+	}
+	for _, w := range writes {
+		if len(w.newCodes) == 0 {
+			continue
+		}
+		if err := s.BarcodeRepository.SaveBatch(ctx, tx, sesiId, w.productID, w.newCodes); err != nil {
+			return result, fmt.Errorf("save barcodes product %d: %w", w.productID, err)
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -148,70 +269,84 @@ func (s *ImportServiceImpl) Import(ctx context.Context, produkData []byte, barco
 	return result, nil
 }
 
-// upsertProduct inserts or updates one product + its barcode set.
-// updatedat is only touched when product fields actually changed
-// (keeps the import idempotent for mobile sync).
-func (s *ImportServiceImpl) upsertProduct(ctx context.Context, tx pgx.Tx, old *model.Product, p *importProduct) (inserted bool, updated bool, added int, removed int, err error) {
-	if old == nil {
-		product := &model.Product{
-			ProductPLU:            p.plu,
-			ProductName:           p.name,
-			ProductDepartmentCode: p.dept,
-			ProductBuyPrice:       p.buy,
-			ProductSellPrice:      p.sell,
+// resolveBarcodeClaims implements D4-A: decide which barcode/PLU claims are
+// valid without depending on file order. Invalid claims are removed from the
+// product's code set and reported in invalid_rows.
+func (s *ImportServiceImpl) resolveBarcodeClaims(products []*importProduct, byPLU map[string]*importProduct, ownerByCode map[string]string, result *dto.ImportResultResponse) {
+	candidates := make(map[string][]string)
+	for _, p := range products {
+		for _, c := range p.codes {
+			candidates[c.code] = append(candidates[c.code], p.plu)
 		}
-		if err := s.ProductRepository.Save(ctx, tx, product); err != nil {
-			return false, false, 0, 0, fmt.Errorf("save product %s: %w", p.plu, err)
-		}
-		if err := s.BarcodeRepository.SaveBatch(ctx, tx, product.ProductID, p.codes); err != nil {
-			return false, false, 0, 0, fmt.Errorf("save barcodes %s: %w", p.plu, err)
-		}
-		return true, false, len(p.codes), 0, nil
 	}
 
-	oldCodes := make(map[string]bool, len(old.ProductBarcodes))
-	for _, c := range old.ProductBarcodes {
-		oldCodes[c] = true
+	invalid := func(p *importProduct, code string, reason string) {
+		result.InvalidRows = append(result.InvalidRows, dto.ImportInvalidRow{
+			File:   "barcode",
+			Line:   p.codeLine(code),
+			PLU:    p.plu,
+			Reason: reason,
+		})
+		p.removeCode(code)
 	}
-	newCodes := make(map[string]bool, len(p.codes))
-	for _, c := range p.codes {
-		newCodes[c] = true
+
+	for code, plus := range candidates {
+		owner, hasOwner := ownerByCode[code]
+
+		if len(plus) == 1 {
+			plu := plus[0]
+			p := byPLU[plu]
+			if !hasOwner || plu == owner {
+				continue
+			}
+			ownerProduct, ownerInFile := byPLU[owner]
+			if ownerInFile && !ownerProduct.hasCode(code) {
+				continue // valid transfer
+			}
+			invalid(p, code, "barcode already used by another product in this session")
+			continue
+		}
+
+		ownerKeeps := false
+		if hasOwner {
+			if ownerProduct, ok := byPLU[owner]; ok && ownerProduct.hasCode(code) {
+				ownerKeeps = true
+			}
+		}
+
+		for _, plu := range plus {
+			if ownerKeeps && plu == owner {
+				continue
+			}
+			reason := "barcode claimed by multiple products"
+			if ownerKeeps {
+				reason = "barcode already used by another product in this session"
+			}
+			invalid(byPLU[plu], code, reason)
+		}
 	}
-	for c := range newCodes {
-		if !oldCodes[c] {
+}
+
+func toSet(codes []string) map[string]bool {
+	set := make(map[string]bool, len(codes))
+	for _, c := range codes {
+		set[c] = true
+	}
+	return set
+}
+
+func diffSets(oldSet, newSet map[string]bool) (added int, removed int) {
+	for c := range newSet {
+		if !oldSet[c] {
 			added++
 		}
 	}
-	for c := range oldCodes {
-		if !newCodes[c] {
+	for c := range oldSet {
+		if !newSet[c] {
 			removed++
 		}
 	}
-	barcodesChanged := added > 0 || removed > 0
-
-	fieldsChanged := old.ProductName != p.name ||
-		old.ProductDepartmentCode != p.dept ||
-		old.ProductBuyPrice != p.buy ||
-		old.ProductSellPrice != p.sell
-
-	// Any master change (including the barcode set, which is part of
-	// /products/sync responses) must bump updatedat so mobile
-	// incremental sync picks it up.
-	if fieldsChanged || barcodesChanged {
-		old.ProductName = p.name
-		old.ProductDepartmentCode = p.dept
-		old.ProductBuyPrice = p.buy
-		old.ProductSellPrice = p.sell
-		if err := s.ProductRepository.Update(ctx, tx, old); err != nil {
-			return false, false, 0, 0, fmt.Errorf("update product %s: %w", p.plu, err)
-		}
-	}
-	if barcodesChanged {
-		if err := s.BarcodeRepository.Replace(ctx, tx, old.ProductID, p.codes); err != nil {
-			return false, false, 0, 0, fmt.Errorf("replace barcodes %s: %w", p.plu, err)
-		}
-	}
-	return false, fieldsChanged || barcodesChanged, added, removed, nil
+	return added, removed
 }
 
 type importBarcodeLine struct {
@@ -245,8 +380,9 @@ func parseProdukFile(data []byte) ([]*importProduct, []dto.ImportInvalidRow) {
 		plu, _ := row.StringValueByName("PLU")
 		name, _ := row.StringValueByName("NAMABRG")
 		dept, _ := row.StringValueByName("KODE_DPT")
-		buy, buyErr := row.FloatValueByName("HRG_JUAL")
-		sell, sellErr := row.FloatValueByName("RP_BELI")
+		// Legacy names: HRG_JUAL is the selling price, RP_BELI the purchase price.
+		sell, sellErr := row.FloatValueByName("HRG_JUAL")
+		buy, buyErr := row.FloatValueByName("RP_BELI")
 
 		reject := func(reason string) {
 			invalid = append(invalid, dto.ImportInvalidRow{File: "produk", Line: line, PLU: plu, Reason: reason})
@@ -272,10 +408,10 @@ func parseProdukFile(data []byte) ([]*importProduct, []dto.ImportInvalidRow) {
 			reject("department code longer than 10 characters")
 			continue
 		case buyErr != nil:
-			reject("invalid HRG_JUAL")
+			reject("invalid RP_BELI")
 			continue
 		case sellErr != nil:
-			reject("invalid RP_BELI")
+			reject("invalid HRG_JUAL")
 			continue
 		case buy < 0 || sell < 0:
 			reject("negative price")

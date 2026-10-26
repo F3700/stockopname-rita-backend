@@ -7,16 +7,17 @@ import (
 )
 
 type ImportService interface {
-	// Import upserts master data from a PRODUK.DBF + BARCODE.DBF pair.
-	// It is idempotent: re-importing the same files changes nothing.
+	// Import upserts master data from a PRODUK.DBF + BARCODE.DBF pair for one
+	// session. It is idempotent: re-importing the same files changes nothing.
 	// When dryRun is true nothing is written.
-	Import(ctx context.Context, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error)
+	Import(ctx context.Context, sesiId int, produkData []byte, barcodeData []byte, dryRun bool) (dto.ImportResultResponse, error)
 }
 
-func NewImportService(productRepository repository.ProductRepository, barcodeRepository repository.BarcodeRepository, pool repository.DBPool) ImportService {
+func NewImportService(productRepository repository.ProductRepository, barcodeRepository repository.BarcodeRepository, sesiRepository repository.SesiRepository, pool repository.DBPool) ImportService {
 	return &ImportServiceImpl{
 		ProductRepository: productRepository,
 		BarcodeRepository: barcodeRepository,
+		SesiRepository:    sesiRepository,
 		Pool:              pool,
 	}
 }

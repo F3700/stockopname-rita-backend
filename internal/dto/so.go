@@ -6,7 +6,6 @@ type StockOpnameResponse struct {
 	Name            string `json:"product_name"`
 	Quantity        int    `json:"quantity"`
 	RackName        string `json:"rak_name"`
-	InspectorCode   string `json:"inspector_code"`
 	CoordinatorCode string `json:"coor_code"`
 	UpdatedAt       string `json:"updatedAt"`
 }
@@ -22,7 +21,6 @@ type StockOpnameExportResponse struct {
 	SellPrice       float64 `json:"sell_price"`
 	Quantity        int     `json:"quantity"`
 	RackName        string  `json:"rak_name"`
-	InspectorCode   string  `json:"inspector_code"`
 	CoordinatorCode string  `json:"coor_code"`
 	UpdatedAt       string  `json:"updatedAt"`
 }
@@ -30,17 +28,13 @@ type StockOpnameExportResponse struct {
 // CreateStockOpnameRequest identifies the product by Barcode (scanned)
 // or PLU (catalog pick). At least one of them is required.
 type CreateStockOpnameRequest struct {
-	Quantity int    `json:"quantity" validate:"required"`
+	// Pointer so a missing quantity is rejected while a real zero count is allowed.
+	Quantity *int   `json:"quantity" validate:"required,gte=0"`
 	Barcode  string `json:"barcode"`
 	PLU      string `json:"plu"`
 	RakID    int    `json:"rak_id" validate:"required"`
 }
 
 type UpdateStockOpnameRequest struct {
-	Quantity int `json:"quantity" validate:"required"`
-}
-
-type CreateStockOpnameByRackRequest struct {
-	RackID int                        `json:"rak_id" validate:"required"`
-	Items  []CreateStockOpnameRequest `json:"so_products" validate:"required"`
+	Quantity *int `json:"quantity" validate:"required,gte=0"`
 }

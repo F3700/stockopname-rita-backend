@@ -1,43 +1,13 @@
 -- ============================================
--- SCHEMA: Stock Opname Rita (master data redesign)
+-- SCHEMA: Stock Opname Rita (master produk per sesi)
 --
--- product  : master dari sistem legacy (PLU sebagai business key)
--- barcode  : 1 produk dapat memiliki N barcode
+-- sesi         : satu tempat/sesi stock opname
+-- product      : master milik sesi; PLU unik per sesi
+-- barcode      : 1 produk dapat memiliki N barcode; kode unik per sesi
 -- stock_opname : histori immutable, memakai SNAPSHOT produk
 --                (tanpa FK ke product agar tetap terbaca
 --                walau master berubah / dihapus / di-clear)
 -- ============================================
-
-CREATE TABLE product (
-    product_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    product_plu VARCHAR(10) NOT NULL UNIQUE,
-    product_name VARCHAR(150) NOT NULL,
-    product_department_code VARCHAR(10) NOT NULL,
-    product_buyprice NUMERIC(15,2) NOT NULL CHECK (product_buyprice >= 0),
-    product_sellprice NUMERIC(15,2) NOT NULL CHECK (product_sellprice >= 0),
-    product_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    product_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
-CREATE INDEX idx_product_updatedat ON product(product_updatedat);
-CREATE INDEX idx_product_name ON product(product_name);
-CREATE INDEX idx_product_dept ON product(product_department_code);
-
-
-CREATE TABLE barcode (
-    barcode_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    barcode_product_id INTEGER NOT NULL,
-    barcode_code VARCHAR(15) NOT NULL UNIQUE,
-    barcode_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-
-    CONSTRAINT fk_barcode_product
-        FOREIGN KEY (barcode_product_id)
-        REFERENCES product(product_id)
-        ON DELETE CASCADE
-);
-
-CREATE INDEX idx_barcode_product ON barcode(barcode_product_id);
-
 
 CREATE TABLE sesi (
     sesi_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -64,6 +34,53 @@ CREATE TABLE sesi (
 );
 
 
+CREATE TABLE product (
+    product_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    product_sesi_id INTEGER NOT NULL,
+    product_plu VARCHAR(10) NOT NULL,
+    product_name VARCHAR(150) NOT NULL,
+    product_department_code VARCHAR(10) NOT NULL,
+    product_buyprice NUMERIC(15,2) NOT NULL CHECK (product_buyprice >= 0),
+    product_sellprice NUMERIC(15,2) NOT NULL CHECK (product_sellprice >= 0),
+    product_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    product_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT fk_product_sesi
+        FOREIGN KEY (product_sesi_id)
+        REFERENCES sesi(sesi_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_product_sesi_plu
+        UNIQUE (product_sesi_id, product_plu),
+
+    -- Dipakai composite FK barcode.
+    CONSTRAINT uq_product_sesi_product
+        UNIQUE (product_sesi_id, product_id)
+);
+
+CREATE INDEX idx_product_name ON product(product_name);
+CREATE INDEX idx_product_dept ON product(product_department_code);
+
+
+CREATE TABLE barcode (
+    barcode_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    barcode_sesi_id INTEGER NOT NULL,
+    barcode_product_id INTEGER NOT NULL,
+    barcode_code VARCHAR(15) NOT NULL,
+    barcode_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    CONSTRAINT uq_barcode_sesi_code
+        UNIQUE (barcode_sesi_id, barcode_code),
+
+    CONSTRAINT fk_barcode_sesi_product
+        FOREIGN KEY (barcode_sesi_id, barcode_product_id)
+        REFERENCES product(product_sesi_id, product_id)
+        ON DELETE CASCADE
+);
+
+CREATE INDEX idx_barcode_product ON barcode(barcode_product_id);
+
+
 CREATE TABLE coordinator (
     coor_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     coor_code VARCHAR(20) NOT NULL,
@@ -79,50 +96,51 @@ CREATE TABLE coordinator (
     CONSTRAINT fk_coordinator_sesi
         FOREIGN KEY (coor_sesi_id)
         REFERENCES sesi(sesi_id)
-        ON DELETE RESTRICT,
+        ON DELETE CASCADE,
 
     CONSTRAINT uq_coordinator_sesi_code
         UNIQUE (coor_sesi_id, coor_code)
 );
 
 
-CREATE TABLE inspector (
-    inspector_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    inspector_code VARCHAR(20) NOT NULL,
-    inspector_startedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    inspector_endedat TIMESTAMPTZ,
-    inspector_coor_id INTEGER NOT NULL,
+CREATE TABLE upload (
+    upload_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    upload_coor_id INTEGER NOT NULL,
+    upload_createdat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
-    CONSTRAINT fk_inspector_coordinator
-        FOREIGN KEY (inspector_coor_id)
+    CONSTRAINT fk_upload_coordinator
+        FOREIGN KEY (upload_coor_id)
         REFERENCES coordinator(coor_id)
-        ON DELETE RESTRICT,
-
-    CONSTRAINT uq_inspector_coor_code
-        UNIQUE (inspector_coor_id, inspector_code),
-
-    CONSTRAINT chk_inspector_time
-        CHECK (
-            inspector_endedat IS NULL
-            OR inspector_endedat >= inspector_startedat
-        )
+        ON DELETE CASCADE
 );
+
+CREATE INDEX idx_upload_coor ON upload(upload_coor_id);
 
 
 CREATE TABLE rak (
     rak_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     rak_name VARCHAR(15) NOT NULL,
     rak_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    rak_inspector_id INTEGER NOT NULL,
+    rak_coor_id INTEGER NOT NULL,
+    rak_upload_id INTEGER,
+    -- Snapshot item saat submit. Dipakai PDF; tidak berubah oleh koreksi web.
+    rak_upload_snapshot JSONB NOT NULL DEFAULT '[]'::jsonb,
 
-    CONSTRAINT fk_rak_inspector
-        FOREIGN KEY (rak_inspector_id)
-        REFERENCES inspector(inspector_id)
-        ON DELETE RESTRICT,
+    CONSTRAINT fk_rak_coordinator
+        FOREIGN KEY (rak_coor_id)
+        REFERENCES coordinator(coor_id)
+        ON DELETE CASCADE,
 
-    CONSTRAINT uq_rak_inspector_name
-        UNIQUE (rak_inspector_id, rak_name)
+    CONSTRAINT fk_rak_upload
+        FOREIGN KEY (rak_upload_id)
+        REFERENCES upload(upload_id)
+        ON DELETE CASCADE,
+
+    CONSTRAINT uq_rak_coor_name
+        UNIQUE (rak_coor_id, rak_name)
 );
+
+CREATE INDEX idx_rak_upload ON rak(rak_upload_id);
 
 
 CREATE TABLE stock_opname (
@@ -143,7 +161,7 @@ CREATE TABLE stock_opname (
     CONSTRAINT fk_stock_opname_rak
         FOREIGN KEY (stock_opname_rak_id)
         REFERENCES rak(rak_id)
-        ON DELETE RESTRICT,
+        ON DELETE CASCADE,
 
     CONSTRAINT uq_stock_opname_rak_plu
         UNIQUE (
@@ -151,12 +169,6 @@ CREATE TABLE stock_opname (
             so_product_plu
         )
 );
-
-CREATE TABLE deleted_product (
-    product_plu VARCHAR(10) NOT NULL PRIMARY KEY,
-    deleted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
 
 
 CREATE OR REPLACE FUNCTION sync_sesi_endedat()
@@ -180,10 +192,6 @@ CREATE TRIGGER trg_sync_sesi_endedat
 BEFORE UPDATE OF sesi_status ON sesi
 FOR EACH ROW
 EXECUTE FUNCTION sync_sesi_endedat();
-
-
-
-
 
 
 CREATE OR REPLACE FUNCTION update_sesi_status(
@@ -214,43 +222,37 @@ END;
 $$;
 
 
-
-
+CREATE OR REPLACE FUNCTION recalc_coordinator_status(p_coor_id INTEGER)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE coordinator c
+    SET coor_status = 'IN_REVIEW'
+    WHERE c.coor_id = p_coor_id
+      AND c.coor_status = 'IN_PROGRESS'
+      AND EXISTS (SELECT 1 FROM rak r WHERE r.rak_coor_id = c.coor_id)
+      AND NOT EXISTS (
+          SELECT 1
+          FROM rak r
+          WHERE r.rak_coor_id = c.coor_id
+            AND NOT EXISTS (
+                SELECT 1
+                FROM stock_opname so
+                WHERE so.stock_opname_rak_id = r.rak_id
+            )
+      );
+END;
+$$ LANGUAGE plpgsql;
 
 
 CREATE OR REPLACE FUNCTION sync_coordinator_status()
 RETURNS TRIGGER AS $$
 BEGIN
 
-    UPDATE coordinator c
-    SET coor_status = 'IN_REVIEW'
-    WHERE c.coor_id = (
-        SELECT i.inspector_coor_id
+    PERFORM recalc_coordinator_status((
+        SELECT r.rak_coor_id
         FROM rak r
-        JOIN inspector i
-            ON i.inspector_id = r.rak_inspector_id
         WHERE r.rak_id = NEW.stock_opname_rak_id
-    )
-    AND c.coor_status = 'IN_PROGRESS'
-    AND EXISTS (
-    SELECT 1
-    FROM rak r
-    JOIN inspector i
-        ON i.inspector_id = r.rak_inspector_id
-    WHERE i.inspector_coor_id = c.coor_id
-    )
-    AND NOT EXISTS (
-        SELECT 1
-        FROM rak r
-        JOIN inspector i
-            ON i.inspector_id = r.rak_inspector_id
-        WHERE i.inspector_coor_id = c.coor_id
-        AND NOT EXISTS (
-            SELECT 1
-            FROM stock_opname so
-            WHERE so.stock_opname_rak_id = r.rak_id
-        )
-    );
+    ));
 
     RETURN NEW;
 END;

@@ -4,6 +4,7 @@ import "time"
 
 type Product struct {
 	ProductID             int       `json:"product_id"`
+	ProductSesiID         int       `json:"product_sesi_id"`
 	ProductPLU            string    `json:"product_plu"`
 	ProductName           string    `json:"product_name"`
 	ProductDepartmentCode string    `json:"department_code"`
@@ -15,8 +16,10 @@ type Product struct {
 	ProductBarcodes []string `json:"barcodes"`
 }
 
-// PrimaryBarcode returns the first barcode (insertion order) or "".
-func (p *Product) PrimaryBarcode() string {
+// FirstBarcode returns the first barcode (insertion order) or "".
+// It is only a deterministic fallback for snapshots when a product is
+// selected by PLU; barcodes are otherwise a set with equal standing.
+func (p *Product) FirstBarcode() string {
 	if len(p.ProductBarcodes) == 0 {
 		return ""
 	}

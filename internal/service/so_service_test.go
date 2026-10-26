@@ -17,7 +17,6 @@ func soSummaryModel() *model.StockOpnameSummary {
 		Name:            "Sari Roti",
 		Quantity:        10,
 		RackName:        "R1",
-		InspectorCode:   "INSP-01",
 		CoordinatorCode: "KOR-01",
 		UpdatedAt:       time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC),
 	}
@@ -31,7 +30,7 @@ func TestStockOpnameFindAll(t *testing.T) {
 			}
 			return []*model.StockOpnameSummary{soSummaryModel()}, 1, nil
 		},
-	}, &fakeProductRepository{}, nil, newTestValidator(t))
+	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))
 
 	pagination := &dto.Pagination{Page: 1, Limit: 10}
 	responses, err := svc.FindAll(context.Background(), pagination, "roti", nil, nil)
@@ -51,7 +50,7 @@ func TestStockOpnameFindAllRepoError(t *testing.T) {
 		findAllFunc: func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
 			return nil, 0, errors.New("boom")
 		},
-	}, &fakeProductRepository{}, nil, newTestValidator(t))
+	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))
 
 	_, err := svc.FindAll(context.Background(), &dto.Pagination{Page: 1, Limit: 10}, "", nil, nil)
 	if err == nil {
@@ -66,10 +65,10 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 				t.Errorf("expected sesi 3, got %d", sesiId)
 			}
 			return []*model.StockOpnameExport{
-				{Id: 7, Barcode: "8991001010016", Name: "Sari Roti", BuyPrice: 14500, SellPrice: 17200, Quantity: 10, RackName: "R1", InspectorCode: "INSP-01", CoordinatorCode: "KOR-01", UpdatedAt: time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)},
+				{Id: 7, Barcode: "8991001010016", Name: "Sari Roti", BuyPrice: 14500, SellPrice: 17200, Quantity: 10, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)},
 			}, nil
 		},
-	}, &fakeProductRepository{}, nil, newTestValidator(t))
+	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))
 
 	responses, err := svc.FindAllForExport(context.Background(), 3)
 	if err != nil {
@@ -77,5 +76,31 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	}
 	if len(responses) != 1 || responses[0].BuyPrice != 14500 || responses[0].SellPrice != 17200 {
 		t.Errorf("unexpected responses %+v", responses)
+	}
+}
+
+func TestStockOpnameQuantityValidation(t *testing.T) {
+	validate := newTestValidator(t)
+
+	tests := []struct {
+		name    string
+		request any
+		wantErr bool
+	}{
+		{"zero create", dto.CreateStockOpnameRequest{Quantity: intPtr(0), Barcode: "x", RakID: 1}, false},
+		{"missing create", dto.CreateStockOpnameRequest{Barcode: "x", RakID: 1}, true},
+		{"negative create", dto.CreateStockOpnameRequest{Quantity: intPtr(-1), Barcode: "x", RakID: 1}, true},
+		{"zero update", dto.UpdateStockOpnameRequest{Quantity: intPtr(0)}, false},
+		{"missing update", dto.UpdateStockOpnameRequest{}, true},
+		{"negative update", dto.UpdateStockOpnameRequest{Quantity: intPtr(-1)}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := validate.Struct(tt.request)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("validation error = %v, wantErr %v", err, tt.wantErr)
+			}
+		})
 	}
 }

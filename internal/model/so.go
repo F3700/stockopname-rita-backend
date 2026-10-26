@@ -23,17 +23,8 @@ type StockOpnameSummary struct {
 	Name            string    `json:"product_name"`
 	Quantity        int       `json:"quantity"`
 	RackName        string    `json:"rak_name"`
-	InspectorCode   string    `json:"inspector_code"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
-}
-
-type ProductLastSession struct {
-	Id              int        `json:"id"`
-	Barcode         string     `json:"barcode"`
-	Name            string     `json:"name"`
-	LastSessionDate *time.Time `json:"last_session_date"`
-	LastSessionCode string     `json:"last_session_code"`
 }
 
 // StockOpnameExport is the denormalized row used for session exports.
@@ -47,7 +38,6 @@ type StockOpnameExport struct {
 	SellPrice       float64   `json:"sell_price"`
 	Quantity        int       `json:"quantity"`
 	RackName        string    `json:"rak_name"`
-	InspectorCode   string    `json:"inspector_code"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }

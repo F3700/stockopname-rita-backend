@@ -120,6 +120,62 @@ func TestSesiFindByIdNotFound(t *testing.T) {
 	}
 }
 
+func TestSesiFindByIdForShare(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	started := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(
+		pgxmock.NewRows([]string{"sesi_id", "sesi_location", "sesi_code", "sesi_status", "sesi_startedat", "sesi_endedat"}).
+			AddRow(1, "Gudang A", "SESI-01", "IN_PROGRESS", started, nil),
+	)
+
+	repo := NewSesiRepository(mock)
+	got, err := repo.FindByIdForShare(context.Background(), tx, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.SesiID != 1 || got.SesiStatus != "IN_PROGRESS" {
+		t.Errorf("unexpected result %+v", got)
+	}
+}
+
+func TestSesiFindByIdForUpdate(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	started := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("FOR UPDATE").WithArgs(1).WillReturnRows(
+		pgxmock.NewRows([]string{"sesi_id", "sesi_location", "sesi_code", "sesi_status", "sesi_startedat", "sesi_endedat"}).
+			AddRow(1, "Gudang A", "SESI-01", "IN_PROGRESS", started, nil),
+	)
+
+	repo := NewSesiRepository(mock)
+	got, err := repo.FindByIdForUpdate(context.Background(), tx, 1)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.SesiID != 1 {
+		t.Errorf("unexpected result %+v", got)
+	}
+}
+
+func TestSesiFindByIdForShareNotFound(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("FOR SHARE").WithArgs(99).WillReturnRows(
+		pgxmock.NewRows([]string{"sesi_id", "sesi_location", "sesi_code", "sesi_status", "sesi_startedat", "sesi_endedat"}),
+	)
+
+	repo := NewSesiRepository(mock)
+	_, err := repo.FindByIdForShare(context.Background(), tx, 99)
+	if err == nil {
+		t.Fatal("expected error, got nil")
+	}
+	var notFound *model.NotFoundError
+	if !errors.As(err, &notFound) {
+		t.Errorf("expected NotFoundError, got %T: %v", err, err)
+	}
+}
+
 func TestSesiSave(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)

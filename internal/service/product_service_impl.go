@@ -13,20 +13,20 @@ import (
 )
 
 type ProductServiceImpl struct {
-	ProductRepository        repository.ProductRepository
-	BarcodeRepository        repository.BarcodeRepository
-	DeletedProductRepository repository.DeletedProductRepository
-	Pool                     repository.DBPool
-	Validator                *validator.Validate
+	ProductRepository repository.ProductRepository
+	BarcodeRepository repository.BarcodeRepository
+	SesiRepository    repository.SesiRepository
+	Pool              repository.DBPool
+	Validator         *validator.Validate
 }
 
-func NewProductService(productRepository repository.ProductRepository, barcodeRepository repository.BarcodeRepository, deletedProductRepository repository.DeletedProductRepository, pool repository.DBPool, validator *validator.Validate) ProductService {
+func NewProductService(productRepository repository.ProductRepository, barcodeRepository repository.BarcodeRepository, sesiRepository repository.SesiRepository, pool repository.DBPool, validator *validator.Validate) ProductService {
 	return &ProductServiceImpl{
-		ProductRepository:        productRepository,
-		BarcodeRepository:        barcodeRepository,
-		DeletedProductRepository: deletedProductRepository,
-		Pool:                     pool,
-		Validator:                validator,
+		ProductRepository: productRepository,
+		BarcodeRepository: barcodeRepository,
+		SesiRepository:    sesiRepository,
+		Pool:              pool,
+		Validator:         validator,
 	}
 }
 
@@ -38,7 +38,6 @@ func toProductResponse(product *model.Product) dto.ProductResponse {
 	return dto.ProductResponse{
 		Id:             product.ProductID,
 		PLU:            product.ProductPLU,
-		Barcode:        product.PrimaryBarcode(),
 		Barcodes:       barcodes,
 		Name:           product.ProductName,
 		BuyPrice:       product.ProductBuyPrice,
@@ -61,7 +60,16 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 	}
 	defer tx.Rollback(ctx)
 
+	sesi, err := p.SesiRepository.FindByIdForShare(ctx, tx, req.SesiID)
+	if err != nil {
+		return dto.ProductResponse{}, err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return dto.ProductResponse{}, err
+	}
+
 	product := model.Product{
+		ProductSesiID:         req.SesiID,
 		ProductPLU:            req.PLU,
 		ProductName:           req.Name,
 		ProductDepartmentCode: req.DepartmentCode,
@@ -74,7 +82,7 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 	}
 
 	if len(req.Barcodes) > 0 {
-		if err := p.BarcodeRepository.SaveBatch(ctx, tx, product.ProductID, req.Barcodes); err != nil {
+		if err := p.BarcodeRepository.SaveBatch(ctx, tx, req.SesiID, product.ProductID, req.Barcodes); err != nil {
 			return dto.ProductResponse{}, fmt.Errorf("save barcodes: %w", err)
 		}
 	}
@@ -92,25 +100,31 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 }
 
 // Delete implements [ProductService].
-func (p *ProductServiceImpl) Delete(ctx context.Context, id int) error {
+func (p *ProductServiceImpl) Delete(ctx context.Context, id int, sesiId int) error {
 	tx, err := p.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
+	sesi, err := p.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	if err != nil {
+		return err
+	}
+
 	product, err := p.ProductRepository.FindById(ctx, tx, id)
 	if err != nil {
-		return fmt.Errorf("find product id %d: %w", id, err)
+		return err
+	}
+	if product.ProductSesiID != sesiId {
+		return &model.NotFoundError{Resource: "Product", ID: id}
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return err
 	}
 
 	if err := p.ProductRepository.Delete(ctx, tx, id); err != nil {
 		return fmt.Errorf("delete product id %d: %w", id, err)
-	}
-
-	//tambahin plu yang udah di delete ke table deleted product pake repository deleted product
-	if err := p.DeletedProductRepository.Save(ctx, tx, product.ProductPLU); err != nil {
-		return fmt.Errorf("save deleted product: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -121,17 +135,25 @@ func (p *ProductServiceImpl) Delete(ctx context.Context, id int) error {
 }
 
 // Clear implements [ProductService].
-// It removes ALL master data. Stock opname history is untouched
+// It removes all products of one session. Stock opname history is untouched
 // (snapshot columns, no FK to product).
-func (p *ProductServiceImpl) Clear(ctx context.Context) error {
+func (p *ProductServiceImpl) Clear(ctx context.Context, sesiId int) error {
 	tx, err := p.Pool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("begin transaction: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	if err := p.ProductRepository.Clear(ctx, tx); err != nil {
-		return fmt.Errorf("clear master data: %w", err)
+	sesi, err := p.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	if err != nil {
+		return err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return err
+	}
+
+	if err := p.ProductRepository.Clear(ctx, tx, sesiId); err != nil {
+		return fmt.Errorf("clear products: %w", err)
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -142,10 +164,14 @@ func (p *ProductServiceImpl) Clear(ctx context.Context) error {
 }
 
 // FindAll implements [ProductService].
-func (p *ProductServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
+func (p *ProductServiceImpl) FindAll(ctx context.Context, sesiId int, pagination *dto.Pagination, search string) ([]dto.ProductResponse, error) {
+	if _, err := p.SesiRepository.FindById(ctx, sesiId); err != nil {
+		return nil, err
+	}
+
 	offset := (pagination.Page - 1) * pagination.Limit
 
-	products, total, err := p.ProductRepository.FindAllInPageSearch(ctx, pagination.Limit, offset, search)
+	products, total, err := p.ProductRepository.FindAllInPageSearch(ctx, sesiId, pagination.Limit, offset, search)
 	if err != nil {
 		return nil, fmt.Errorf("find all products: %w", err)
 	}
@@ -161,28 +187,8 @@ func (p *ProductServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagina
 	return responses, nil
 }
 
-// FindAllUpdatedAfter implements [ProductService].
-func (p *ProductServiceImpl) FindAllUpdatedAfter(ctx context.Context, pagination *dto.Pagination, date time.Time) ([]dto.ProductResponse, error) {
-	offset := (pagination.Page - 1) * pagination.Limit
-
-	products, total, err := p.ProductRepository.FindAllUpdatedAfter(ctx, date, pagination.Limit, offset)
-	if err != nil {
-		return nil, fmt.Errorf("find all updated after %v: %w", date, err)
-	}
-
-	responses := make([]dto.ProductResponse, 0, len(products))
-	for _, product := range products {
-		responses = append(responses, toProductResponse(product))
-	}
-
-	pagination.TotalItems = total
-	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
-
-	return responses, nil
-}
-
 // Update implements [ProductService].
-func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.ProductUpdateRequest) (dto.ProductResponse, error) {
+func (p *ProductServiceImpl) Update(ctx context.Context, id int, sesiId int, req dto.ProductUpdateRequest) (dto.ProductResponse, error) {
 	if err := p.Validator.Struct(req); err != nil {
 		return dto.ProductResponse{}, err
 	}
@@ -193,9 +199,20 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 	}
 	defer tx.Rollback(ctx)
 
+	sesi, err := p.SesiRepository.FindByIdForShare(ctx, tx, sesiId)
+	if err != nil {
+		return dto.ProductResponse{}, err
+	}
+
 	product, err := p.ProductRepository.FindById(ctx, tx, id)
 	if err != nil {
-		return dto.ProductResponse{}, fmt.Errorf("find product by id %d: %w", id, err)
+		return dto.ProductResponse{}, err
+	}
+	if product.ProductSesiID != sesiId {
+		return dto.ProductResponse{}, &model.NotFoundError{Resource: "Product", ID: id}
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return dto.ProductResponse{}, err
 	}
 
 	if req.PLU != nil {
@@ -219,7 +236,7 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 	}
 
 	if req.Barcodes != nil {
-		if err := p.BarcodeRepository.Replace(ctx, tx, id, *req.Barcodes); err != nil {
+		if err := p.BarcodeRepository.Replace(ctx, tx, sesiId, id, *req.Barcodes); err != nil {
 			return dto.ProductResponse{}, fmt.Errorf("replace barcodes product %d: %w", id, err)
 		}
 	}
@@ -234,30 +251,4 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, req dto.Product
 	}
 
 	return toProductResponse(updatedProduct), nil
-}
-
-// FindAllLastSession implements [ProductService].
-func (p *ProductServiceImpl) FindAllLastSession(ctx context.Context, limit int) ([]dto.ProductLastSessionResponse, error) {
-	results, err := p.ProductRepository.FindAllLastSession(ctx, limit)
-	if err != nil {
-		return nil, fmt.Errorf("find all last session: %w", err)
-	}
-
-	var responses []dto.ProductLastSessionResponse
-	for _, item := range results {
-		var lastSessionDate string
-		if item.LastSessionDate != nil {
-			lastSessionDate = item.LastSessionDate.Format(time.RFC3339)
-		}
-
-		responses = append(responses, dto.ProductLastSessionResponse{
-			Id:              item.Id,
-			Barcode:         item.Barcode,
-			Name:            item.Name,
-			LastSessionDate: lastSessionDate,
-			LastSessionCode: item.LastSessionCode,
-		})
-	}
-
-	return responses, nil
 }

@@ -14,12 +14,12 @@ func TestCoordinatorFindByIdDetail(t *testing.T) {
 				t.Errorf("expected id 5, got %d", id)
 			}
 			return &model.CoordinatorDetail{
-				CoordinatorSummary: model.CoordinatorSummary{ID: 5, Code: "KOR-05", Inspector: 1, RackAssigned: 2, RackCompleted: 1, Status: "IN_PROGRESS"},
+				CoordinatorSummary: model.CoordinatorSummary{ID: 5, Code: "KOR-05", RackAssigned: 2, RackCompleted: 1, Status: "IN_PROGRESS"},
 				SessionCode:        "SESI-01",
 				SessionLocation:    "Gudang A",
 			}, nil
 		},
-	}, nil)
+	}, nil, nil, nil, nil)
 
 	res, err := svc.FindByIdDetail(context.Background(), 5)
 	if err != nil {

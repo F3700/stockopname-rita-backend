@@ -9,6 +9,8 @@ import (
 
 type SesiRepository interface {
 	FindById(ctx context.Context, id int) (*model.Sesi, error)
+	FindByIdForShare(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error)
+	FindByIdForUpdate(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error)
 	FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Sesi, int, error)
 	Save(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error
 	Update(ctx context.Context, tx pgx.Tx, sesi *model.Sesi) error

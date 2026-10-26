@@ -2,10 +2,8 @@ package repository
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"stockopname-rita-backend/internal/model"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -27,6 +25,7 @@ type querier interface {
 
 const productColumns = `
 	p.product_id,
+	p.product_sesi_id,
 	p.product_plu,
 	p.product_name,
 	p.product_department_code,
@@ -40,6 +39,7 @@ func scanProduct(row pgx.Row) (*model.Product, error) {
 	var product model.Product
 	err := row.Scan(
 		&product.ProductID,
+		&product.ProductSesiID,
 		&product.ProductPLU,
 		&product.ProductName,
 		&product.ProductDepartmentCode,
@@ -107,13 +107,25 @@ func (p *ProductRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id int) e
 }
 
 // Clear implements [ProductRepository].
-func (p *ProductRepositoryImpl) Clear(ctx context.Context, tx pgx.Tx) error {
-	const SQL = `TRUNCATE product, barcode, deleted_product RESTART IDENTITY`
-	_, err := tx.Exec(ctx, SQL)
+func (p *ProductRepositoryImpl) Clear(ctx context.Context, tx pgx.Tx, sesiId int) error {
+	const SQL = `DELETE FROM product WHERE product_sesi_id = $1`
+	_, err := tx.Exec(ctx, SQL, sesiId)
 	return err
 }
 
+// CountBySesi implements [ProductRepository].
+func (p *ProductRepositoryImpl) CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error) {
+	const SQL = `SELECT COUNT(*) FROM product WHERE product_sesi_id = $1`
+	var total int
+	if err := tx.QueryRow(ctx, SQL, sesiId).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
 // FindById implements [ProductRepository].
+// product_id is globally unique; callers that need session isolation must
+// check ProductSesiID after loading.
 func (p *ProductRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error) {
 	const SQL = `
 		SELECT ` + productColumns + `
@@ -137,17 +149,18 @@ func (p *ProductRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id int)
 }
 
 // FindByPLU implements [ProductRepository].
-func (p *ProductRepositoryImpl) FindByPLU(ctx context.Context, tx pgx.Tx, plu string) (*model.Product, error) {
+func (p *ProductRepositoryImpl) FindByPLU(ctx context.Context, tx pgx.Tx, sesiId int, plu string) (*model.Product, error) {
 	const SQL = `
 		SELECT ` + productColumns + `
 		FROM product p
-		WHERE p.product_plu = $1
+		WHERE p.product_sesi_id = $1
+		  AND p.product_plu = $2
 	`
 
-	product, err := scanProduct(tx.QueryRow(ctx, SQL, plu))
+	product, err := scanProduct(tx.QueryRow(ctx, SQL, sesiId, plu))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &model.NotFoundError{Resource: "Product", Detail: "Product with PLU " + plu + " not found"}
+			return nil, &model.NotFoundError{Resource: "Product", Detail: "Product with PLU " + plu + " not found in this session"}
 		}
 		return nil, err
 	}
@@ -160,19 +173,21 @@ func (p *ProductRepositoryImpl) FindByPLU(ctx context.Context, tx pgx.Tx, plu st
 }
 
 // FindByBarcode implements [ProductRepository].
-func (p *ProductRepositoryImpl) FindByBarcode(ctx context.Context, tx pgx.Tx, code string) (*model.Product, error) {
+func (p *ProductRepositoryImpl) FindByBarcode(ctx context.Context, tx pgx.Tx, sesiId int, code string) (*model.Product, error) {
 	const SQL = `
 		SELECT ` + productColumns + `
 		FROM product p
 		JOIN barcode b
 			ON b.barcode_product_id = p.product_id
-		WHERE b.barcode_code = $1
+		   AND b.barcode_sesi_id = p.product_sesi_id
+		WHERE b.barcode_sesi_id = $1
+		  AND b.barcode_code = $2
 	`
 
-	product, err := scanProduct(tx.QueryRow(ctx, SQL, code))
+	product, err := scanProduct(tx.QueryRow(ctx, SQL, sesiId, code))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, &model.NotFoundError{Resource: "Product", Detail: "Product with barcode " + code + " not found"}
+			return nil, &model.NotFoundError{Resource: "Product", Detail: "Product with barcode " + code + " not found in this session"}
 		}
 		return nil, err
 	}
@@ -185,14 +200,15 @@ func (p *ProductRepositoryImpl) FindByBarcode(ctx context.Context, tx pgx.Tx, co
 }
 
 // FindAllForImport implements [ProductRepository].
-func (p *ProductRepositoryImpl) FindAllForImport(ctx context.Context, tx pgx.Tx) ([]*model.Product, error) {
+func (p *ProductRepositoryImpl) FindAllForImport(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.Product, error) {
 	const SQL = `
 		SELECT ` + productColumns + `
 		FROM product p
+		WHERE p.product_sesi_id = $1
 		ORDER BY p.product_id
 	`
 
-	rows, err := tx.Query(ctx, SQL)
+	rows, err := tx.Query(ctx, SQL, sesiId)
 	if err != nil {
 		return nil, err
 	}
@@ -216,23 +232,26 @@ func (p *ProductRepositoryImpl) FindAllForImport(ctx context.Context, tx pgx.Tx)
 	return products, nil
 }
 
-func (p *ProductRepositoryImpl) FindAllInPageSearch(ctx context.Context, limit int, offset int, search string) ([]*model.Product, int, error) {
+func (p *ProductRepositoryImpl) FindAllInPageSearch(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error) {
 	const SQL = `
 		SELECT ` + productColumns + `
 		FROM product p
-		WHERE p.product_plu ILIKE $1
-			OR p.product_name ILIKE $1
-			OR p.product_department_code ILIKE $1
+		WHERE p.product_sesi_id = $1
+		AND (
+			p.product_plu ILIKE $2
+			OR p.product_name ILIKE $2
+			OR p.product_department_code ILIKE $2
 			OR EXISTS (
 				SELECT 1 FROM barcode b
 				WHERE b.barcode_product_id = p.product_id
-				  AND b.barcode_code ILIKE $1
+				  AND b.barcode_code ILIKE $2
 			)
+		)
 		ORDER BY p.product_id DESC
-		LIMIT $2 OFFSET $3
+		LIMIT $3 OFFSET $4
 	`
 
-	rows, err := p.pool.Query(ctx, SQL, "%"+search+"%", limit, offset)
+	rows, err := p.pool.Query(ctx, SQL, sesiId, "%"+search+"%", limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -254,55 +273,19 @@ func (p *ProductRepositoryImpl) FindAllInPageSearch(ctx context.Context, limit i
 	countSQL := `
 		SELECT COUNT(*)
 		FROM product p
-		WHERE p.product_plu ILIKE $1
-			OR p.product_name ILIKE $1
-			OR p.product_department_code ILIKE $1
+		WHERE p.product_sesi_id = $1
+		AND (
+			p.product_plu ILIKE $2
+			OR p.product_name ILIKE $2
+			OR p.product_department_code ILIKE $2
 			OR EXISTS (
 				SELECT 1 FROM barcode b
 				WHERE b.barcode_product_id = p.product_id
-				  AND b.barcode_code ILIKE $1
+				  AND b.barcode_code ILIKE $2
 			)
+		)
 	`
-	if err := p.pool.QueryRow(ctx, countSQL, "%"+search+"%").Scan(&total); err != nil {
-		return nil, 0, err
-	}
-
-	if err := attachBarcodes(ctx, p.pool, products); err != nil {
-		return nil, 0, err
-	}
-	return products, total, nil
-}
-
-func (p *ProductRepositoryImpl) FindAllUpdatedAfter(ctx context.Context, date time.Time, limit int, offset int) ([]*model.Product, int, error) {
-	const SQL = `
-		SELECT ` + productColumns + `
-		FROM product p
-		WHERE p.product_updatedat > $1
-		ORDER BY p.product_id DESC
-		LIMIT $2 OFFSET $3
-	`
-
-	rows, err := p.pool.Query(ctx, SQL, date, limit, offset)
-	if err != nil {
-		return nil, 0, err
-	}
-	defer rows.Close()
-
-	var products []*model.Product
-	for rows.Next() {
-		product, err := scanProduct(rows)
-		if err != nil {
-			return nil, 0, err
-		}
-		products = append(products, product)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, 0, err
-	}
-
-	var total int
-	countSQL := `SELECT COUNT(*) FROM product p WHERE p.product_updatedat > $1`
-	if err := p.pool.QueryRow(ctx, countSQL, date).Scan(&total); err != nil {
+	if err := p.pool.QueryRow(ctx, countSQL, sesiId, "%"+search+"%").Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -314,9 +297,9 @@ func (p *ProductRepositoryImpl) FindAllUpdatedAfter(ctx context.Context, date ti
 
 // Save implements [ProductRepository].
 func (p *ProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, product *model.Product) error {
-	const SQL = "INSERT INTO product (product_plu, product_name, product_department_code, product_buyprice, product_sellprice) VALUES ($1, $2, $3, $4, $5) RETURNING product_id"
+	const SQL = "INSERT INTO product (product_sesi_id, product_plu, product_name, product_department_code, product_buyprice, product_sellprice) VALUES ($1, $2, $3, $4, $5, $6) RETURNING product_id"
 
-	err := tx.QueryRow(ctx, SQL, product.ProductPLU, product.ProductName, product.ProductDepartmentCode, product.ProductBuyPrice, product.ProductSellPrice).Scan(&product.ProductID)
+	err := tx.QueryRow(ctx, SQL, product.ProductSesiID, product.ProductPLU, product.ProductName, product.ProductDepartmentCode, product.ProductBuyPrice, product.ProductSellPrice).Scan(&product.ProductID)
 	if err != nil {
 		return model.MapPgError("Product", err)
 	}
@@ -335,62 +318,4 @@ func (p *ProductRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, product *
 		return &model.NotFoundError{Resource: "Product", ID: product.ProductID}
 	}
 	return nil
-}
-
-func (p *ProductRepositoryImpl) FindAllLastSession(ctx context.Context, limit int) ([]*model.ProductLastSession, error) {
-	const SQL = `
-		SELECT * FROM (
-			SELECT DISTINCT ON (p.product_id)
-				p.product_id,
-				(
-					SELECT b.barcode_code
-					FROM barcode b
-					WHERE b.barcode_product_id = p.product_id
-					ORDER BY b.barcode_id
-					LIMIT 1
-				) AS barcode,
-				p.product_name AS name,
-				s.sesi_startedat AS "lastSessionDate",
-				COALESCE(s.sesi_code, '') AS "lastSessionCode"
-			FROM product p
-			LEFT JOIN stock_opname so ON so.so_product_plu = p.product_plu
-			LEFT JOIN rak r           ON so.stock_opname_rak_id     = r.rak_id
-			LEFT JOIN inspector i     ON r.rak_inspector_id         = i.inspector_id
-			LEFT JOIN coordinator c   ON i.inspector_coor_id        = c.coor_id
-			LEFT JOIN sesi s          ON c.coor_sesi_id             = s.sesi_id
-			ORDER BY p.product_id, s.sesi_startedat DESC NULLS LAST
-		) sub
-		ORDER BY
-			CASE WHEN sub."lastSessionDate" IS NULL THEN 0 ELSE 1 END,
-			sub.product_id
-		LIMIT $1
-	`
-
-	rows, err := p.pool.Query(ctx, SQL, limit)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []*model.ProductLastSession
-	for rows.Next() {
-		var item model.ProductLastSession
-		// barcode / lastSessionDate may be NULL (products without
-		// barcode or never counted). sql.Null* keeps both pgx and
-		// pgxmock scanning happy.
-		var barcode sql.NullString
-		var lastSessionDate sql.NullTime
-		if err := rows.Scan(&item.Id, &barcode, &item.Name, &lastSessionDate, &item.LastSessionCode); err != nil {
-			return nil, err
-		}
-		if barcode.Valid {
-			item.Barcode = barcode.String
-		}
-		if lastSessionDate.Valid {
-			item.LastSessionDate = &lastSessionDate.Time
-		}
-		results = append(results, &item)
-	}
-
-	return results, nil
 }

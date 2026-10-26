@@ -3,39 +3,46 @@ package repository
 import (
 	"context"
 	"errors"
-	"testing"
-
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/pashagolub/pgxmock/v4"
+	"testing"
+	"time"
 
 	"stockopname-rita-backend/internal/model"
 )
 
 func TestRackFindAll(t *testing.T) {
 	mock := mustMockPool(t)
-	inspectorId, coordinatorId, sessionId := 1, 2, 3
-	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows([]string{"RackID", "RackName", "InspectorID"}).
-			AddRow(1, "R1", 1).
-			AddRow(2, "R2", 1),
+	coordinatorId, sessionId := 2, 3
+	uploaded := time.Now()
+	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(
+		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt"}).
+			AddRow(1, "R1", 2, nil).
+			AddRow(2, "R2", 2, uploaded),
 	)
 
 	repo := NewRackRepository(mock)
-	results, err := repo.FindAll(context.Background(), &inspectorId, &coordinatorId, &sessionId)
+	results, err := repo.FindAll(context.Background(), &coordinatorId, &sessionId)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(results) != 2 || results[0].RackName != "R1" || results[1].RackID != 2 {
+	if len(results) != 2 || results[0].RakName != "R1" || results[1].RakID != 2 {
 		t.Errorf("unexpected results %+v", results)
+	}
+	if results[0].UploadedAt.Valid {
+		t.Error("expected rack 1 to be not uploaded")
+	}
+	if !results[1].UploadedAt.Valid {
+		t.Error("expected rack 2 to be uploaded")
 	}
 }
 
 func TestRackFindAllQueryError(t *testing.T) {
 	mock := mustMockPool(t)
-	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(errors.New("boom"))
+	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnError(errors.New("boom"))
 
 	repo := NewRackRepository(mock)
-	_, err := repo.FindAll(context.Background(), nil, nil, nil)
+	_, err := repo.FindAll(context.Background(), nil, nil)
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -71,7 +78,7 @@ func TestRackSave(t *testing.T) {
 	)
 
 	repo := NewRackRepository(mock)
-	rack := &model.Rack{RackName: "R9", InspectorID: 3}
+	rack := &model.Rack{RackName: "R9", CoorID: 3}
 	if err := repo.Save(context.Background(), tx, rack); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -84,16 +91,42 @@ func TestRackSaveConflict(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectQuery("INSERT INTO rak").WithArgs("R9", 3).WillReturnError(
-		&pgconn.PgError{Code: "23505", ConstraintName: "uq_rak_inspector_name"},
+		&pgconn.PgError{Code: "23505", ConstraintName: "uq_rak_coor_name"},
 	)
 
 	repo := NewRackRepository(mock)
-	err := repo.Save(context.Background(), tx, &model.Rack{RackName: "R9", InspectorID: 3})
+	err := repo.Save(context.Background(), tx, &model.Rack{RackName: "R9", CoorID: 3})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
 	var conflict *model.ConflictError
 	if !errors.As(err, &conflict) {
 		t.Errorf("expected ConflictError, got %T: %v", err, err)
+	}
+}
+
+func TestRackClaimForUpload(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectExec("UPDATE rak").WithArgs(7, []int32{1, 2}, 3).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+
+	repo := NewRackRepository(mock)
+	claimed, err := repo.ClaimForUpload(context.Background(), tx, 7, []int32{1, 2}, 3)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if claimed != 2 {
+		t.Errorf("expected 2 claimed, got %d", claimed)
+	}
+}
+
+func TestRackSetSnapshot(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectExec("UPDATE rak").WithArgs(9, `[]`).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+
+	repo := NewRackRepository(mock)
+	if err := repo.SetSnapshot(context.Background(), tx, 9, `[]`); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }

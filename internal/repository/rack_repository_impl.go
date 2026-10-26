@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
@@ -18,36 +19,28 @@ func NewRackRepository(pool DBPool) RackRepository {
 }
 
 // FindAll implements [RackRepository].
-func (r *RackRepositoryImpl) FindAll(ctx context.Context, inspectorId *int, coordinatorId *int, sessionId *int) ([]*model.Rack, error) {
+func (r *RackRepositoryImpl) FindAll(ctx context.Context, coordinatorId *int, sessionId *int) ([]*model.RackState, error) {
 	const SQL = `
 		SELECT
-			r.rak_id AS RackID,
-			r.rak_name AS RackName,
-			r.rak_inspector_id AS InspectorID
-
+			r.rak_id AS RakID,
+			r.rak_name AS RakName,
+			r.rak_coor_id AS CoorID,
+			u.upload_createdat AS UploadedAt
 		FROM rak r
-
-		JOIN inspector i
-			ON r.rak_inspector_id = i.inspector_id
-
-		JOIN coordinator c
-			ON i.inspector_coor_id = c.coor_id
-
-		JOIN sesi s
-			ON c.coor_sesi_id = s.sesi_id
-
-		WHERE ($1::int IS NULL OR i.inspector_id = $1::int)
-		AND ($2::int IS NULL OR c.coor_id = $2::int)
-		AND ($3::int IS NULL OR s.sesi_id = $3::int);
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
+		LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
+		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
+		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
+		ORDER BY r.rak_name;
 	`
 
-	rows, err := r.Pool.Query(ctx, SQL, inspectorId, coordinatorId, sessionId)
+	rows, err := r.Pool.Query(ctx, SQL, coordinatorId, sessionId)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	racks, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.Rack])
+	racks, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.RackState])
 	if err != nil {
 		return nil, err
 	}
@@ -69,11 +62,8 @@ func (r *RackRepositoryImpl) FindProgress(ctx context.Context, coordinatorId *in
 
 		FROM rak r
 
-		JOIN inspector i
-			ON r.rak_inspector_id = i.inspector_id
-
 		JOIN coordinator c
-			ON i.inspector_coor_id = c.coor_id
+			ON c.coor_id = r.rak_coor_id
 
 		JOIN sesi s
 			ON c.coor_sesi_id = s.sesi_id
@@ -100,13 +90,94 @@ func (r *RackRepositoryImpl) FindProgress(ctx context.Context, coordinatorId *in
 
 func (r *RackRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, rack *model.Rack) error {
 	const SQL = `
-		INSERT INTO rak (rak_name, rak_inspector_id)
+		INSERT INTO rak (rak_name, rak_coor_id)
 		VALUES ($1, $2)
 		RETURNING rak_id
 	`
-	err := tx.QueryRow(ctx, SQL, rack.RackName, rack.InspectorID).Scan(&rack.RackID)
+	err := tx.QueryRow(ctx, SQL, rack.RackName, rack.CoorID).Scan(&rack.RackID)
 	if err != nil {
 		return model.MapPgError("Rack", err)
 	}
 	return nil
+}
+
+// ClaimForUpload attaches every rack of one batch to the upload. Returns how
+// many rows were claimed; a smaller count means a rack was already uploaded,
+// belonged to another coordinator, or does not exist.
+func (r *RackRepositoryImpl) ClaimForUpload(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32, coorID int) (int64, error) {
+	const SQL = `
+		UPDATE rak
+		SET rak_upload_id = $1
+		WHERE rak_id = ANY($2)
+		  AND rak_coor_id = $3
+		  AND rak_upload_id IS NULL
+	`
+	res, err := tx.Exec(ctx, SQL, uploadID, rakIDs, coorID)
+	if err != nil {
+		return 0, err
+	}
+	return res.RowsAffected(), nil
+}
+
+// SetSnapshot stores the immutable item snapshot for a claimed rack.
+func (r *RackRepositoryImpl) SetSnapshot(ctx context.Context, tx pgx.Tx, rakID int, snapshot string) error {
+	const SQL = `UPDATE rak SET rak_upload_snapshot = $2 WHERE rak_id = $1`
+	_, err := tx.Exec(ctx, SQL, rakID, snapshot)
+	return err
+}
+
+const selectRackState = `
+	SELECT
+		r.rak_id AS RakID,
+		r.rak_name AS RakName,
+		r.rak_coor_id AS CoorID,
+		u.upload_createdat AS UploadedAt
+	FROM rak r
+	LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
+	WHERE r.rak_id = $1
+`
+
+// FindById implements [RackRepository].
+func (r *RackRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
+	var state model.RackState
+	err := tx.QueryRow(ctx, selectRackState, rakID).
+		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+// FindByIdForUpdate implements [RackRepository].
+func (r *RackRepositoryImpl) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
+	var state model.RackState
+	err := tx.QueryRow(ctx, selectRackState+" FOR UPDATE OF r", rakID).
+		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &state, nil
+}
+
+// CountByCoordinator implements [RackRepository].
+func (r *RackRepositoryImpl) CountByCoordinator(ctx context.Context, tx pgx.Tx, coorID int) (int, error) {
+	const SQL = `SELECT COUNT(*) FROM rak WHERE rak_coor_id = $1`
+	var total int
+	if err := tx.QueryRow(ctx, SQL, coorID).Scan(&total); err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// Delete implements [RackRepository].
+func (r *RackRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, rakID int) error {
+	const SQL = `DELETE FROM rak WHERE rak_id = $1`
+	_, err := tx.Exec(ctx, SQL, rakID)
+	return err
 }
