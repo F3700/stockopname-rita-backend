@@ -38,7 +38,6 @@ func toProductResponse(product *model.Product) dto.ProductResponse {
 	return dto.ProductResponse{
 		Id:             product.ProductID,
 		PLU:            product.ProductPLU,
-		Barcode:        product.PrimaryBarcode(),
 		Barcodes:       barcodes,
 		Name:           product.ProductName,
 		BuyPrice:       product.ProductBuyPrice,

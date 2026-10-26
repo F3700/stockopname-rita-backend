@@ -74,7 +74,7 @@ func (s *StockOpnameServiceImpl) checkSessionReady(ctx context.Context, tx pgx.T
 func snapshot(quantity int, rakID int, product *model.Product, scannedBarcode string) *model.StockOpname {
 	soBarcode := scannedBarcode
 	if soBarcode == "" {
-		soBarcode = product.PrimaryBarcode()
+		soBarcode = product.FirstBarcode()
 	}
 	return &model.StockOpname{
 		StockOpnameQuantity: quantity,

@@ -24,7 +24,6 @@ type ProductUpdateRequest struct {
 type ProductResponse struct {
 	Id             int      `json:"id"`
 	PLU            string   `json:"plu"`
-	Barcode        string   `json:"barcode"`
 	Barcodes       []string `json:"barcodes"`
 	Name           string   `json:"name"`
 	BuyPrice       float64  `json:"buy_price"`

@@ -70,7 +70,7 @@ func TestProductCreateTx(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if res.Id != 11 || res.PLU != "100251" || res.Barcode != "1002515550011" || len(res.Barcodes) != 2 {
+	if res.Id != 11 || res.PLU != "100251" || len(res.Barcodes) != 2 {
 		t.Errorf("unexpected response %+v", res)
 	}
 }

@@ -58,7 +58,7 @@ func TestProductFindById(t *testing.T) {
 	if product.ProductSesiID != 3 {
 		t.Errorf("expected session 3, got %d", product.ProductSesiID)
 	}
-	if len(product.ProductBarcodes) != 2 || product.PrimaryBarcode() != "1002515550011" {
+	if len(product.ProductBarcodes) != 2 || product.FirstBarcode() != "1002515550011" {
 		t.Errorf("unexpected barcodes %+v", product.ProductBarcodes)
 	}
 }

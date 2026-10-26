@@ -60,7 +60,7 @@ func TestProductFindAll(t *testing.T) {
 	if got.Id != 1 || got.PLU != "100251" || got.Name != "Sari Roti" {
 		t.Errorf("unexpected response %+v", got)
 	}
-	if got.Barcode != "1002515550011" || len(got.Barcodes) != 2 {
+	if len(got.Barcodes) != 2 {
 		t.Errorf("unexpected barcodes %+v", got)
 	}
 	if got.BuyPrice != 14500 || got.SellPrice != 17200 {

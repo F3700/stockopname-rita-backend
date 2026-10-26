@@ -1891,7 +1891,6 @@
         "required": [
           "id",
           "plu",
-          "barcode",
           "barcodes",
           "name",
           "buy_price",
@@ -1908,11 +1907,6 @@
           "plu": {
             "type": "string",
             "example": "100251"
-          },
-          "barcode": {
-            "type": "string",
-            "example": "8992802315074",
-            "description": "Primary barcode (first barcode of the product)"
           },
           "barcodes": {
             "type": "array",
