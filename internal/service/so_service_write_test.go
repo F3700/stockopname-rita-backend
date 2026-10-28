@@ -68,7 +68,7 @@ func TestStockOpnameCreateByBarcodeTx(t *testing.T) {
 	mock.ExpectQuery("COUNT").WithArgs(3).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("JOIN barcode").WithArgs(3, "8991001010016").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7),
 	)
 	mock.ExpectQuery("WHERE so.stock_opname_id").WithArgs(7).WillReturnRows(soSummaryRows())
@@ -76,7 +76,7 @@ func TestStockOpnameCreateByBarcodeTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 2})
+	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: qtyPtr(10), Barcode: "8991001010016", RakID: 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestStockOpnameCreateByPLUTx(t *testing.T) {
 	mock.ExpectQuery("WHERE p.product_sesi_id").WithArgs(3, "100251").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
 	// PLU-based input falls back to the primary barcode for the snapshot.
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10, 2, "100251", "Sari Roti", "1002515550011", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1002515550011", 14500.0, 17200.0).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7),
 	)
 	mock.ExpectQuery("WHERE so.stock_opname_id").WithArgs(7).WillReturnRows(soSummaryRows())
@@ -111,7 +111,7 @@ func TestStockOpnameCreateByPLUTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), PLU: "100251", RakID: 2})
+	res, err := svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: qtyPtr(10), PLU: "100251", RakID: 2})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -132,7 +132,7 @@ func TestStockOpnameCreateWithoutIdentifier(t *testing.T) {
 	})
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), RakID: 2})
+	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: qtyPtr(10), RakID: 2})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -159,11 +159,11 @@ func TestStockOpnameCreateTxSaveError(t *testing.T) {
 	mock.ExpectQuery("COUNT").WithArgs(3).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("JOIN barcode").WithArgs(3, "8991001010016").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnError(errors.New("boom"))
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnError(errors.New("boom"))
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 2})
+	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: qtyPtr(10), Barcode: "8991001010016", RakID: 2})
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -235,7 +235,7 @@ func TestStockOpnameUpdateTx(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(4).WillReturnRows(soSesiIdByResultRows())
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
-	mock.ExpectExec("UPDATE stock_opname").WithArgs(25, 4).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE stock_opname").WithArgs(25.0, 4).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("WHERE so.stock_opname_id").WithArgs(4).WillReturnRows(
 		pgxmock.NewRows([]string{"id", "barcode", "name", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
@@ -245,7 +245,7 @@ func TestStockOpnameUpdateTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	res, err := svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: intPtr(25)})
+	res, err := svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: qtyPtr(25)})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestStockOpnameUpdateRejectsInvalidQuantity(t *testing.T) {
 	})
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: intPtr(-1)})
+	_, err = svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: qtyPtr(-1)})
 	var validationErrs validator.ValidationErrors
 	if !errors.As(err, &validationErrs) {
 		t.Fatalf("expected validation error, got %T: %v", err, err)
@@ -316,7 +316,7 @@ func TestStockOpnameCreateNoProducts(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 2})
+	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: qtyPtr(10), Barcode: "8991001010016", RakID: 2})
 	if err == nil {
 		t.Fatal("expected conflict, got nil")
 	}
@@ -343,7 +343,7 @@ func TestStockOpnameCreateFinalSession(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: intPtr(10), Barcode: "8991001010016", RakID: 2})
+	_, err = svc.Create(context.Background(), dto.CreateStockOpnameRequest{Quantity: qtyPtr(10), Barcode: "8991001010016", RakID: 2})
 	if err == nil {
 		t.Fatal("expected conflict, got nil")
 	}
@@ -370,7 +370,7 @@ func TestStockOpnameUpdateFinalSession(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: intPtr(25)})
+	_, err = svc.Update(context.Background(), 4, dto.UpdateStockOpnameRequest{Quantity: qtyPtr(25)})
 	if err == nil {
 		t.Fatal("expected conflict, got nil")
 	}

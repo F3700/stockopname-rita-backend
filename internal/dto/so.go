@@ -1,13 +1,13 @@
 package dto
 
 type StockOpnameResponse struct {
-	Id              int    `json:"id"`
-	Barcode         string `json:"barcode"`
-	Name            string `json:"product_name"`
-	Quantity        int    `json:"quantity"`
-	RackName        string `json:"rak_name"`
-	CoordinatorCode string `json:"coor_code"`
-	UpdatedAt       string `json:"updatedAt"`
+	Id              int     `json:"id"`
+	Barcode         string  `json:"barcode"`
+	Name            string  `json:"product_name"`
+	Quantity        float64 `json:"quantity"`
+	RackName        string  `json:"rak_name"`
+	CoordinatorCode string  `json:"coor_code"`
+	UpdatedAt       string  `json:"updatedAt"`
 }
 
 // StockOpnameExportResponse is the denormalized row used for session file
@@ -19,7 +19,7 @@ type StockOpnameExportResponse struct {
 	Name            string  `json:"product_name"`
 	BuyPrice        float64 `json:"buy_price"`
 	SellPrice       float64 `json:"sell_price"`
-	Quantity        int     `json:"quantity"`
+	Quantity        float64 `json:"quantity"`
 	RackName        string  `json:"rak_name"`
 	CoordinatorCode string  `json:"coor_code"`
 	UpdatedAt       string  `json:"updatedAt"`
@@ -29,12 +29,12 @@ type StockOpnameExportResponse struct {
 // or PLU (catalog pick). At least one of them is required.
 type CreateStockOpnameRequest struct {
 	// Pointer so a missing quantity is rejected while a real zero count is allowed.
-	Quantity *int   `json:"quantity" validate:"required,gte=0"`
-	Barcode  string `json:"barcode"`
-	PLU      string `json:"plu"`
-	RakID    int    `json:"rak_id" validate:"required"`
+	Quantity *float64 `json:"quantity" validate:"required,gte=0"`
+	Barcode  string   `json:"barcode"`
+	PLU      string   `json:"plu"`
+	RakID    int      `json:"rak_id" validate:"required"`
 }
 
 type UpdateStockOpnameRequest struct {
-	Quantity *int `json:"quantity" validate:"required,gte=0"`
+	Quantity *float64 `json:"quantity" validate:"required,gte=0"`
 }

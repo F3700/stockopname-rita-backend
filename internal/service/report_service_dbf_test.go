@@ -1,6 +1,7 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"errors"
@@ -36,7 +37,7 @@ func dbfTestReportService(t *testing.T, sesiErr, exportErr error) ReportService 
 					t.Errorf("expected sesiId 1, got %d", sesiId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 					{Id: 2, Barcode: "8991234567891", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 				}, nil
 			},
@@ -102,8 +103,11 @@ func TestSessionDBF(t *testing.T) {
 	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("BARCODE").GetValue())); got != "8991234567890" {
 		t.Errorf("expected barcode %q, got %q", "8991234567890", got)
 	}
-	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("QTY").GetValue())); got != "48" {
-		t.Errorf("expected qty 48, got %q", got)
+	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("QTY").GetValue())); got != "48.5" {
+		t.Errorf("expected qty 48.5, got %q", got)
+	}
+	if !bytes.Contains(data, []byte("48.50")) {
+		t.Error("expected DBF record to store QTY with 2 decimals")
 	}
 	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("BUYPRICE").GetValue())); got != "2500" && got != "2500.00" {
 		t.Errorf("expected buy price 2500, got %q", got)

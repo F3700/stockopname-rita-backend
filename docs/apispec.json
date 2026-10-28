@@ -1979,8 +1979,11 @@
             "example": "Product A"
           },
           "quantity": {
-            "type": "integer",
-            "example": 10
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "example": 10.5
           },
           "rak_name": {
             "type": "string",
@@ -2004,8 +2007,11 @@
         ],
         "properties": {
           "quantity": {
-            "type": "integer",
-            "example": 15000
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "example": 10.5
           }
         }
       },
@@ -2052,8 +2058,11 @@
         ],
         "properties": {
           "quantity": {
-            "type": "integer",
-            "example": 10
+            "type": "number",
+            "format": "double",
+            "minimum": 0,
+            "multipleOf": 0.01,
+            "example": 10.5
           },
           "rak_id": {
             "type": "integer",
@@ -2225,9 +2234,11 @@
         ],
         "properties": {
           "quantity": {
-            "type": "integer",
+            "type": "number",
+            "format": "double",
             "minimum": 0,
-            "example": 5
+            "multipleOf": 0.01,
+            "example": 5.5
           },
           "barcode": {
             "type": "string",

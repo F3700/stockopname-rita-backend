@@ -31,8 +31,8 @@ func uploadRequest() dto.CreateUploadRequest {
 	return dto.CreateUploadRequest{
 		CoordinatorID: 7,
 		Racks: []dto.UploadRackRequest{
-			{RakID: 31, Items: []dto.UploadItemRequest{{Quantity: intPtr(10), Barcode: "8991001010016"}}},
-			{RakID: 32, Items: []dto.UploadItemRequest{{Quantity: intPtr(11), Barcode: "8991001010016"}}},
+			{RakID: 31, Items: []dto.UploadItemRequest{{Quantity: qtyPtr(10), Barcode: "8991001010016"}}},
+			{RakID: 32, Items: []dto.UploadItemRequest{{Quantity: qtyPtr(11), Barcode: "8991001010016"}}},
 		},
 	}
 }
@@ -62,11 +62,11 @@ func TestUploadCreateBatch(t *testing.T) {
 	)
 	mock.ExpectExec("UPDATE rak").WithArgs(3, []int32{31, 32}, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
 	mock.ExpectExec("UPDATE rak").WithArgs(31, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectQuery("ON CONFLICT").WithArgs(10, 31, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("ON CONFLICT").WithArgs(10.0, 31, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(1),
 	)
 	mock.ExpectExec("UPDATE rak").WithArgs(32, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectQuery("ON CONFLICT").WithArgs(11, 32, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("ON CONFLICT").WithArgs(11.0, 32, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(2),
 	)
 	mock.ExpectCommit()

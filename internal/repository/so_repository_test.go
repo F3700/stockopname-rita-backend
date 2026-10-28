@@ -65,7 +65,7 @@ func TestStockOpnameSave(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
-		WithArgs(10, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).
+		WithArgs(10.0, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).
 		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7))
 
 	repo := NewStockOpnameRepository(mock)
@@ -84,7 +84,7 @@ func TestStockOpnameSaveUpsertOnReupload(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
-		WithArgs(25, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).
+		WithArgs(25.0, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).
 		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7))
 
 	repo := NewStockOpnameRepository(mock)
