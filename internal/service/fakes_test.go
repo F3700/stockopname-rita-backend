@@ -31,7 +31,7 @@ func newTestValidator(t *testing.T) *validator.Validate {
 	return validator.New()
 }
 
-func intPtr(v int) *int { return &v }
+func qtyPtr(v float64) *float64 { return &v }
 
 type fakeBarcodeRepository struct {
 	saveBatchFunc func(ctx context.Context, tx pgx.Tx, sesiId int, productID int, codes []string) error

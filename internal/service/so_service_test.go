@@ -87,12 +87,12 @@ func TestStockOpnameQuantityValidation(t *testing.T) {
 		request any
 		wantErr bool
 	}{
-		{"zero create", dto.CreateStockOpnameRequest{Quantity: intPtr(0), Barcode: "x", RakID: 1}, false},
+		{"zero create", dto.CreateStockOpnameRequest{Quantity: qtyPtr(0), Barcode: "x", RakID: 1}, false},
 		{"missing create", dto.CreateStockOpnameRequest{Barcode: "x", RakID: 1}, true},
-		{"negative create", dto.CreateStockOpnameRequest{Quantity: intPtr(-1), Barcode: "x", RakID: 1}, true},
-		{"zero update", dto.UpdateStockOpnameRequest{Quantity: intPtr(0)}, false},
+		{"negative create", dto.CreateStockOpnameRequest{Quantity: qtyPtr(-1), Barcode: "x", RakID: 1}, true},
+		{"zero update", dto.UpdateStockOpnameRequest{Quantity: qtyPtr(0)}, false},
 		{"missing update", dto.UpdateStockOpnameRequest{}, true},
-		{"negative update", dto.UpdateStockOpnameRequest{Quantity: intPtr(-1)}, true},
+		{"negative update", dto.UpdateStockOpnameRequest{Quantity: qtyPtr(-1)}, true},
 	}
 
 	for _, tt := range tests {

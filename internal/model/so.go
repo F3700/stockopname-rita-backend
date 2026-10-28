@@ -4,7 +4,7 @@ import "time"
 
 type StockOpname struct {
 	StockOpnameID        int       `json:"stockopname_id"`
-	StockOpnameQuantity  int       `json:"stockopname_quantity"`
+	StockOpnameQuantity  float64   `json:"stockopname_quantity"`
 	StockOpnameUpdatedAt time.Time `json:"stockopname_updatedat"`
 	StockOpnameRakID     int       `json:"stockopname_rak_id"`
 
@@ -21,7 +21,7 @@ type StockOpnameSummary struct {
 	Id              int       `json:"id"`
 	Barcode         string    `json:"barcode"`
 	Name            string    `json:"product_name"`
-	Quantity        int       `json:"quantity"`
+	Quantity        float64   `json:"quantity"`
 	RackName        string    `json:"rak_name"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
@@ -36,7 +36,7 @@ type StockOpnameExport struct {
 	Name            string    `json:"product_name"`
 	BuyPrice        float64   `json:"buy_price"`
 	SellPrice       float64   `json:"sell_price"`
-	Quantity        int       `json:"quantity"`
+	Quantity        float64   `json:"quantity"`
 	RackName        string    `json:"rak_name"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`

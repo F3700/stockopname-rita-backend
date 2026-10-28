@@ -71,7 +71,7 @@ func (s *StockOpnameServiceImpl) checkSessionReady(ctx context.Context, tx pgx.T
 // soBarcode is the actually scanned barcode (may differ from the
 // product's primary barcode); it falls back to the primary barcode
 // (or "" for products without any barcode) on PLU-based input.
-func snapshot(quantity int, rakID int, product *model.Product, scannedBarcode string) *model.StockOpname {
+func snapshot(quantity float64, rakID int, product *model.Product, scannedBarcode string) *model.StockOpname {
 	soBarcode := scannedBarcode
 	if soBarcode == "" {
 		soBarcode = product.FirstBarcode()
@@ -94,6 +94,9 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 	}
 	if req.Barcode == "" && req.PLU == "" {
 		return dto.StockOpnameResponse{}, &model.ValidationError{Detail: "barcode or plu is required"}
+	}
+	if err := validateQuantity(*req.Quantity); err != nil {
+		return dto.StockOpnameResponse{}, err
 	}
 
 	tx, err := s.Pool.Begin(ctx)
@@ -219,6 +222,9 @@ func (s *StockOpnameServiceImpl) FindById(ctx context.Context, id int) (dto.Stoc
 // Update implements [StockOpnameService].
 func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error) {
 	if err := s.Validator.Struct(req); err != nil {
+		return dto.StockOpnameResponse{}, err
+	}
+	if err := validateQuantity(*req.Quantity); err != nil {
 		return dto.StockOpnameResponse{}, err
 	}
 

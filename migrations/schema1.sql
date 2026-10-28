@@ -145,7 +145,7 @@ CREATE INDEX idx_rak_upload ON rak(rak_upload_id);
 
 CREATE TABLE stock_opname (
     stock_opname_id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    stock_opname_quantity INTEGER NOT NULL
+    stock_opname_quantity NUMERIC(12,2) NOT NULL
         CHECK (stock_opname_quantity >= 0),
     stock_opname_updatedat TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 

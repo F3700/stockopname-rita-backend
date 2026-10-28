@@ -1,9 +1,9 @@
 package dto
 
 type UploadItemRequest struct {
-	Quantity *int   `json:"quantity" validate:"required,gte=0"`
-	Barcode  string `json:"barcode"`
-	PLU      string `json:"plu"`
+	Quantity *float64 `json:"quantity" validate:"required,gte=0"`
+	Barcode  string   `json:"barcode"`
+	PLU      string   `json:"plu"`
 }
 
 type UploadRackRequest struct {
@@ -39,8 +39,8 @@ type UploadDetailResponse struct {
 }
 
 type UploadItemResponse struct {
-	PLU     string `json:"plu"`
-	Barcode string `json:"barcode"`
-	Name    string `json:"name"`
-	Qty     int    `json:"qty"`
+	PLU     string  `json:"plu"`
+	Barcode string  `json:"barcode"`
+	Name    string  `json:"name"`
+	Qty     float64 `json:"qty"`
 }

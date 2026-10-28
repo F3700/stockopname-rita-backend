@@ -19,10 +19,10 @@ type RackState struct {
 
 // UploadItem is the immutable snapshot stored on the rack at submit time.
 type UploadItem struct {
-	PLU     string `json:"plu"`
-	Barcode string `json:"barcode"`
-	Name    string `json:"name"`
-	Qty     int    `json:"qty"`
+	PLU     string  `json:"plu"`
+	Barcode string  `json:"barcode"`
+	Name    string  `json:"name"`
+	Qty     float64 `json:"qty"`
 }
 
 type RackProgress struct {

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"stockopname-rita-backend/internal/dto"
+	"strconv"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, stri
 		table(pdf, []string{"Barcode", "Product", "Qty"}, func() [][]string {
 			rows := make([][]string, 0, len(rack.Items))
 			for _, item := range rack.Items {
-				rows = append(rows, []string{item.Barcode, item.Name, fmt.Sprint(item.Qty)})
+				rows = append(rows, []string{item.Barcode, item.Name, formatQty(item.Qty)})
 			}
 			return rows
 		}(), 35, 115, 30)
@@ -171,6 +172,15 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 			return nil, "", err
 		}
 	}
+	if len(exports) > 0 {
+		qtyStyle, err := file.NewStyle(&excelize.Style{NumFmt: 2})
+		if err != nil {
+			return nil, "", err
+		}
+		if err := file.SetCellStyle(sheet, "E2", fmt.Sprintf("E%d", len(exports)+1), qtyStyle); err != nil {
+			return nil, "", err
+		}
+	}
 
 	buffer, err := file.WriteToBuffer()
 	if err != nil {
@@ -186,7 +196,7 @@ type dbfExportRow struct {
 	Product   string  `dbase:"PRODUCT"`
 	BuyPrice  float64 `dbase:"BUYPRICE"`
 	SellPrice float64 `dbase:"SELLPRICE"`
-	Quantity  int     `dbase:"QTY"`
+	Quantity  float64 `dbase:"QTY"`
 	Rak       string  `dbase:"RAK"`
 	CoorCode  string  `dbase:"COOR"`
 	SesiCode  string  `dbase:"SESI_CODE"`
@@ -204,7 +214,7 @@ func sessionDBFColumns() ([]*dbase.Column, error) {
 		{"PRODUCT", dbase.Character, 150, 0},
 		{"BUYPRICE", dbase.Numeric, 15, 2},
 		{"SELLPRICE", dbase.Numeric, 15, 2},
-		{"QTY", dbase.Numeric, 10, 0},
+		{"QTY", dbase.Numeric, 10, 2},
 		{"RAK", dbase.Character, 15, 0},
 		{"COOR", dbase.Character, 20, 0},
 		{"SESI_CODE", dbase.Character, 20, 0},
@@ -472,7 +482,7 @@ func resultTable(pdf *gofpdf.Fpdf, results []dto.StockOpnameResponse) {
 	table(pdf, []string{"Barcode", "Product", "Rack", "Qty"}, func() [][]string {
 		rows := make([][]string, 0, len(results))
 		for _, result := range results {
-			rows = append(rows, []string{result.Barcode, result.Name, result.RackName, fmt.Sprint(result.Quantity)})
+			rows = append(rows, []string{result.Barcode, result.Name, result.RackName, formatQty(result.Quantity)})
 		}
 		return rows
 	}(), 30, 90, 40, 20)
@@ -505,6 +515,10 @@ func sanitizeReportName(value string) string {
 		return "report"
 	}
 	return b.String()
+}
+
+func formatQty(q float64) string {
+	return strconv.FormatFloat(q, 'f', 2, 64)
 }
 
 func formatReportDate(value string) string {

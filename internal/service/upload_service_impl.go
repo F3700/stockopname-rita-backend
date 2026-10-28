@@ -118,6 +118,9 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 		results := make([]*model.StockOpname, 0, len(rackReq.Items))
 
 		for _, item := range rackReq.Items {
+			if err := validateQuantity(*item.Quantity); err != nil {
+				return dto.UploadResponse{}, err
+			}
 			product, err := s.resolveProduct(ctx, tx, coordinator.CoorSesiID, item)
 			if err != nil {
 				return dto.UploadResponse{}, err

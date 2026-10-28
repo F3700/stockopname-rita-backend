@@ -34,7 +34,7 @@ func excelTestReportService(t *testing.T, sesiErr, exportErr error) ReportServic
 					t.Errorf("expected sesiId 1, got %d", sesiId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 					{Id: 2, Barcode: "8991234567891", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 				}, nil
 			},
@@ -84,7 +84,7 @@ func TestSessionExcel(t *testing.T) {
 	if len(first) != len(wantHeader) {
 		t.Fatalf("expected %d columns in data row, got %d", len(wantHeader), len(first))
 	}
-	wantFirst := []string{"8991234567890", "Indomie", "2500", "3500", "48", "R1", "KOR-01", "SESI-01", "2026-09-10T08:00:00Z"}
+	wantFirst := []string{"8991234567890", "Indomie", "2500", "3500", "48.50", "R1", "KOR-01", "SESI-01", "2026-09-10T08:00:00Z"}
 	for i, want := range wantFirst {
 		if first[i] != want {
 			t.Errorf("expected cell[%d] %q, got %q", i, want, first[i])
