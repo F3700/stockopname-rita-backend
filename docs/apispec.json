@@ -2213,6 +2213,11 @@
             "type": "integer",
             "example": 12
           },
+          "upload_number": {
+            "type": "integer",
+            "description": "Urutan upload per koordinator. 1 = upload pertama.",
+            "example": 3
+          },
           "rack_count": {
             "type": "integer",
             "example": 3

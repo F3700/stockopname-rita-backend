@@ -31,7 +31,7 @@ func (r *RackRepositoryImpl) FindAll(ctx context.Context, coordinatorId *int, se
 		LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
-		ORDER BY r.rak_name;
+		ORDER BY (substring(r.rak_name from '[0-9]+$'))::int, r.rak_name;
 	`
 
 	rows, err := r.Pool.Query(ctx, SQL, coordinatorId, sessionId)
