@@ -40,9 +40,10 @@ func (r *RackServiceImpl) FindAllSummary(ctx context.Context, coordinatorId *int
 			uploadedAt = rack.UploadedAt.Time.Format(time.RFC3339)
 		}
 		responses = append(responses, dto.RackResponse{
-			RackID:     rack.RakID,
-			RackName:   rack.RakName,
-			UploadedAt: uploadedAt,
+			RackID:        rack.RakID,
+			RackName:      rack.RakName,
+			CoordinatorID: rack.CoorID,
+			UploadedAt:    uploadedAt,
 		})
 	}
 	return responses, nil

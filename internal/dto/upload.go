@@ -17,10 +17,11 @@ type CreateUploadRequest struct {
 }
 
 type UploadResponse struct {
-	UploadID  int    `json:"upload_id"`
-	RackCount int    `json:"rack_count"`
-	ItemCount int    `json:"item_count"`
-	CreatedAt string `json:"created_at"`
+	UploadID     int    `json:"upload_id"`
+	UploadNumber int    `json:"upload_number,omitempty"`
+	RackCount    int    `json:"rack_count"`
+	ItemCount    int    `json:"item_count"`
+	CreatedAt    string `json:"created_at"`
 }
 
 type UploadDetailRackResponse struct {

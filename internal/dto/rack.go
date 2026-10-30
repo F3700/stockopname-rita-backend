@@ -1,9 +1,10 @@
 package dto
 
 type RackResponse struct {
-	RackID     int    `json:"id"`
-	RackName   string `json:"name"`
-	UploadedAt string `json:"uploaded_at"`
+	RackID        int    `json:"id"`
+	RackName      string `json:"name"`
+	CoordinatorID int    `json:"coordinator_id"`
+	UploadedAt    string `json:"uploaded_at"`
 }
 
 type RackProgressResponse struct {

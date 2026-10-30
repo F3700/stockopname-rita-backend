@@ -9,11 +9,12 @@ type Upload struct {
 }
 
 type UploadSummary struct {
-	UploadID  int       `json:"upload_id"`
-	CoorID    int       `json:"upload_coor_id"`
-	RackCount int       `json:"rack_count"`
-	ItemCount int       `json:"item_count"`
-	CreatedAt time.Time `json:"upload_createdat"`
+	UploadID     int       `json:"upload_id"`
+	UploadNumber int       `json:"upload_number"`
+	CoorID       int       `json:"upload_coor_id"`
+	RackCount    int       `json:"rack_count"`
+	ItemCount    int       `json:"item_count"`
+	CreatedAt    time.Time `json:"upload_createdat"`
 }
 
 type UploadRack struct {

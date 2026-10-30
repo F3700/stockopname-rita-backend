@@ -179,15 +179,15 @@ type fakeStockOpnameService struct {
 	updateFunc           func(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error)
 	deleteFunc           func(ctx context.Context, id int) error
 	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
-	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
-	findAllForExportFunc func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
+	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
+	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
 }
 
-func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
 	if f.findAllForExportFunc == nil {
 		return nil, nil
 	}
-	return f.findAllForExportFunc(ctx, sesiId)
+	return f.findAllForExportFunc(ctx, sesiId, coorId)
 }
 
 func (f *fakeStockOpnameService) Create(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
@@ -206,8 +206,8 @@ func (f *fakeStockOpnameService) FindById(ctx context.Context, id int) (dto.Stoc
 	return f.findByIdFn(ctx, id)
 }
 
-func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
-	return f.findAllFunc(ctx, pagination, search, coorId, sesiId)
+func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
+	return f.findAllFunc(ctx, pagination, search, coorId, sesiId, rakId)
 }
 
 type fakeReportService struct {

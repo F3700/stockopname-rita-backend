@@ -38,7 +38,7 @@ func (s *StockOpnameRepositoryImpl) Delete(ctx context.Context, tx pgx.Tx, id in
 // FindAll implements [StockOpnameRepository].
 // Product display data comes from the snapshot columns, so history
 // never depends on the product master table.
-func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
+func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error) {
 	const SQL = `
 		SELECT
 			so.stock_opname_id AS id,
@@ -55,12 +55,13 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 			ON r.rak_coor_id = c.coor_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
-		AND (so.so_barcode ILIKE $3 OR so.so_product_name ILIKE $3 OR so.so_product_plu ILIKE $3)
+		AND ($3::int IS NULL OR so.stock_opname_rak_id = $3::int)
+		AND (so.so_barcode ILIKE $4 OR so.so_product_name ILIKE $4 OR so.so_product_plu ILIKE $4)
 		ORDER BY so.stock_opname_id DESC
-		LIMIT $4 OFFSET $5;
+		LIMIT $5 OFFSET $6;
 	`
 
-	rows, err := s.Pool.Query(ctx, SQL, coorId, sesiId, "%"+search+"%", limit, offset)
+	rows, err := s.Pool.Query(ctx, SQL, coorId, sesiId, rakId, "%"+search+"%", limit, offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -82,9 +83,10 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 			ON r.rak_coor_id = c.coor_id
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
-		AND (so.so_barcode ILIKE $3 OR so.so_product_name ILIKE $3 OR so.so_product_plu ILIKE $3)
+		AND ($3::int IS NULL OR so.stock_opname_rak_id = $3::int)
+		AND (so.so_barcode ILIKE $4 OR so.so_product_name ILIKE $4 OR so.so_product_plu ILIKE $4)
 	`
-	if err := s.Pool.QueryRow(ctx, countSQL, coorId, sesiId, "%"+search+"%").Scan(&total); err != nil {
+	if err := s.Pool.QueryRow(ctx, countSQL, coorId, sesiId, rakId, "%"+search+"%").Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
@@ -169,7 +171,7 @@ func (s *StockOpnameRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, stock
 }
 
 // FindAllForExport implements [StockOpnameRepository].
-func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
+func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]*model.StockOpnameExport, error) {
 	const SQL = `
 		SELECT
 			so.stock_opname_id AS id,
@@ -186,11 +188,16 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			ON so.stock_opname_rak_id = r.rak_id
 		JOIN coordinator c
 			ON r.rak_coor_id = c.coor_id
-		WHERE c.coor_sesi_id = $1
-		ORDER BY so.stock_opname_id;
+		WHERE ($1::int IS NULL OR c.coor_sesi_id = $1::int)
+		AND ($2::int IS NULL OR c.coor_id = $2::int)
+		ORDER BY c.coor_code,
+			regexp_replace(r.rak_name, '[0-9]+$', ''),
+			(substring(r.rak_name from '[0-9]+$'))::int,
+			r.rak_name,
+			so.so_product_name;
 	`
 
-	rows, err := s.Pool.Query(ctx, SQL, sesiId)
+	rows, err := s.Pool.Query(ctx, SQL, sesiId, coorId)
 	if err != nil {
 		return nil, err
 	}

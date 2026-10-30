@@ -32,6 +32,7 @@ func (r *UploadRepositoryImpl) FindAllSummary(ctx context.Context, coordinatorId
 	const SQL = `
 		SELECT
 			u.upload_id AS UploadID,
+			ROW_NUMBER() OVER (ORDER BY u.upload_id) AS UploadNumber,
 			u.upload_coor_id AS CoorID,
 			COUNT(r.rak_id) AS RackCount,
 			COALESCE(SUM(jsonb_array_length(r.rak_upload_snapshot)), 0) AS ItemCount,

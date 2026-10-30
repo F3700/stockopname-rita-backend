@@ -1024,7 +1024,7 @@
         "tags": [
           "Stock Opname Result Items"
         ],
-        "summary": "Get all stock opname result items for a specific session or coordinator",
+        "summary": "Get all stock opname result items for a specific session, coordinator, or rack",
         "description": "Retrieve a list of all stock opname result items.",
         "parameters": [
           {
@@ -1044,6 +1044,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "rakId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 9
           },
           {
             "name": "page",
@@ -2044,6 +2053,10 @@
             "type": "string",
             "example": "Rack A"
           },
+          "coordinator_id": {
+            "type": "integer",
+            "example": 2
+          },
           "uploaded_at": {
             "type": "string",
             "example": "2026-10-26T10:14:00+07:00"
@@ -2212,6 +2225,11 @@
           "upload_id": {
             "type": "integer",
             "example": 12
+          },
+          "upload_number": {
+            "type": "integer",
+            "description": "Urutan upload per koordinator. 1 = upload pertama.",
+            "example": 3
           },
           "rack_count": {
             "type": "integer",

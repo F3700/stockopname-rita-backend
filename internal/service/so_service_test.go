@@ -24,7 +24,7 @@ func soSummaryModel() *model.StockOpnameSummary {
 
 func TestStockOpnameFindAll(t *testing.T) {
 	svc := NewStockOpnameService(&fakeStockOpnameRepository{
-		findAllFunc: func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
+		findAllFunc: func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error) {
 			if limit != 10 || offset != 0 || search != "roti" {
 				t.Errorf("unexpected args limit %d offset %d search %q", limit, offset, search)
 			}
@@ -33,7 +33,7 @@ func TestStockOpnameFindAll(t *testing.T) {
 	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))
 
 	pagination := &dto.Pagination{Page: 1, Limit: 10}
-	responses, err := svc.FindAll(context.Background(), pagination, "roti", nil, nil)
+	responses, err := svc.FindAll(context.Background(), pagination, "roti", nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -47,12 +47,12 @@ func TestStockOpnameFindAll(t *testing.T) {
 
 func TestStockOpnameFindAllRepoError(t *testing.T) {
 	svc := NewStockOpnameService(&fakeStockOpnameRepository{
-		findAllFunc: func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
+		findAllFunc: func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error) {
 			return nil, 0, errors.New("boom")
 		},
 	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))
 
-	_, err := svc.FindAll(context.Background(), &dto.Pagination{Page: 1, Limit: 10}, "", nil, nil)
+	_, err := svc.FindAll(context.Background(), &dto.Pagination{Page: 1, Limit: 10}, "", nil, nil, nil)
 	if err == nil {
 		t.Error("expected error, got nil")
 	}
@@ -60,9 +60,12 @@ func TestStockOpnameFindAllRepoError(t *testing.T) {
 
 func TestStockOpnameFindAllForExport(t *testing.T) {
 	svc := NewStockOpnameService(&fakeStockOpnameRepository{
-		findAllForExportFunc: func(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
-			if sesiId != 3 {
-				t.Errorf("expected sesi 3, got %d", sesiId)
+		findAllForExportFunc: func(ctx context.Context, sesiId *int, coorId *int) ([]*model.StockOpnameExport, error) {
+			if sesiId == nil || *sesiId != 3 {
+				t.Errorf("expected sesi 3, got %v", sesiId)
+			}
+			if coorId != nil {
+				t.Errorf("expected nil coorId, got %d", *coorId)
 			}
 			return []*model.StockOpnameExport{
 				{Id: 7, Barcode: "8991001010016", Name: "Sari Roti", BuyPrice: 14500, SellPrice: 17200, Quantity: 10, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)},
@@ -70,7 +73,8 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 		},
 	}, &fakeProductRepository{}, &fakeSesiRepository{}, nil, newTestValidator(t))
 
-	responses, err := svc.FindAllForExport(context.Background(), 3)
+	sesiId := 3
+	responses, err := svc.FindAllForExport(context.Background(), &sesiId, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

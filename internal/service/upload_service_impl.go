@@ -203,10 +203,11 @@ func (s *UploadServiceImpl) FindAllSummary(ctx context.Context, coordinatorId in
 	responses := make([]dto.UploadResponse, 0, len(uploads))
 	for _, upload := range uploads {
 		responses = append(responses, dto.UploadResponse{
-			UploadID:  upload.UploadID,
-			RackCount: upload.RackCount,
-			ItemCount: upload.ItemCount,
-			CreatedAt: upload.CreatedAt.Format(time.RFC3339),
+			UploadID:     upload.UploadID,
+			UploadNumber: upload.UploadNumber,
+			RackCount:    upload.RackCount,
+			ItemCount:    upload.ItemCount,
+			CreatedAt:    upload.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	return responses, nil
