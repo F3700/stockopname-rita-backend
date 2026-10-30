@@ -97,8 +97,9 @@ func (s *StockOpnameHandlerImpl) GetAllStockOpname(writer http.ResponseWriter, r
 
 	sesiIdStr := req.URL.Query().Get("sessionId")
 	coorIdStr := req.URL.Query().Get("coordinatorId")
+	rakIdStr := req.URL.Query().Get("rakId")
 
-	var sesiId, coorId *int
+	var sesiId, coorId, rakId *int
 
 	if sesiIdStr != "" {
 		parsedSesiId, err := strconv.Atoi(sesiIdStr)
@@ -118,12 +119,21 @@ func (s *StockOpnameHandlerImpl) GetAllStockOpname(writer http.ResponseWriter, r
 		coorId = &parsedCoorId
 	}
 
+	if rakIdStr != "" {
+		parsedRakId, err := strconv.Atoi(rakIdStr)
+		if err != nil {
+			helper.WriteError(writer, http.StatusBadRequest, "Invalid rakId parameter", err)
+			return
+		}
+		rakId = &parsedRakId
+	}
+
 	pagination := &dto.Pagination{
 		Page:  page,
 		Limit: limit,
 	}
 
-	stockOpnames, err := s.StockOpnameService.FindAll(req.Context(), pagination, search, coorId, sesiId)
+	stockOpnames, err := s.StockOpnameService.FindAll(req.Context(), pagination, search, coorId, sesiId, rakId)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return

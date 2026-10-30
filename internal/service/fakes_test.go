@@ -319,10 +319,10 @@ func (f *fakeSesiRepository) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 type fakeStockOpnameRepository struct {
 	saveFunc                    func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	findByIdFn                  func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
-	findAllFunc                 func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error)
+	findAllFunc                 func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error)
 	updateFunc                  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	deleteFunc                  func(ctx context.Context, tx pgx.Tx, id int) error
-	findAllForExportFunc        func(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error)
+	findAllForExportFunc        func(ctx context.Context, sesiId *int, coorId *int) ([]*model.StockOpnameExport, error)
 	findSesiIdByRakFunc         func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
 	findSesiIdByStockOpnameFunc func(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error)
 	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
@@ -337,8 +337,8 @@ func (f *fakeStockOpnameRepository) FindById(ctx context.Context, tx pgx.Tx, id 
 	return f.findByIdFn(ctx, tx, id)
 }
 
-func (f *fakeStockOpnameRepository) FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int) ([]*model.StockOpnameSummary, int, error) {
-	return f.findAllFunc(ctx, limit, offset, search, sesiId, coorId)
+func (f *fakeStockOpnameRepository) FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error) {
+	return f.findAllFunc(ctx, limit, offset, search, sesiId, coorId, rakId)
 }
 
 func (f *fakeStockOpnameRepository) Update(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
@@ -349,8 +349,8 @@ func (f *fakeStockOpnameRepository) Delete(ctx context.Context, tx pgx.Tx, id in
 	return f.deleteFunc(ctx, tx, id)
 }
 
-func (f *fakeStockOpnameRepository) FindAllForExport(ctx context.Context, sesiId int) ([]*model.StockOpnameExport, error) {
-	return f.findAllForExportFunc(ctx, sesiId)
+func (f *fakeStockOpnameRepository) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]*model.StockOpnameExport, error) {
+	return f.findAllForExportFunc(ctx, sesiId, coorId)
 }
 
 func (f *fakeStockOpnameRepository) FindSesiIdByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error) {
@@ -492,8 +492,8 @@ func (f *fakeUploadService) FindDetail(ctx context.Context, uploadID int) (dto.U
 }
 
 type fakeStockOpnameService struct {
-	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
-	findAllForExportFunc func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
+	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
+	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
 }
 
 func (f *fakeStockOpnameService) Create(ctx context.Context, req dto.CreateStockOpnameRequest) (dto.StockOpnameResponse, error) {
@@ -510,10 +510,10 @@ func (f *fakeStockOpnameService) FindById(ctx context.Context, id int) (dto.Stoc
 	return dto.StockOpnameResponse{}, nil
 }
 
-func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
-	return f.findAllFunc(ctx, pagination, search, coorId, sesiId)
+func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
+	return f.findAllFunc(ctx, pagination, search, coorId, sesiId, rakId)
 }
 
-func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
-	return f.findAllForExportFunc(ctx, sesiId)
+func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
+	return f.findAllForExportFunc(ctx, sesiId, coorId)
 }

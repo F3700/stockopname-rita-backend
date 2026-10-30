@@ -168,10 +168,10 @@ func (s *StockOpnameServiceImpl) Delete(ctx context.Context, id int) error {
 }
 
 // FindAll implements [StockOpnameService].
-func (s *StockOpnameServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+func (s *StockOpnameServiceImpl) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
 	offset := (pagination.Page - 1) * pagination.Limit
 
-	stockOpnames, total, err := s.StockOpnameRepository.FindAll(ctx, pagination.Limit, offset, search, sesiId, coorId)
+	stockOpnames, total, err := s.StockOpnameRepository.FindAll(ctx, pagination.Limit, offset, search, sesiId, coorId, rakId)
 	if err != nil {
 		return nil, err
 	}
@@ -272,8 +272,8 @@ func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.Upd
 }
 
 // FindAllForExport implements [StockOpnameService].
-func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
-	exports, err := s.StockOpnameRepository.FindAllForExport(ctx, sesiId)
+func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
+	exports, err := s.StockOpnameRepository.FindAllForExport(ctx, sesiId, coorId)
 	if err != nil {
 		return nil, err
 	}

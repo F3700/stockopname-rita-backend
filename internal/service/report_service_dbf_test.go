@@ -29,12 +29,15 @@ func dbfTestReportService(t *testing.T, sesiErr, exportErr error) ReportService 
 		&fakeCoordinatorService{},
 		&fakeUploadService{},
 		&fakeStockOpnameService{
-			findAllForExportFunc: func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+			findAllForExportFunc: func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
 				if exportErr != nil {
 					return nil, exportErr
 				}
-				if sesiId != 1 {
-					t.Errorf("expected sesiId 1, got %d", sesiId)
+				if sesiId == nil || *sesiId != 1 {
+					t.Errorf("expected sesiId 1, got %v", sesiId)
+				}
+				if coorId != nil {
+					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
 					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
@@ -130,7 +133,7 @@ func TestSessionDBFEmpty(t *testing.T) {
 		&fakeCoordinatorService{},
 		&fakeUploadService{},
 		&fakeStockOpnameService{
-			findAllForExportFunc: func(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error) {
+			findAllForExportFunc: func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
 				return nil, nil
 			},
 		},

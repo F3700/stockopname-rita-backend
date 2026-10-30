@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"stockopname-rita-backend/internal/dto"
 	"strconv"
 	"strings"
@@ -51,10 +52,11 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, str
 	if err != nil {
 		return nil, "", err
 	}
-	results, err := r.StockOpnameService.FindAll(ctx, &dto.Pagination{Page: 1, Limit: 100000}, "", nil, &id)
+	exports, err := r.StockOpnameService.FindAllForExport(ctx, &id, nil)
 	if err != nil {
 		return nil, "", err
 	}
+	groups := groupByRack(exports)
 	pdf := newPDF("STOCK OPNAME REPORT")
 	pdf.Ln(4)
 	section(pdf, "SESSION INFORMATION")
@@ -71,8 +73,13 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, str
 		}
 		return rows
 	}())
-	section(pdf, "STOCK OPNAME RESULTS")
-	resultTable(pdf, results)
+	section(pdf, "REKAP RAK")
+	rackRecap(pdf, groups, true)
+	if len(groups) > 0 {
+		section(pdf, "DETAIL PER RAK")
+		rackDetails(pdf, groups, true)
+		reportGrandTotal(pdf, groups, "TOTAL SESI")
+	}
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", session.Code), err
@@ -83,7 +90,7 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	if err != nil {
 		return nil, "", err
 	}
-	results, err := r.StockOpnameService.FindAll(ctx, &dto.Pagination{Page: 1, Limit: 100000}, "", &id, nil)
+	exports, err := r.StockOpnameService.FindAllForExport(ctx, nil, &id)
 	if err != nil {
 		return nil, "", err
 	}
@@ -91,14 +98,20 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	if err != nil {
 		return nil, "", err
 	}
+	groups := groupByRack(exports)
 	pdf := newPDF("COORDINATOR STOCK OPNAME")
 	pdf.Ln(4)
 	section(pdf, "COORDINATOR INFORMATION")
 	label(pdf, "Coordinator Code", coordinator.Code)
 	label(pdf, "Session", report.SessionCode)
 	label(pdf, "Status", coordinator.Status)
-	section(pdf, "STOCK OPNAME RESULTS")
-	resultTable(pdf, results)
+	section(pdf, "REKAP RAK")
+	rackRecap(pdf, groups, false)
+	if len(groups) > 0 {
+		section(pdf, "DETAIL PER RAK")
+		rackDetails(pdf, groups, false)
+		reportGrandTotal(pdf, groups, "TOTAL KOORDINATOR")
+	}
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
@@ -146,7 +159,7 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 	if err != nil {
 		return nil, "", err
 	}
-	exports, err := r.StockOpnameService.FindAllForExport(ctx, id)
+	exports, err := r.StockOpnameService.FindAllForExport(ctx, &id, nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -236,7 +249,7 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 	if err != nil {
 		return nil, "", err
 	}
-	exports, err := r.StockOpnameService.FindAllForExport(ctx, id)
+	exports, err := r.StockOpnameService.FindAllForExport(ctx, &id, nil)
 	if err != nil {
 		return nil, "", err
 	}
@@ -478,14 +491,96 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 	}
 	pdf.Ln(2)
 }
-func resultTable(pdf *gofpdf.Fpdf, results []dto.StockOpnameResponse) {
-	table(pdf, []string{"Barcode", "Product", "Rack", "Qty"}, func() [][]string {
-		rows := make([][]string, 0, len(results))
-		for _, result := range results {
-			rows = append(rows, []string{result.Barcode, result.Name, result.RackName, formatQty(result.Quantity)})
+
+type rackReportGroup struct {
+	Coordinator string
+	Rack        string
+	Items       []dto.StockOpnameExportResponse
+	ItemCount   int
+	TotalQty    float64
+	TotalBuy    float64
+	TotalSell   float64
+}
+
+func groupByRack(rows []dto.StockOpnameExportResponse) []rackReportGroup {
+	groups := make([]rackReportGroup, 0)
+	index := make(map[string]int)
+	for _, row := range rows {
+		key := row.CoordinatorCode + "\x00" + row.RackName
+		position, ok := index[key]
+		if !ok {
+			position = len(groups)
+			index[key] = position
+			groups = append(groups, rackReportGroup{Coordinator: row.CoordinatorCode, Rack: row.RackName})
 		}
-		return rows
-	}(), 30, 90, 40, 20)
+		group := &groups[position]
+		group.Items = append(group.Items, row)
+		group.ItemCount++
+		group.TotalQty += row.Quantity
+		group.TotalBuy += row.Quantity * row.BuyPrice
+		group.TotalSell += row.Quantity * row.SellPrice
+	}
+	return groups
+}
+
+func rackRecap(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool) {
+	if len(groups) == 0 {
+		pdf.SetFont("Arial", "I", 9)
+		pdf.CellFormat(0, 6, "Belum ada hasil stock opname.", "", 1, "L", false, 0, "")
+		return
+	}
+
+	headers := []string{"No", "Coordinator", "Rack", "Item", "Qty", "Total Beli", "Total Jual"}
+	widths := []float64{10, 35, 35, 12, 18, 35, 35}
+	if !withCoordinator {
+		headers = []string{"No", "Rack", "Item", "Qty", "Total Beli", "Total Jual"}
+		widths = []float64{10, 60, 15, 20, 37, 38}
+	}
+
+	rows := make([][]string, 0, len(groups))
+	for i, group := range groups {
+		row := []string{strconv.Itoa(i + 1), group.Rack, strconv.Itoa(group.ItemCount), formatQty(group.TotalQty), formatMoneyID(group.TotalBuy), formatMoneyID(group.TotalSell)}
+		if withCoordinator {
+			row = []string{strconv.Itoa(i + 1), group.Coordinator, group.Rack, strconv.Itoa(group.ItemCount), formatQty(group.TotalQty), formatMoneyID(group.TotalBuy), formatMoneyID(group.TotalSell)}
+		}
+		rows = append(rows, row)
+	}
+	table(pdf, headers, rows, widths...)
+}
+
+func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool) {
+	for _, group := range groups {
+		title := group.Rack
+		if withCoordinator {
+			title += " - " + group.Coordinator
+		}
+		section(pdf, title)
+		rows := make([][]string, 0, len(group.Items))
+		for _, item := range group.Items {
+			rows = append(rows, []string{item.Barcode, item.Name, formatQty(item.Quantity)})
+		}
+		table(pdf, []string{"Barcode", "Product", "Qty"}, rows, 35, 125, 20)
+		pdf.SetFont("Arial", "B", 8)
+		pdf.CellFormat(0, 6, fmt.Sprintf("Subtotal %s: %d item, %s qty | Beli %s | Jual %s", group.Rack, group.ItemCount, formatQty(group.TotalQty), formatMoneyID(group.TotalBuy), formatMoneyID(group.TotalSell)), "", 1, "L", false, 0, "")
+		pdf.Ln(2)
+	}
+}
+
+func reportGrandTotal(pdf *gofpdf.Fpdf, groups []rackReportGroup, title string) {
+	if len(groups) == 0 {
+		return
+	}
+	var itemCount int
+	var totalQty, totalBuy, totalSell float64
+	for _, group := range groups {
+		itemCount += group.ItemCount
+		totalQty += group.TotalQty
+		totalBuy += group.TotalBuy
+		totalSell += group.TotalSell
+	}
+	pdf.Ln(2)
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(0, 8, fmt.Sprintf("%s: %d item, %s qty | Beli %s | Jual %s", title, itemCount, formatQty(totalQty), formatMoneyID(totalBuy), formatMoneyID(totalSell)), "T", 1, "L", false, 0, "")
 }
 func footer(pdf *gofpdf.Fpdf) {
 	pdf.Ln(4)
@@ -518,7 +613,21 @@ func sanitizeReportName(value string) string {
 }
 
 func formatQty(q float64) string {
-	return strconv.FormatFloat(q, 'f', 2, 64)
+	return strings.Replace(strconv.FormatFloat(q, 'f', 2, 64), ".", ",", 1)
+}
+
+func formatMoneyID(v float64) string {
+	formatted := strconv.FormatFloat(math.Round(v*100)/100, 'f', 2, 64)
+	parts := strings.SplitN(formatted, ".", 2)
+	whole := parts[0]
+	var grouped strings.Builder
+	for i, r := range whole {
+		if i > 0 && (len(whole)-i)%3 == 0 {
+			grouped.WriteByte('.')
+		}
+		grouped.WriteRune(r)
+	}
+	return fmt.Sprintf("Rp %s,%s", grouped.String(), parts[1])
 }
 
 func formatReportDate(value string) string {

@@ -33,11 +33,11 @@ func soTestSummaryRow() *pgxmock.Rows {
 func TestStockOpnameFindAll(t *testing.T) {
 	mock := mustMockPool(t)
 	sesiId, coorId := 3, 5
-	mock.ExpectQuery("FROM stock_opname so").WithArgs(&coorId, &sesiId, "%roti%", 10, 0).WillReturnRows(soTestSummaryRow())
-	mock.ExpectQuery("COUNT").WithArgs(&coorId, &sesiId, "%roti%").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(&coorId, &sesiId, (*int)(nil), "%roti%", 10, 0).WillReturnRows(soTestSummaryRow())
+	mock.ExpectQuery("COUNT").WithArgs(&coorId, &sesiId, (*int)(nil), "%roti%").WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 
 	repo := NewStockOpnameRepository(mock)
-	results, total, err := repo.FindAll(context.Background(), 10, 0, "roti", &sesiId, &coorId)
+	results, total, err := repo.FindAll(context.Background(), 10, 0, "roti", &sesiId, &coorId, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -100,14 +100,15 @@ func TestStockOpnameSaveUpsertOnReupload(t *testing.T) {
 
 func TestStockOpnameFindAllForExport(t *testing.T) {
 	mock := mustMockPool(t)
+	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	mock.ExpectQuery("FROM stock_opname so").WithArgs(3).WillReturnRows(
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil)).WillReturnRows(
 		pgxmock.NewRows([]string{"id", "barcode", "name", "buyPrice", "sellPrice", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
 			AddRow(7, "8991001010016", "Sari Roti", 14500.0, 17200.0, 10, "R1", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock)
-	exports, err := repo.FindAllForExport(context.Background(), 3)
+	exports, err := repo.FindAllForExport(context.Background(), &sesiId, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

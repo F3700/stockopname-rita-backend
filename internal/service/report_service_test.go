@@ -30,15 +30,15 @@ func TestSessionPDF(t *testing.T) {
 		},
 		&fakeUploadService{},
 		&fakeStockOpnameService{
-			findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+			findAllForExportFunc: func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
 				if sesiId == nil || *sesiId != 1 {
 					t.Errorf("expected sesiId 1, got %v", sesiId)
 				}
 				if coorId != nil {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
-				return []dto.StockOpnameResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", Quantity: 48, RackName: "R1"},
+				return []dto.StockOpnameExportResponse{
+					{Id: 1, Barcode: "8991234567890", Name: "Indomie", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
@@ -96,7 +96,7 @@ func TestSessionPDFCoordinatorError(t *testing.T) {
 		},
 		&fakeUploadService{},
 		&fakeStockOpnameService{
-			findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+			findAllForExportFunc: func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
 				stockCalled = true
 				return nil, nil
 			},
@@ -134,14 +134,14 @@ func TestCoordinatorPDF(t *testing.T) {
 		},
 		&fakeUploadService{},
 		&fakeStockOpnameService{
-			findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+			findAllForExportFunc: func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
 				if coorId == nil || *coorId != 2 {
 					t.Errorf("expected coorId 2, got %v", coorId)
 				}
 				if sesiId != nil {
 					t.Errorf("expected nil sesiId, got %d", *sesiId)
 				}
-				return []dto.StockOpnameResponse{}, nil
+				return []dto.StockOpnameExportResponse{}, nil
 			},
 		},
 	)
@@ -177,6 +177,41 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 	var notFound *model.NotFoundError
 	if !errors.As(err, &notFound) {
 		t.Errorf("expected NotFoundError to propagate, got %T: %v", err, err)
+	}
+}
+
+func TestGroupByRack(t *testing.T) {
+	rows := []dto.StockOpnameExportResponse{
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750},
+	}
+	groups := groupByRack(rows)
+	if len(groups) != 2 {
+		t.Fatalf("expected 2 groups, got %d", len(groups))
+	}
+	if groups[0].Rack != "Rak 1" || groups[0].ItemCount != 2 || groups[0].TotalQty != 3.5 {
+		t.Errorf("unexpected first group %+v", groups[0])
+	}
+	if groups[0].TotalBuy != 3500 || groups[0].TotalSell != 5250 {
+		t.Errorf("unexpected first group totals %+v", groups[0])
+	}
+	if groups[1].TotalBuy != 2000 || groups[1].TotalSell != 3000 {
+		t.Errorf("unexpected second group totals %+v", groups[1])
+	}
+}
+
+func TestFormatMoneyID(t *testing.T) {
+	cases := map[float64]string{
+		0:           "Rp 0,00",
+		1500:        "Rp 1.500,00",
+		1234567.89:  "Rp 1.234.567,89",
+		48.5 * 2500: "Rp 121.250,00",
+	}
+	for value, want := range cases {
+		if got := formatMoneyID(value); got != want {
+			t.Errorf("formatMoneyID(%v) = %q, want %q", value, got, want)
+		}
 	}
 }
 

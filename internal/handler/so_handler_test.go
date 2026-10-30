@@ -99,12 +99,15 @@ func TestDeleteStockOpnameInvalidID(t *testing.T) {
 
 func TestGetAllStockOpname(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
 			if coorId == nil || *coorId != 1 {
 				t.Errorf("expected coorId 1, got %v", coorId)
 			}
 			if sesiId == nil || *sesiId != 2 {
 				t.Errorf("expected sesiId 2, got %v", sesiId)
+			}
+			if rakId == nil || *rakId != 3 {
+				t.Errorf("expected rakId 3, got %v", rakId)
 			}
 			pagination.TotalItems = 1
 			pagination.TotalPages = 1
@@ -112,7 +115,7 @@ func TestGetAllStockOpname(t *testing.T) {
 		},
 	})
 
-	req := newJSONRequest(t, http.MethodGet, "/stock-opnames?page=1&limit=10&coordinatorId=1&sessionId=2", "")
+	req := newJSONRequest(t, http.MethodGet, "/stock-opnames?page=1&limit=10&coordinatorId=1&sessionId=2&rakId=3", "")
 	rec := httptest.NewRecorder()
 	h.GetAllStockOpname(rec, req, nil)
 
@@ -126,9 +129,9 @@ func TestGetAllStockOpname(t *testing.T) {
 
 func TestGetAllStockOpnameNoFilters(t *testing.T) {
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
-			if coorId != nil || sesiId != nil {
-				t.Errorf("expected nil filters, got coorId=%v sesiId=%v", coorId, sesiId)
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
+			if coorId != nil || sesiId != nil || rakId != nil {
+				t.Errorf("expected nil filters, got coorId=%v sesiId=%v rakId=%v", coorId, sesiId, rakId)
 			}
 			return []dto.StockOpnameResponse{}, nil
 		},
@@ -146,7 +149,7 @@ func TestGetAllStockOpnameNoFilters(t *testing.T) {
 func TestGetAllStockOpnameMissingPage(t *testing.T) {
 	called := false
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
 			called = true
 			return nil, nil
 		},
@@ -167,7 +170,7 @@ func TestGetAllStockOpnameMissingPage(t *testing.T) {
 func TestGetAllStockOpnameInvalidSession(t *testing.T) {
 	called := false
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
 			called = true
 			return nil, nil
 		},
@@ -188,7 +191,7 @@ func TestGetAllStockOpnameInvalidSession(t *testing.T) {
 func TestGetAllStockOpnameInvalidCoordinator(t *testing.T) {
 	called := false
 	h := NewStockOpnameHandler(&fakeStockOpnameService{
-		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error) {
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
 			called = true
 			return nil, nil
 		},
@@ -203,6 +206,27 @@ func TestGetAllStockOpnameInvalidCoordinator(t *testing.T) {
 	}
 	if called {
 		t.Error("service must not be called on invalid coordinatorId")
+	}
+}
+
+func TestGetAllStockOpnameInvalidRack(t *testing.T) {
+	called := false
+	h := NewStockOpnameHandler(&fakeStockOpnameService{
+		findAllFunc: func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
+			called = true
+			return nil, nil
+		},
+	})
+
+	req := newJSONRequest(t, http.MethodGet, "/stock-opnames?page=1&limit=10&rakId=oops", "")
+	rec := httptest.NewRecorder()
+	h.GetAllStockOpname(rec, req, nil)
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+	if called {
+		t.Error("service must not be called on invalid rakId")
 	}
 }
 

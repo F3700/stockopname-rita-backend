@@ -10,6 +10,6 @@ type StockOpnameService interface {
 	Update(ctx context.Context, id int, req dto.UpdateStockOpnameRequest) (dto.StockOpnameResponse, error)
 	Delete(ctx context.Context, id int) error
 	FindById(ctx context.Context, id int) (dto.StockOpnameResponse, error)
-	FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int) ([]dto.StockOpnameResponse, error)
-	FindAllForExport(ctx context.Context, sesiId int) ([]dto.StockOpnameExportResponse, error)
+	FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
+	FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
 }
