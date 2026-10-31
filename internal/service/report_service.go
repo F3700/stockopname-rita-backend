@@ -508,7 +508,7 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 	drawHeader := func() {
 		pdf.SetFont("Arial", "B", 8)
 		for i, header := range headers {
-			pdf.CellFormat(colWidths[i], 7, header, "1", 0, "L", true, 0, "")
+			pdf.CellFormat(colWidths[i], 7, header, "1", 0, "L", false, 0, "")
 		}
 		pdf.Ln(-1)
 	}
@@ -588,7 +588,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse) {
 		formatMoneyID(totalBuy),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Qty", "Harga Beli", "Harga Jual"}, rows, total, []float64{28, 18, 62, 14, 32, 32})
+	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Qty", "Harga Beli", "Harga Jual"}, rows, total, []float64{22, 14, 78, 14, 29, 29})
 	pdf.Ln(1)
 }
 
