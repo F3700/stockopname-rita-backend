@@ -2,8 +2,11 @@ package service
 
 import (
 	"bytes"
+	"compress/zlib"
 	"context"
 	"errors"
+	"io"
+	"strings"
 	"testing"
 
 	"stockopname-rita-backend/internal/dto"
@@ -56,6 +59,13 @@ func TestSessionPDF(t *testing.T) {
 	}
 	if len(data) == 0 {
 		t.Error("expected non-empty PDF")
+	}
+	text := compressedPDFText(t, data)
+	if !strings.Contains(text, "Pasaraya Ritelindo") || !strings.Contains(text, "Session Report") {
+		t.Error("expected session report header")
+	}
+	if bytes.Contains(data, []byte("/Subtype /Image")) {
+		t.Error("session PDF must not contain a logo image")
 	}
 }
 
@@ -156,6 +166,13 @@ func TestCoordinatorPDF(t *testing.T) {
 	if !bytes.HasPrefix(data, []byte("%PDF")) {
 		t.Error("expected PDF magic header")
 	}
+	text := compressedPDFText(t, data)
+	if !strings.Contains(text, "Pasaraya Ritelindo") || !strings.Contains(text, "Coordinator Report") {
+		t.Error("expected coordinator report header")
+	}
+	if bytes.Contains(data, []byte("/Subtype /Image")) {
+		t.Error("coordinator PDF must not contain a logo image")
+	}
 }
 
 func TestCoordinatorPDFCoordinatorError(t *testing.T) {
@@ -231,6 +248,79 @@ func TestFormatReportDate(t *testing.T) {
 	}
 }
 
+func compressedPDFText(t *testing.T, data []byte) string {
+	t.Helper()
+	rest := data
+	var text strings.Builder
+	for {
+		start := bytes.Index(rest, []byte("stream"))
+		if start < 0 {
+			break
+		}
+		rest = rest[start+len("stream"):]
+		rest = bytes.TrimLeft(rest, "\r\n")
+		end := bytes.Index(rest, []byte("endstream"))
+		if end < 0 {
+			break
+		}
+		chunk := rest[:end]
+		rest = rest[end+len("endstream"):]
+
+		reader, err := zlib.NewReader(bytes.NewReader(chunk))
+		if err != nil {
+			continue
+		}
+		var buffer bytes.Buffer
+		if _, err := io.Copy(&buffer, reader); err != nil {
+			_ = reader.Close()
+			continue
+		}
+		_ = reader.Close()
+		text.Write(buffer.Bytes())
+		text.WriteByte('\n')
+	}
+	return text.String()
+}
+
+func TestCoordinatorUploadSummaryPDF(t *testing.T) {
+	svc := NewReportService(
+		&fakeSesiService{},
+		&fakeCoordinatorService{
+			findByIdDetailFunc: func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
+				if id != 7 {
+					t.Errorf("expected coordinator 7, got %d", id)
+				}
+				return &dto.CoordinatorDetailResponse{
+					ID: 7, Code: "QA-C1", SessionCode: "SESI-01", SessionLocation: "Gudang A",
+				}, nil
+			},
+		},
+		&fakeUploadService{
+			findSummaryFunc: func(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
+				return []*model.UploadReportRow{
+					{CoordinatorCode: "QA-C1", UploadID: 1, UploadNumber: 1, Qty: 2.5, TotalBuy: 2500, TotalSell: 3750},
+					{CoordinatorCode: "QA-C1", UploadID: 2, UploadNumber: 2, Qty: 1, TotalBuy: 2000, TotalSell: 2500},
+				}, nil
+			},
+		},
+		&fakeStockOpnameService{},
+	)
+
+	data, filename, err := svc.CoordinatorUploadSummaryPDF(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if filename != "SESI-01_QA-C1_upload-summary.pdf" {
+		t.Errorf("unexpected filename %q", filename)
+	}
+	text := compressedPDFText(t, data)
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Total HB", "Total HJ", "QA-C1", "3,50", "Rp 4.500,00", "Rp 6.250,00", "TOTAL"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected summary PDF to contain %q", want)
+		}
+	}
+}
+
 func TestUploadPDF(t *testing.T) {
 	svc := NewReportService(
 		&fakeSesiService{},
@@ -247,11 +337,11 @@ func TestUploadPDF(t *testing.T) {
 					SessionLocation: "Gudang A",
 					Racks: []dto.UploadDetailRackResponse{
 						{RakID: 1, RakName: "Rak 1", ItemCount: 2, Items: []dto.UploadItemResponse{
-							{Barcode: "111", Name: "Indomie", Qty: 5},
-							{Barcode: "222", Name: "Soto", Qty: 3},
+							{PLU: "1001", Barcode: "111", Name: "Indomie", Qty: 5, BuyPrice: 2500, SellPrice: 3500},
+							{PLU: "1002", Barcode: "222", Name: "Soto", Qty: 3, BuyPrice: 2000, SellPrice: 3000},
 						}},
 						{RakID: 2, RakName: "Rak 2", ItemCount: 1, Items: []dto.UploadItemResponse{
-							{Barcode: "333", Name: "Teh", Qty: 1},
+							{PLU: "1003", Barcode: "333", Name: "Teh", Qty: 1, BuyPrice: 1000, SellPrice: 1500},
 						}},
 					},
 				}, nil
@@ -269,5 +359,14 @@ func TestUploadPDF(t *testing.T) {
 	}
 	if !bytes.HasPrefix(data, []byte("%PDF")) {
 		t.Error("expected PDF magic header")
+	}
+	text := compressedPDFText(t, data)
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Harga Beli", "Harga Jual", "TOTAL", "1001", "Rp 2.500,00", "2 item"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected upload PDF to contain %q", want)
+		}
+	}
+	if strings.Contains(text, "STOCK OPNAME UPLOAD") {
+		t.Error("upload PDF must not print the old title")
 	}
 }

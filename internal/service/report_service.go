@@ -3,7 +3,6 @@ package service
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"encoding/binary"
 	"fmt"
 	"io"
@@ -19,14 +18,12 @@ import (
 	"golang.org/x/text/encoding/charmap"
 )
 
-//go:embed assets/logoritapasaraya_mini.png
-var ritaLogo []byte
-
 var reportLocation = mustLoadReportLocation()
 
 type ReportService interface {
 	SessionPDF(ctx context.Context, id int) ([]byte, string, error)
 	CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error)
+	CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error)
 	UploadPDF(ctx context.Context, id int) ([]byte, string, error)
 	SessionExcel(ctx context.Context, id int) ([]byte, string, error)
 	SessionDBF(ctx context.Context, id int) ([]byte, string, error)
@@ -57,8 +54,7 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, str
 		return nil, "", err
 	}
 	groups := groupByRack(exports)
-	pdf := newPDF("STOCK OPNAME REPORT")
-	pdf.Ln(4)
+	pdf := newPDF("Session Report")
 	section(pdf, "SESSION INFORMATION")
 	label(pdf, "Session Code", session.Code)
 	label(pdf, "Location", session.Location)
@@ -99,8 +95,7 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 		return nil, "", err
 	}
 	groups := groupByRack(exports)
-	pdf := newPDF("COORDINATOR STOCK OPNAME")
-	pdf.Ln(4)
+	pdf := newPDF("Coordinator Report")
 	section(pdf, "COORDINATOR INFORMATION")
 	label(pdf, "Coordinator Code", coordinator.Code)
 	label(pdf, "Session", report.SessionCode)
@@ -117,6 +112,62 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
 }
 
+// CoordinatorUploadSummaryPDF renders one summary row per upload for a coordinator.
+func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error) {
+	coordinator, err := r.CoordinatorService.FindByIdDetail(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+	rows, err := r.UploadService.FindSummaryByCoordinator(ctx, id)
+	if err != nil {
+		return nil, "", err
+	}
+
+	pdf := newUploadPDF("Upload Summary Report")
+
+	pair := func(label, value string) {
+		pdf.SetFont("Arial", "B", 8)
+		pdf.CellFormat(20, 4.6, label, "", 0, "L", false, 0, "")
+		pdf.SetFont("Arial", "", 8)
+		pdf.CellFormat(42, 4.6, value, "", 0, "L", false, 0, "")
+	}
+	pair("Koordinator", coordinator.Code)
+	pair("Session", coordinator.SessionCode)
+	pair("Lokasi", coordinator.SessionLocation)
+	pdf.Ln(5)
+
+	tableRows := make([][]string, 0, len(rows))
+	var totalQty, totalBuy, totalSell float64
+	for _, row := range rows {
+		tableRows = append(tableRows, []string{
+			row.CoordinatorCode,
+			strconv.Itoa(row.UploadNumber),
+			formatQty(row.Qty),
+			formatMoneyID(row.TotalBuy),
+			formatMoneyID(row.TotalSell),
+		})
+		totalQty += row.Qty
+		totalBuy += row.TotalBuy
+		totalSell += row.TotalSell
+	}
+	total := []string{
+		"TOTAL",
+		"",
+		formatQty(totalQty),
+		formatMoneyID(totalBuy),
+		formatMoneyID(totalSell),
+	}
+	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HB", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 53, 53})
+	footer(pdf)
+
+	data, err := pdfBytes(pdf)
+	if err != nil {
+		return nil, "", err
+	}
+	filename := fmt.Sprintf("%s_%s_upload-summary.pdf", sanitizeReportName(coordinator.SessionCode), sanitizeReportName(coordinator.Code))
+	return data, filename, nil
+}
+
 // UploadPDF renders the immutable snapshot taken when the batch was uploaded.
 func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
 	detail, err := r.UploadService.FindDetail(ctx, id)
@@ -124,25 +175,10 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, stri
 		return nil, "", err
 	}
 
-	pdf := newPDF("STOCK OPNAME UPLOAD")
-	pdf.Ln(4)
-	section(pdf, "UPLOAD INFORMATION")
-	label(pdf, "Coordinator", detail.CoordinatorCode)
-	label(pdf, "Session", detail.SessionCode)
-	label(pdf, "Location", detail.SessionLocation)
-	label(pdf, "Uploaded At", formatReportDate(detail.CreatedAt))
-	label(pdf, "Rack Count", fmt.Sprint(detail.RackCount))
-	label(pdf, "Item Count", fmt.Sprint(detail.ItemCount))
-
+	pdf := newUploadPDF("Upload Report")
+	uploadInfo(pdf, detail)
 	for _, rack := range detail.Racks {
-		section(pdf, "RACK "+rack.RakName)
-		table(pdf, []string{"Barcode", "Product", "Qty"}, func() [][]string {
-			rows := make([][]string, 0, len(rack.Items))
-			for _, item := range rack.Items {
-				rows = append(rows, []string{item.Barcode, item.Name, formatQty(item.Qty)})
-			}
-			return rows
-		}(), 35, 115, 30)
+		uploadRackSection(pdf, rack)
 	}
 	footer(pdf)
 
@@ -418,24 +454,39 @@ func (m *memReadWriteSeeker) Data() []byte {
 	return out
 }
 
-func newPDF(title string) *gofpdf.Fpdf {
+func newPDF(subtitle string) *gofpdf.Fpdf {
 	pdf := gofpdf.New("P", "mm", "A4", "")
-	pdf.SetTitle(title, false)
+	pdf.SetTitle("Pasaraya Ritelindo - "+subtitle, false)
 	pdf.SetAutoPageBreak(true, 15)
 	pdf.AddPage()
-	pdf.RegisterImageOptionsReader("rita-logo", gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}, bytes.NewReader(ritaLogo))
-	pdf.ImageOptions("rita-logo", 15, 12, 14, 0, false, gofpdf.ImageOptions{ImageType: "PNG", ReadDpi: true}, 0, "")
-	pdf.SetY(12)
-	pdf.SetFont("Arial", "B", 16)
-	pdf.CellFormat(0, 10, title, "", 1, "C", false, 0, "")
-	pdf.SetY(29)
+	reportHeader(pdf, subtitle)
 	return pdf
 }
+
+// newUploadPDF keeps the upload report compact while still showing the brand.
+func newUploadPDF(subtitle string) *gofpdf.Fpdf {
+	pdf := gofpdf.New("P", "mm", "A4", "")
+	pdf.SetTitle("Pasaraya Ritelindo - "+subtitle, false)
+	pdf.SetMargins(12, 10, 12)
+	pdf.SetAutoPageBreak(true, 12)
+	pdf.AddPage()
+	reportHeader(pdf, subtitle)
+	return pdf
+}
+
+func reportHeader(pdf *gofpdf.Fpdf, subtitle string) {
+	pdf.SetY(10)
+	pdf.SetFont("Arial", "B", 14)
+	pdf.CellFormat(0, 7, "Pasaraya Ritelindo", "", 1, "C", false, 0, "")
+	pdf.SetFont("Arial", "", 10)
+	pdf.CellFormat(0, 5, subtitle, "", 1, "C", false, 0, "")
+	pdf.Ln(3)
+}
+
 func section(pdf *gofpdf.Fpdf, title string) {
-	pdf.SetFont("Arial", "B", 11)
-	pdf.SetFillColor(235, 235, 235)
-	pdf.CellFormat(0, 8, title, "B", 1, "L", true, 0, "")
-	pdf.Ln(2)
+	pdf.SetFont("Arial", "B", 10)
+	pdf.CellFormat(0, 6, title, "B", 1, "L", false, 0, "")
+	pdf.Ln(1.5)
 }
 func label(pdf *gofpdf.Fpdf, key, value string) {
 	pdf.SetFont("Arial", "B", 9)
@@ -489,6 +540,108 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 		}
 		pdf.SetXY(startX, startY+rowHeight)
 	}
+	pdf.Ln(2)
+}
+
+func uploadInfo(pdf *gofpdf.Fpdf, detail dto.UploadDetailResponse) {
+	pair := func(label, value string) {
+		pdf.SetFont("Arial", "B", 8)
+		pdf.CellFormat(20, 4.6, label, "", 0, "L", false, 0, "")
+		pdf.SetFont("Arial", "", 8)
+		pdf.CellFormat(42, 4.6, value, "", 0, "L", false, 0, "")
+	}
+	pair("Coordinator", detail.CoordinatorCode)
+	pair("Session", detail.SessionCode)
+	pair("Location", detail.SessionLocation)
+	pdf.Ln(4.6)
+	pair("Uploaded At", formatReportDate(detail.CreatedAt))
+	pair("Racks", fmt.Sprint(detail.RackCount))
+	pair("Items", fmt.Sprint(detail.ItemCount))
+	pdf.Ln(5)
+}
+
+func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse) {
+	pdf.SetFont("Arial", "B", 9)
+	pdf.CellFormat(0, 5, rack.RakName, "B", 1, "L", false, 0, "")
+	pdf.Ln(1)
+
+	rows := make([][]string, 0, len(rack.Items))
+	var totalQty, totalBuy, totalSell float64
+	for _, item := range rack.Items {
+		rows = append(rows, []string{
+			item.Barcode,
+			item.PLU,
+			item.Name,
+			formatQty(item.Qty),
+			formatMoneyID(item.BuyPrice),
+			formatMoneyID(item.SellPrice),
+		})
+		totalQty += item.Qty
+		totalBuy += item.Qty * item.BuyPrice
+		totalSell += item.Qty * item.SellPrice
+	}
+	total := []string{
+		"TOTAL",
+		"",
+		fmt.Sprintf("%d item", len(rack.Items)),
+		formatQty(totalQty),
+		formatMoneyID(totalBuy),
+		formatMoneyID(totalSell),
+	}
+	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Qty", "Harga Beli", "Harga Jual"}, rows, total, []float64{28, 18, 62, 14, 32, 32})
+	pdf.Ln(1)
+}
+
+func uploadTable(pdf *gofpdf.Fpdf, headers []string, rows [][]string, total []string, widths []float64) {
+	const lineHeight = 4.6
+	drawHeader := func() {
+		pdf.SetFont("Arial", "B", 7)
+		for i, header := range headers {
+			pdf.CellFormat(widths[i], 5, header, "1", 0, "L", false, 0, "")
+		}
+		pdf.Ln(-1)
+	}
+	drawRow := func(row []string, bold bool) {
+		if bold {
+			pdf.SetFont("Arial", "B", 7.5)
+		} else {
+			pdf.SetFont("Arial", "", 7.5)
+		}
+		startX, startY := pdf.GetXY()
+		rowHeight := lineHeight
+		for index, value := range row {
+			lines := len(pdf.SplitLines([]byte(value), widths[index]-1))
+			if height := float64(lines) * lineHeight; height > rowHeight {
+				rowHeight = height
+			}
+		}
+		if pdf.GetY()+rowHeight > 282 {
+			pdf.AddPage()
+			drawHeader()
+			if bold {
+				pdf.SetFont("Arial", "B", 7.5)
+			} else {
+				pdf.SetFont("Arial", "", 7.5)
+			}
+			startX, startY = pdf.GetXY()
+		}
+		for index, value := range row {
+			x := startX
+			for j := 0; j < index; j++ {
+				x += widths[j]
+			}
+			pdf.SetXY(x, startY)
+			pdf.MultiCell(widths[index], lineHeight, value, "1", "L", false)
+			pdf.SetXY(x+widths[index], startY)
+		}
+		pdf.SetXY(startX, startY+rowHeight)
+	}
+
+	drawHeader()
+	for _, row := range rows {
+		drawRow(row, false)
+	}
+	drawRow(total, true)
 	pdf.Ln(2)
 }
 

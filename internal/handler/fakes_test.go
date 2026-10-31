@@ -11,6 +11,7 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"stockopname-rita-backend/internal/dto"
+	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/service"
 )
 
@@ -123,6 +124,7 @@ type fakeUploadService struct {
 	createFunc         func(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error)
 	findAllSummaryFunc func(ctx context.Context, coordinatorId int) ([]dto.UploadResponse, error)
 	findDetailFunc     func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error)
+	findSummaryFunc    func(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error)
 }
 
 func (f *fakeUploadService) Create(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error) {
@@ -144,6 +146,13 @@ func (f *fakeUploadService) FindDetail(ctx context.Context, uploadID int) (dto.U
 		return dto.UploadDetailResponse{}, nil
 	}
 	return f.findDetailFunc(ctx, uploadID)
+}
+
+func (f *fakeUploadService) FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
+	if f.findSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findSummaryFunc(ctx, coordinatorId)
 }
 
 type fakeSesiService struct {
@@ -211,11 +220,12 @@ func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pa
 }
 
 type fakeReportService struct {
-	sessionPDFFunc     func(ctx context.Context, id int) ([]byte, string, error)
-	coordinatorPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
-	uploadPDFFunc      func(ctx context.Context, id int) ([]byte, string, error)
-	sessionExcelFunc   func(ctx context.Context, id int) ([]byte, string, error)
-	sessionDBFFunc     func(ctx context.Context, id int) ([]byte, string, error)
+	sessionPDFFunc            func(ctx context.Context, id int) ([]byte, string, error)
+	coordinatorPDFFunc        func(ctx context.Context, id int) ([]byte, string, error)
+	coordinatorSummaryPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
+	uploadPDFFunc             func(ctx context.Context, id int) ([]byte, string, error)
+	sessionExcelFunc          func(ctx context.Context, id int) ([]byte, string, error)
+	sessionDBFFunc            func(ctx context.Context, id int) ([]byte, string, error)
 }
 
 func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
@@ -231,6 +241,13 @@ func (f *fakeReportService) UploadPDF(ctx context.Context, id int) ([]byte, stri
 		return nil, "", nil
 	}
 	return f.uploadPDFFunc(ctx, id)
+}
+
+func (f *fakeReportService) CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error) {
+	if f.coordinatorSummaryPDFFunc == nil {
+		return nil, "", nil
+	}
+	return f.coordinatorSummaryPDFFunc(ctx, id)
 }
 
 func (f *fakeReportService) SessionExcel(ctx context.Context, id int) ([]byte, string, error) {

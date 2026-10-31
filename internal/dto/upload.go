@@ -40,8 +40,10 @@ type UploadDetailResponse struct {
 }
 
 type UploadItemResponse struct {
-	PLU     string  `json:"plu"`
-	Barcode string  `json:"barcode"`
-	Name    string  `json:"name"`
-	Qty     float64 `json:"qty"`
+	PLU       string  `json:"plu"`
+	Barcode   string  `json:"barcode"`
+	Name      string  `json:"name"`
+	Qty       float64 `json:"qty"`
+	BuyPrice  float64 `json:"buy_price"`
+	SellPrice float64 `json:"sell_price"`
 }
