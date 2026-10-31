@@ -28,6 +28,24 @@ func TestUploadFindAllSummary(t *testing.T) {
 	}
 }
 
+func TestUploadFindSummaryByCoordinator(t *testing.T) {
+	mock := mustMockPool(t)
+	mock.ExpectQuery("jsonb_array_elements").WithArgs(7).WillReturnRows(
+		pgxmock.NewRows([]string{"CoordinatorCode", "UploadID", "UploadNumber", "Qty", "TotalBuy", "TotalSell"}).
+			AddRow("QA-C1", 1, 1, 2.5, 2500.0, 3750.0).
+			AddRow("QA-C1", 2, 2, 1.0, 2000.0, 2500.0),
+	)
+
+	repo := NewUploadRepository(mock)
+	rows, err := repo.FindSummaryByCoordinator(context.Background(), 7)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(rows) != 2 || rows[1].UploadNumber != 2 || rows[0].TotalSell != 3750 {
+		t.Errorf("unexpected rows %+v", rows)
+	}
+}
+
 func TestUploadFindAllSummaryError(t *testing.T) {
 	mock := mustMockPool(t)
 	mock.ExpectQuery("FROM upload").WithArgs(5).WillReturnError(errors.New("boom"))

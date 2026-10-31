@@ -793,6 +793,45 @@
         }
       }
     },
+    "/stockopname/coordinators/{id}/uploads/pdf": {
+      "get": {
+        "tags": [
+          "Stock Opname Coordinator"
+        ],
+        "summary": "Generate a coordinator upload summary PDF",
+        "description": "Generate an inline PDF with one row per upload: coordinator code, upload number, total quantity, total buy value, and total sell value.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            },
+            "example": 1
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "PDF summary generated successfully",
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/stockopname/coordinators/{id}": {
       "get": {
         "tags": [

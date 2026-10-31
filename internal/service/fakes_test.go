@@ -248,6 +248,7 @@ type fakeUploadRepository struct {
 	saveFunc           func(ctx context.Context, tx pgx.Tx, upload *model.Upload) error
 	findAllSummaryFunc func(ctx context.Context, coordinatorId int) ([]*model.UploadSummary, error)
 	findDetailFunc     func(ctx context.Context, uploadID int) (*model.UploadDetail, error)
+	findSummaryFunc    func(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error)
 }
 
 func (f *fakeUploadRepository) Save(ctx context.Context, tx pgx.Tx, upload *model.Upload) error {
@@ -270,6 +271,13 @@ func (f *fakeUploadRepository) FindDetail(ctx context.Context, uploadID int) (*m
 		return nil, nil
 	}
 	return f.findDetailFunc(ctx, uploadID)
+}
+
+func (f *fakeUploadRepository) FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
+	if f.findSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findSummaryFunc(ctx, coordinatorId)
 }
 
 type fakeSesiRepository struct {
@@ -468,6 +476,7 @@ type fakeUploadService struct {
 	createFunc         func(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error)
 	findAllSummaryFunc func(ctx context.Context, coordinatorId int) ([]dto.UploadResponse, error)
 	findDetailFunc     func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error)
+	findSummaryFunc    func(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error)
 }
 
 func (f *fakeUploadService) Create(ctx context.Context, req dto.CreateUploadRequest) (dto.UploadResponse, error) {
@@ -489,6 +498,13 @@ func (f *fakeUploadService) FindDetail(ctx context.Context, uploadID int) (dto.U
 		return dto.UploadDetailResponse{}, nil
 	}
 	return f.findDetailFunc(ctx, uploadID)
+}
+
+func (f *fakeUploadService) FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
+	if f.findSummaryFunc == nil {
+		return nil, nil
+	}
+	return f.findSummaryFunc(ctx, coordinatorId)
 }
 
 type fakeStockOpnameService struct {

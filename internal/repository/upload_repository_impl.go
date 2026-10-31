@@ -56,6 +56,43 @@ func (r *UploadRepositoryImpl) FindAllSummary(ctx context.Context, coordinatorId
 	return uploads, nil
 }
 
+// FindSummaryByCoordinator returns one row per upload with totals from the
+// immutable rack snapshot.
+func (r *UploadRepositoryImpl) FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
+	const SQL = `
+		SELECT
+			c.coor_code AS CoordinatorCode,
+			u.upload_id AS UploadID,
+			ROW_NUMBER() OVER (
+				PARTITION BY u.upload_coor_id
+				ORDER BY u.upload_id
+			) AS UploadNumber,
+			COALESCE(SUM((item->>'qty')::numeric), 0) AS Qty,
+			COALESCE(SUM(
+				(item->>'qty')::numeric *
+				COALESCE((item->>'buy_price')::numeric, 0)
+			), 0) AS TotalBuy,
+			COALESCE(SUM(
+				(item->>'qty')::numeric *
+				COALESCE((item->>'sell_price')::numeric, 0)
+			), 0) AS TotalSell
+		FROM upload u
+		JOIN coordinator c ON c.coor_id = u.upload_coor_id
+		LEFT JOIN rak r ON r.rak_upload_id = u.upload_id
+		LEFT JOIN LATERAL jsonb_array_elements(r.rak_upload_snapshot) item ON true
+		WHERE u.upload_coor_id = $1
+		GROUP BY c.coor_code, u.upload_id, u.upload_coor_id
+		ORDER BY u.upload_id;
+	`
+	rows, err := r.Pool.Query(ctx, SQL, coordinatorId)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	return pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.UploadReportRow])
+}
+
 // FindDetail implements [UploadRepository].
 func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*model.UploadDetail, error) {
 	const headerSQL = `

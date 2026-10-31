@@ -56,6 +56,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
 	router.GET("/stockopname/coordinators/:id/pdf", reportHandler.CoordinatorPDF)
+	router.GET("/stockopname/coordinators/:id/uploads/pdf", reportHandler.CoordinatorUploadSummaryPDF)
 	router.POST("/stockopname/coordinators/join-by-qr", coordinatorHandler.JoinByCoordinatorQR)
 	router.PATCH("/stockopname/coordinators/:id", coordinatorHandler.UpdateCoordinator)
 

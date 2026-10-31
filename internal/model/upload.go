@@ -31,3 +31,13 @@ type UploadDetail struct {
 	SessionLocation string       `json:"sesi_location"`
 	Racks           []UploadRack `json:"racks"`
 }
+
+// UploadReportRow is one upload line in the per-coordinator summary PDF.
+type UploadReportRow struct {
+	CoordinatorCode string
+	UploadID        int
+	UploadNumber    int
+	Qty             float64
+	TotalBuy        float64
+	TotalSell       float64
+}

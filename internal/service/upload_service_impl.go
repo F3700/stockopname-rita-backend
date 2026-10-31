@@ -135,10 +135,12 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 				soBarcode = product.FirstBarcode()
 			}
 			uploadItems = append(uploadItems, model.UploadItem{
-				PLU:     product.ProductPLU,
-				Barcode: soBarcode,
-				Name:    product.ProductName,
-				Qty:     *item.Quantity,
+				PLU:       product.ProductPLU,
+				Barcode:   soBarcode,
+				Name:      product.ProductName,
+				Qty:       *item.Quantity,
+				BuyPrice:  product.ProductBuyPrice,
+				SellPrice: product.ProductSellPrice,
 			})
 			results = append(results, snapshot(*item.Quantity, rackReq.RakID, product, item.Barcode))
 		}
@@ -213,6 +215,11 @@ func (s *UploadServiceImpl) FindAllSummary(ctx context.Context, coordinatorId in
 	return responses, nil
 }
 
+// FindSummaryByCoordinator implements [UploadService].
+func (s *UploadServiceImpl) FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
+	return s.UploadRepository.FindSummaryByCoordinator(ctx, coordinatorId)
+}
+
 // FindDetail implements [UploadService].
 func (s *UploadServiceImpl) FindDetail(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error) {
 	detail, err := s.UploadRepository.FindDetail(ctx, uploadID)
@@ -225,10 +232,12 @@ func (s *UploadServiceImpl) FindDetail(ctx context.Context, uploadID int) (dto.U
 		items := make([]dto.UploadItemResponse, 0, len(rack.Items))
 		for _, item := range rack.Items {
 			items = append(items, dto.UploadItemResponse{
-				PLU:     item.PLU,
-				Barcode: item.Barcode,
-				Name:    item.Name,
-				Qty:     item.Qty,
+				PLU:       item.PLU,
+				Barcode:   item.Barcode,
+				Name:      item.Name,
+				Qty:       item.Qty,
+				BuyPrice:  item.BuyPrice,
+				SellPrice: item.SellPrice,
 			})
 		}
 		racks = append(racks, dto.UploadDetailRackResponse{

@@ -42,6 +42,20 @@ func (h *ReportHandler) CoordinatorPDF(writer http.ResponseWriter, req *http.Req
 	writePDF(writer, filename, data)
 }
 
+func (h *ReportHandler) CoordinatorUploadSummaryPDF(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid coordinator ID", err)
+		return
+	}
+	data, filename, err := h.Service.CoordinatorUploadSummaryPDF(req.Context(), id)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+	writePDF(writer, filename, data)
+}
+
 func (h *ReportHandler) UploadPDF(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	id, err := helper.ParseIntParam(params, "id")
 	if err != nil {

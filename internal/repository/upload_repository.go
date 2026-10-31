@@ -11,4 +11,5 @@ type UploadRepository interface {
 	Save(ctx context.Context, tx pgx.Tx, upload *model.Upload) error
 	FindAllSummary(ctx context.Context, coordinatorId int) ([]*model.UploadSummary, error)
 	FindDetail(ctx context.Context, uploadID int) (*model.UploadDetail, error)
+	FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error)
 }
