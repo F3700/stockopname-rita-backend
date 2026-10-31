@@ -283,6 +283,7 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId *i
 		responses = append(responses, dto.StockOpnameExportResponse{
 			Id:              export.Id,
 			Barcode:         export.Barcode,
+			PLU:             export.ProductPLU,
 			Name:            export.Name,
 			BuyPrice:        export.BuyPrice,
 			SellPrice:       export.SellPrice,

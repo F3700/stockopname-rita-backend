@@ -176,6 +176,7 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 		SELECT
 			so.stock_opname_id AS id,
 			so.so_barcode AS barcode,
+			so.so_product_plu AS ProductPLU,
 			so.so_product_name AS name,
 			so.so_buyprice AS buyPrice,
 			so.so_sellprice AS sellPrice,

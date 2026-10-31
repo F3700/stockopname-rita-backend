@@ -16,6 +16,7 @@ type StockOpnameResponse struct {
 type StockOpnameExportResponse struct {
 	Id              int     `json:"id"`
 	Barcode         string  `json:"barcode"`
+	PLU             string  `json:"plu"`
 	Name            string  `json:"product_name"`
 	BuyPrice        float64 `json:"buy_price"`
 	SellPrice       float64 `json:"sell_price"`

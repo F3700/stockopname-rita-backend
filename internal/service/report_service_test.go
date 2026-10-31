@@ -41,7 +41,7 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
@@ -63,6 +63,11 @@ func TestSessionPDF(t *testing.T) {
 	text := compressedPDFText(t, data)
 	if !strings.Contains(text, "Pasaraya Ritelindo") || !strings.Contains(text, "Session Report") {
 		t.Error("expected session report header")
+	}
+	for _, want := range []string{"PLU", "Harga Beli", "Harga Jual", "TOTAL", "Rp 2.500,00"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected session PDF to contain %q", want)
+		}
 	}
 	if bytes.Contains(data, []byte("/Subtype /Image")) {
 		t.Error("session PDF must not contain a logo image")
@@ -126,19 +131,14 @@ func TestCoordinatorPDF(t *testing.T) {
 	svc := NewReportService(
 		&fakeSesiService{},
 		&fakeCoordinatorService{
-			findByIdSummaryFunc: func(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
+			findByIdDetailFunc: func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
 				if id != 2 {
 					t.Errorf("expected id 2, got %d", id)
 				}
-				return &dto.CoordinatorResponse{ID: 2, Code: "KOR-02", Status: "COMPLETED"}, nil
-			},
-			findByIdReportFunc: func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error) {
-				if id != 2 {
-					t.Errorf("expected id 2, got %d", id)
-				}
-				return &dto.CoordinatorReportResponse{
-					Coordinator: dto.CoordinatorResponse{ID: 2, Code: "KOR-02", Status: "COMPLETED"},
-					SessionCode: "SESI-01",
+				return &dto.CoordinatorDetailResponse{
+					ID: 2, Code: "KOR-02", Status: "COMPLETED",
+					SessionCode: "SESI-01", SessionLocation: "Gudang A",
+					RackAssigned: 2, RackCompleted: 2,
 				}, nil
 			},
 		},
@@ -179,7 +179,7 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 	svc := NewReportService(
 		&fakeSesiService{},
 		&fakeCoordinatorService{
-			findByIdSummaryFunc: func(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
+			findByIdDetailFunc: func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error) {
 				return nil, &model.NotFoundError{Resource: "Coordinator", ID: id}
 			},
 		},

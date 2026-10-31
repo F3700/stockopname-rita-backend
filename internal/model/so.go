@@ -33,6 +33,7 @@ type StockOpnameSummary struct {
 type StockOpnameExport struct {
 	Id              int       `json:"id"`
 	Barcode         string    `json:"barcode"`
+	ProductPLU      string    `json:"product_plu"`
 	Name            string    `json:"product_name"`
 	BuyPrice        float64   `json:"buy_price"`
 	SellPrice       float64   `json:"sell_price"`
