@@ -1,0 +1,9 @@
+.git
+.github
+.playwright-mcp
+.env
+.env.*
+bin
+build
+*.test
+*.out
