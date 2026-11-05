@@ -78,6 +78,7 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, str
 		rackDetails(pdf, groups, true)
 		reportGrandTotal(pdf, groups, "TOTAL SESI")
 	}
+	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", session.Code), err
@@ -109,6 +110,7 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 		rackDetails(pdf, groups, false)
 		reportGrandTotal(pdf, groups, "TOTAL KOORDINATOR")
 	}
+	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
@@ -136,27 +138,25 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 	pdf.Ln(5)
 
 	tableRows := make([][]string, 0, len(rows))
-	var totalQty, totalBuy, totalSell float64
+	var totalQty, totalSell float64
 	for _, row := range rows {
 		tableRows = append(tableRows, []string{
 			row.CoordinatorCode,
 			strconv.Itoa(row.UploadNumber),
 			formatQty(row.Qty),
-			formatMoneyID(row.TotalBuy),
 			formatMoneyID(row.TotalSell),
 		})
 		totalQty += row.Qty
-		totalBuy += row.TotalBuy
 		totalSell += row.TotalSell
 	}
 	total := []string{
 		"TOTAL",
 		"",
 		formatQty(totalQty),
-		formatMoneyID(totalBuy),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HB", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 53, 53})
+	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
+	reportNote(pdf, "Histori submit asli; tidak berubah oleh koreksi admin.")
 	footer(pdf)
 
 	data, err := pdfBytes(pdf)
@@ -179,6 +179,7 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, stri
 	for _, rack := range detail.Racks {
 		uploadRackSection(pdf, rack)
 	}
+	reportNote(pdf, "Histori submit asli; tidak berubah oleh koreksi admin.")
 	footer(pdf)
 
 	data, err := pdfBytes(pdf)
@@ -554,29 +555,28 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse) {
 	pdf.Ln(1)
 
 	rows := make([][]string, 0, len(rack.Items))
-	var totalQty, totalBuy, totalSell float64
+	var totalQty, totalSell float64
 	for _, item := range rack.Items {
 		rows = append(rows, []string{
 			item.Barcode,
 			item.PLU,
 			item.Name,
+			formatDepartment(item.Dept),
 			formatQty(item.Qty),
-			formatMoneyID(item.BuyPrice),
 			formatMoneyID(item.SellPrice),
 		})
 		totalQty += item.Qty
-		totalBuy += item.Qty * item.BuyPrice
 		totalSell += item.Qty * item.SellPrice
 	}
 	total := []string{
 		"TOTAL",
 		"",
 		fmt.Sprintf("%d item", len(rack.Items)),
+		"",
 		formatQty(totalQty),
-		formatMoneyID(totalBuy),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Qty", "Harga Beli", "Harga Jual"}, rows, total, []float64{24, 18, 72, 14, 29, 29})
+	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}, rows, total, []float64{24, 18, 72, 18, 14, 40})
 	pdf.Ln(1)
 }
 
@@ -671,18 +671,18 @@ func rackRecap(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool)
 		return
 	}
 
-	headers := []string{"No", "Coordinator", "Rack", "Item", "Qty", "Total Beli", "Total Jual"}
-	widths := []float64{10, 30, 30, 12, 18, 43, 43}
+	headers := []string{"No", "Coordinator", "Rack", "Item", "Qty", "Total Jual"}
+	widths := []float64{10, 35, 40, 12, 20, 69}
 	if !withCoordinator {
-		headers = []string{"No", "Rack", "Item", "Qty", "Total Beli", "Total Jual"}
-		widths = []float64{10, 48, 15, 18, 47, 48}
+		headers = []string{"No", "Rack", "Item", "Qty", "Total Jual"}
+		widths = []float64{10, 60, 15, 20, 81}
 	}
 
 	rows := make([][]string, 0, len(groups))
 	for i, group := range groups {
-		row := []string{strconv.Itoa(i + 1), group.Rack, strconv.Itoa(group.ItemCount), formatQty(group.TotalQty), formatMoneyID(group.TotalBuy), formatMoneyID(group.TotalSell)}
+		row := []string{strconv.Itoa(i + 1), group.Rack, strconv.Itoa(group.ItemCount), formatQty(group.TotalQty), formatMoneyID(group.TotalSell)}
 		if withCoordinator {
-			row = []string{strconv.Itoa(i + 1), group.Coordinator, group.Rack, strconv.Itoa(group.ItemCount), formatQty(group.TotalQty), formatMoneyID(group.TotalBuy), formatMoneyID(group.TotalSell)}
+			row = []string{strconv.Itoa(i + 1), group.Coordinator, group.Rack, strconv.Itoa(group.ItemCount), formatQty(group.TotalQty), formatMoneyID(group.TotalSell)}
 		}
 		rows = append(rows, row)
 	}
@@ -705,8 +705,8 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				item.Barcode,
 				item.PLU,
 				item.Name,
+				formatDepartment(item.DepartmentCode),
 				formatQty(item.Quantity),
-				formatMoneyID(item.BuyPrice),
 				formatMoneyID(item.SellPrice),
 			})
 		}
@@ -714,11 +714,11 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 			"TOTAL",
 			"",
 			fmt.Sprintf("%d item", group.ItemCount),
+			"",
 			formatQty(group.TotalQty),
-			formatMoneyID(group.TotalBuy),
 			formatMoneyID(group.TotalSell),
 		}
-		uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Qty", "Harga Beli", "Harga Jual"}, rows, total, []float64{24, 18, 72, 14, 29, 29})
+		uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}, rows, total, []float64{24, 18, 72, 18, 14, 40})
 		pdf.Ln(1)
 	}
 }
@@ -728,21 +728,26 @@ func reportGrandTotal(pdf *gofpdf.Fpdf, groups []rackReportGroup, title string) 
 		return
 	}
 	var itemCount int
-	var totalQty, totalBuy, totalSell float64
+	var totalQty, totalSell float64
 	for _, group := range groups {
 		itemCount += group.ItemCount
 		totalQty += group.TotalQty
-		totalBuy += group.TotalBuy
 		totalSell += group.TotalSell
 	}
 	pdf.Ln(2)
 	pdf.SetFont("Arial", "B", 9)
-	pdf.CellFormat(0, 8, fmt.Sprintf("%s: %d item, %s qty | Beli %s | Jual %s", title, itemCount, formatQty(totalQty), formatMoneyID(totalBuy), formatMoneyID(totalSell)), "T", 1, "L", false, 0, "")
+	pdf.CellFormat(0, 8, fmt.Sprintf("%s: %d item, %s qty | Jual %s", title, itemCount, formatQty(totalQty), formatMoneyID(totalSell)), "T", 1, "L", false, 0, "")
 }
 func footer(pdf *gofpdf.Fpdf) {
 	pdf.Ln(4)
 	pdf.SetFont("Arial", "I", 8)
 	pdf.CellFormat(0, 6, "Generated At: "+formatReportDate(time.Now().UTC().Format(time.RFC3339)), "", 1, "L", false, 0, "")
+}
+
+func reportNote(pdf *gofpdf.Fpdf, note string) {
+	pdf.Ln(2)
+	pdf.SetFont("Arial", "I", 8)
+	pdf.CellFormat(0, 5, note, "", 1, "L", false, 0, "")
 }
 
 func mustLoadReportLocation() *time.Location {
@@ -767,6 +772,13 @@ func sanitizeReportName(value string) string {
 		return "report"
 	}
 	return b.String()
+}
+
+func formatDepartment(code string) string {
+	if code == "" {
+		return "-"
+	}
+	return code
 }
 
 func formatQty(q float64) string {

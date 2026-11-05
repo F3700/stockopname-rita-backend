@@ -41,7 +41,7 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
@@ -64,9 +64,14 @@ func TestSessionPDF(t *testing.T) {
 	if !strings.Contains(text, "Pasaraya Ritelindo") || !strings.Contains(text, "Session Report") {
 		t.Error("expected session report header")
 	}
-	for _, want := range []string{"PLU", "Harga Beli", "Harga Jual", "TOTAL", "Rp 2.500,00"} {
+	for _, want := range []string{"PLU", "Dept", "1138", "Harga Jual", "TOTAL", "Rp 3.500,00"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected session PDF to contain %q", want)
+		}
+	}
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("session PDF must not contain %q", unwanted)
 		}
 	}
 	if bytes.Contains(data, []byte("/Subtype /Image")) {
@@ -314,9 +319,14 @@ func TestCoordinatorUploadSummaryPDF(t *testing.T) {
 		t.Errorf("unexpected filename %q", filename)
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Total HB", "Total HJ", "QA-C1", "3,50", "Rp 4.500,00", "Rp 6.250,00", "TOTAL"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected summary PDF to contain %q", want)
+		}
+	}
+	for _, unwanted := range []string{"Total HB", "Rp 4.500,00"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("summary PDF must not contain %q", unwanted)
 		}
 	}
 }
@@ -337,11 +347,11 @@ func TestUploadPDF(t *testing.T) {
 					SessionLocation: "Gudang A",
 					Racks: []dto.UploadDetailRackResponse{
 						{RakID: 1, RakName: "Rak 1", ItemCount: 2, Items: []dto.UploadItemResponse{
-							{PLU: "1001", Barcode: "111", Name: "Indomie", Qty: 5, BuyPrice: 2500, SellPrice: 3500},
-							{PLU: "1002", Barcode: "222", Name: "Soto", Qty: 3, BuyPrice: 2000, SellPrice: 3000},
+							{PLU: "1001", Barcode: "111", Name: "Indomie", Dept: "1138", Qty: 5, BuyPrice: 2500, SellPrice: 3500},
+							{PLU: "1002", Barcode: "222", Name: "Soto", Dept: "1139", Qty: 3, BuyPrice: 2000, SellPrice: 3000},
 						}},
 						{RakID: 2, RakName: "Rak 2", ItemCount: 1, Items: []dto.UploadItemResponse{
-							{PLU: "1003", Barcode: "333", Name: "Teh", Qty: 1, BuyPrice: 1000, SellPrice: 1500},
+							{PLU: "1003", Barcode: "333", Name: "Teh", Dept: "1140", Qty: 1, BuyPrice: 1000, SellPrice: 1500},
 						}},
 					},
 				}, nil
@@ -361,9 +371,14 @@ func TestUploadPDF(t *testing.T) {
 		t.Error("expected PDF magic header")
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Harga Beli", "Harga Jual", "TOTAL", "1001", "Rp 2.500,00", "2 item"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Harga Jual", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected upload PDF to contain %q", want)
+		}
+	}
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli"} {
+		if strings.Contains(text, unwanted) {
+			t.Errorf("upload PDF must not contain %q", unwanted)
 		}
 	}
 	if strings.Contains(text, "STOCK OPNAME UPLOAD") {
