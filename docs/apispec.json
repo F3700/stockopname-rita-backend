@@ -43,9 +43,27 @@
     {
       "name": "Stock Opname Upload",
       "description": "Endpoint riwayat upload dan PDF upload"
+    },
+    {
+      "name": "Health",
+      "description": "Health check untuk monitoring dan verifikasi deploy"
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check",
+        "description": "Mengembalikan 200 selama service berjalan. Dipakai untuk verifikasi deploy.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
     "/products": {
       "get": {
         "tags": [

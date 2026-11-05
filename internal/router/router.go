@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	apidocs "stockopname-rita-backend/docs"
 	"stockopname-rita-backend/internal/handler"
 	"stockopname-rita-backend/internal/repository"
@@ -45,6 +47,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	reportHandler := handler.NewReportHandler(reportService)
 
 	router := httprouter.New()
+
+	// Health check for deploy verification.
+	router.GET("/health", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	// API docs.
 	apidocs.RegisterRoutes(router)

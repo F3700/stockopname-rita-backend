@@ -13,6 +13,7 @@ func TestNewRouterRegisters(t *testing.T) {
 	router := NewRouter(validator.New(), nil)
 
 	for _, route := range []struct{ method, path string }{
+		{"GET", "/health"},
 		{"GET", "/products"},
 		{"POST", "/products"},
 		{"PATCH", "/products/:id"},
