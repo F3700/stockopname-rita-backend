@@ -111,27 +111,27 @@ INSERT INTO rak (rak_name, rak_updatedat, rak_coor_id) VALUES
 -- ============================================
 -- STOCK OPNAME (snapshot, tanpa FK ke product)
 -- ============================================
-INSERT INTO stock_opname (stock_opname_quantity, so_product_plu, so_product_name, so_barcode, so_buyprice, so_sellprice, stock_opname_rak_id) VALUES
+INSERT INTO stock_opname (stock_opname_quantity, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, stock_opname_rak_id) VALUES
 -- Sesi 1, Rak A1
-(48, '900101', 'Sari Roti Tawar Kupas 400gr', '8991001010016', 14500.00, 17200.00, 1),
-(36, '900103', 'Chitato Sapi Panggang 68gr', '9001035550025', 9500.00, 11500.00, 1),
+(48, '900101', 'Sari Roti Tawar Kupas 400gr', '1138', '8991001010016', 14500.00, 17200.00, 1),
+(36, '900103', 'Chitato Sapi Panggang 68gr', '1138', '9001035550025', 9500.00, 11500.00, 1),
 -- Sesi 1, Rak A2 (produk sama di rak berbeda)
-(12, '900101', 'Sari Roti Tawar Kupas 400gr', '9001015550011', 14500.00, 17200.00, 2),
-(24, '900102', 'Ultra Milk Full Cream 1L', '8991001020022', 18900.00, 21500.00, 2),
+(12, '900101', 'Sari Roti Tawar Kupas 400gr', '1138', '9001015550011', 14500.00, 17200.00, 2),
+(24, '900102', 'Ultra Milk Full Cream 1L', '1139', '8991001020022', 18900.00, 21500.00, 2),
 -- Sesi 1, Rak B1
-(60, '900104', 'Pocari Sweat 500ml', '8991001040046', 6500.00, 8000.00, 3),
+(60, '900104', 'Pocari Sweat 500ml', '1139', '8991001040046', 6500.00, 8000.00, 3),
 -- Sesi 1, Rak C1
-(30, '900105', 'Daia Detergen Putih 800gr', '9001055550049', 17500.00, 20500.00, 4),
+(30, '900105', 'Daia Detergen Putih 800gr', '1140', '9001055550049', 17500.00, 20500.00, 4),
 -- Sesi 2, Rak E1
-(10, '900107', 'Beng-Beng Coklat 25gr', '8991001070077', 2800.00, 3500.00, 5),
-(40, '900112', 'ABC Kecap Manis 600ml', '8991001120120', 21000.00, 24800.00, 5),
+(10, '900107', 'Beng-Beng Coklat 25gr', '1138', '8991001070077', 2800.00, 3500.00, 5),
+(40, '900112', 'ABC Kecap Manis 600ml', '1138', '8991001120120', 21000.00, 24800.00, 5),
 -- Sesi 2, Rak E2
-(15, '900106', 'Pepsodent Siwak 190gr', '9001065550056', 22000.00, 26500.00, 6),
+(15, '900106', 'Pepsodent Siwak 190gr', '1140', '9001065550056', 22000.00, 26500.00, 6),
 -- Sesi 2, Rak F1
-(25, '900108', 'Floridina Orange 350ml', '9001085550070', 3800.00, 5000.00, 7),
+(25, '900108', 'Floridina Orange 350ml', '1139', '9001085550070', 3800.00, 5000.00, 7),
 -- Sesi 3 (IN_PROGRESS), Rak G1
-(8, '900110', 'Tolak Angin Cair 15ml', '9001105550094', 12500.00, 15200.00, 8),
-(5, '900111', 'Mamy Poko Pants M34', '8991001110113', 52000.00, 61500.00, 8);
+(8, '900110', 'Tolak Angin Cair 15ml', '1141', '9001105550094', 12500.00, 15200.00, 8),
+(5, '900111', 'Mamy Poko Pants M34', '1141', '8991001110113', 52000.00, 61500.00, 8);
 
 -- ============================================
 -- TANDAI RAK YANG SUDAH DIUPLOAD + SNAPSHOT
@@ -156,6 +156,7 @@ SET rak_upload_snapshot = (
             'plu', so.so_product_plu,
             'barcode', so.so_barcode,
             'name', so.so_product_name,
+            'dept', so.so_product_dept,
             'qty', so.stock_opname_quantity
         ) ORDER BY so.so_product_name)
         FROM stock_opname so

@@ -27,6 +27,7 @@ func (s *StockOpnameHandlerImpl) CreateStockOpname(writer http.ResponseWriter, r
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
+	StockOpnameRequest.Actor = helper.ActorFromRequest(req)
 
 	StockOpnameResponse, err := s.StockOpnameService.Create(req.Context(), StockOpnameRequest)
 	if err != nil {
@@ -53,7 +54,7 @@ func (s *StockOpnameHandlerImpl) DeleteStockOpname(writer http.ResponseWriter, r
 		return
 	}
 
-	if err := s.StockOpnameService.Delete(req.Context(), id); err != nil {
+	if err := s.StockOpnameService.Delete(req.Context(), id, helper.ActorFromRequest(req)); err != nil {
 		helper.WriteServiceError(writer, err)
 		return
 	}
@@ -189,6 +190,7 @@ func (s *StockOpnameHandlerImpl) UpdateStockOpname(writer http.ResponseWriter, r
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
+	soUpdateRequest.Actor = helper.ActorFromRequest(req)
 
 	stockOpnameResponse, err := s.StockOpnameService.Update(req.Context(), id, soUpdateRequest)
 	if err != nil {
@@ -199,6 +201,32 @@ func (s *StockOpnameHandlerImpl) UpdateStockOpname(writer http.ResponseWriter, r
 	response := dto.Response{
 		Message: "Stock opname updated successfully",
 		Data:    stockOpnameResponse,
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+		return
+	}
+}
+
+// MoveStockOpname implements [StockOpnameHandler].
+func (s *StockOpnameHandlerImpl) MoveStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	moveRequest := dto.MoveStockOpnameRequest{}
+	if err := helper.ReadFromRequestBody(req, &moveRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+	moveRequest.Actor = helper.ActorFromRequest(req)
+
+	moveResponse, err := s.StockOpnameService.Move(req.Context(), moveRequest)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Stock opname results moved successfully",
+		Data:    moveResponse,
 	}
 
 	if err := helper.ResponseJson(writer, http.StatusOK, response); err != nil {

@@ -246,6 +246,30 @@ func (c *CoordinatorRepositoryImpl) RecalcStatus(ctx context.Context, tx pgx.Tx,
 	return err
 }
 
+// RecalcStatusAfterResultChange moves the coordinator between IN_PROGRESS
+// and IN_REVIEW after a result is created, updated, deleted, or moved.
+// COMPLETED/CANCELLED are never touched.
+func (c *CoordinatorRepositoryImpl) RecalcStatusAfterResultChange(ctx context.Context, tx pgx.Tx, coorID int) error {
+	const SQL = `
+		UPDATE coordinator c
+		SET coor_status = CASE
+			WHEN NOT EXISTS (
+				SELECT 1 FROM rak r
+				WHERE r.rak_coor_id = c.coor_id
+				  AND NOT EXISTS (
+					  SELECT 1 FROM stock_opname so
+					  WHERE so.stock_opname_rak_id = r.rak_id
+				  )
+			) THEN 'IN_REVIEW'
+			ELSE 'IN_PROGRESS'
+		END
+		WHERE c.coor_id = $1
+		  AND c.coor_status IN ('IN_PROGRESS', 'IN_REVIEW')
+	`
+	_, err := tx.Exec(ctx, SQL, coorID)
+	return err
+}
+
 func (c *CoordinatorRepositoryImpl) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {
 	const SQL = `
 		SELECT

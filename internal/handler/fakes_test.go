@@ -12,6 +12,7 @@ import (
 
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
+	"stockopname-rita-backend/internal/repository"
 	"stockopname-rita-backend/internal/service"
 )
 
@@ -23,6 +24,7 @@ var _ service.UploadService = (*fakeUploadService)(nil)
 var _ service.SesiService = (*fakeSesiService)(nil)
 var _ service.StockOpnameService = (*fakeStockOpnameService)(nil)
 var _ service.ReportService = (*fakeReportService)(nil)
+var _ service.AuditService = (*fakeAuditService)(nil)
 
 type fakeCoordinatorService struct {
 	findByIdSummaryFunc func(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
@@ -207,8 +209,12 @@ func (f *fakeStockOpnameService) Update(ctx context.Context, id int, req dto.Upd
 	return f.updateFunc(ctx, id, req)
 }
 
-func (f *fakeStockOpnameService) Delete(ctx context.Context, id int) error {
+func (f *fakeStockOpnameService) Delete(ctx context.Context, id int, actor string) error {
 	return f.deleteFunc(ctx, id)
+}
+
+func (f *fakeStockOpnameService) Move(ctx context.Context, req dto.MoveStockOpnameRequest) (dto.MoveStockOpnameResponse, error) {
+	return dto.MoveStockOpnameResponse{}, nil
 }
 
 func (f *fakeStockOpnameService) FindById(ctx context.Context, id int) (dto.StockOpnameResponse, error) {
@@ -256,6 +262,17 @@ func (f *fakeReportService) SessionExcel(ctx context.Context, id int) ([]byte, s
 
 func (f *fakeReportService) SessionDBF(ctx context.Context, id int) ([]byte, string, error) {
 	return f.sessionDBFFunc(ctx, id)
+}
+
+type fakeAuditService struct {
+	findAllFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+}
+
+func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error) {
+	if f.findAllFunc == nil {
+		return nil, nil
+	}
+	return f.findAllFunc(ctx, filter, pagination)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

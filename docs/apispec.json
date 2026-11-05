@@ -43,9 +43,27 @@
     {
       "name": "Stock Opname Upload",
       "description": "Endpoint riwayat upload dan PDF upload"
+    },
+    {
+      "name": "Health",
+      "description": "Health check untuk monitoring dan verifikasi deploy"
     }
   ],
   "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Health check",
+        "description": "Mengembalikan 200 selama service berjalan. Dipakai untuk verifikasi deploy.",
+        "responses": {
+          "200": {
+            "description": "Service is healthy"
+          }
+        }
+      }
+    },
     "/products": {
       "get": {
         "tags": [
@@ -1732,6 +1750,135 @@
           }
         }
       }
+    },
+    "/stockopname/results/move": {
+      "post": {
+        "tags": [
+          "Stock Opname Result Items"
+        ],
+        "summary": "Move stock opname results to another rack",
+        "description": "Moves all results of a source rack, or only the given result_ids, into a target rack in the same session. If the target rack already has the same PLU, quantities are merged.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MoveStockOpnameRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Results moved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MoveStockOpnameResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/audits": {
+      "get": {
+        "tags": [
+          "Stock Opname Audit"
+        ],
+        "summary": "List stock opname audit entries",
+        "description": "Returns administrative changes to stock opname results, newest first.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "resultId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit entries retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/AuditEntry"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2045,6 +2192,18 @@
             "type": "string",
             "format": "date-time",
             "example": "2026-08-14T10:00:00Z"
+          },
+          "plu": {
+            "type": "string",
+            "example": "100251"
+          },
+          "rak_id": {
+            "type": "integer",
+            "example": 9
+          },
+          "coordinator_id": {
+            "type": "integer",
+            "example": 4
           }
         }
       },
@@ -2342,6 +2501,90 @@
             "items": {
               "$ref": "#/components/schemas/UploadRackRequest"
             }
+          }
+        }
+      },
+      "MoveStockOpnameRequest": {
+        "type": "object",
+        "required": [
+          "source_rak_id",
+          "target_rak_id"
+        ],
+        "properties": {
+          "source_rak_id": {
+            "type": "integer"
+          },
+          "target_rak_id": {
+            "type": "integer"
+          },
+          "result_ids": {
+            "type": "array",
+            "items": {
+              "type": "integer"
+            },
+            "description": "Omit to move the whole source rack."
+          },
+          "note": {
+            "type": "string"
+          }
+        }
+      },
+      "MoveStockOpnameResponse": {
+        "type": "object",
+        "properties": {
+          "moved_count": {
+            "type": "integer"
+          },
+          "merged_count": {
+            "type": "integer"
+          }
+        }
+      },
+      "AuditEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "batch_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "DELETE",
+              "MOVE"
+            ]
+          },
+          "sesi_id": {
+            "type": "integer"
+          },
+          "source_rak_id": {
+            "type": "integer"
+          },
+          "target_rak_id": {
+            "type": "integer"
+          },
+          "actor": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "before": {
+            "type": "object",
+            "nullable": true
+          },
+          "after": {
+            "type": "object",
+            "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       }

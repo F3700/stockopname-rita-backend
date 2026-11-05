@@ -12,6 +12,7 @@ type StockOpname struct {
 	// so history stays readable after the master changes or is cleared.
 	SoProductPLU  string  `json:"product_plu"`
 	SoProductName string  `json:"product_name"`
+	SoProductDept string  `json:"department_code"`
 	SoBarcode     string  `json:"barcode"`
 	SoBuyPrice    float64 `json:"buy_price"`
 	SoSellPrice   float64 `json:"sell_price"`
@@ -20,9 +21,12 @@ type StockOpname struct {
 type StockOpnameSummary struct {
 	Id              int       `json:"id"`
 	Barcode         string    `json:"barcode"`
+	ProductPLU      string    `json:"product_plu"`
 	Name            string    `json:"product_name"`
 	Quantity        float64   `json:"quantity"`
+	RackID          int       `json:"rak_id"`
 	RackName        string    `json:"rak_name"`
+	CoordinatorID   int       `json:"coordinator_id"`
 	CoordinatorCode string    `json:"coor_code"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
@@ -35,6 +39,7 @@ type StockOpnameExport struct {
 	Barcode         string    `json:"barcode"`
 	ProductPLU      string    `json:"product_plu"`
 	Name            string    `json:"product_name"`
+	DepartmentCode  string    `json:"department_code"`
 	BuyPrice        float64   `json:"buy_price"`
 	SellPrice       float64   `json:"sell_price"`
 	Quantity        float64   `json:"quantity"`

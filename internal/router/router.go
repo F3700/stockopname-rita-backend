@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+
 	apidocs "stockopname-rita-backend/docs"
 	"stockopname-rita-backend/internal/handler"
 	"stockopname-rita-backend/internal/repository"
@@ -19,6 +21,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	rackRepository := repository.NewRackRepository(pool)
 	uploadRepository := repository.NewUploadRepository(pool)
 	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
+	auditRepository := repository.NewAuditRepository(pool)
 
 	productService := service.NewProductService(productRepository, barcodeRepository, sesiRepository, pool, validate)
 	importService := service.NewImportService(productRepository, barcodeRepository, sesiRepository, pool)
@@ -36,12 +39,19 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	uploadService := service.NewUploadService(uploadRepository, rackRepository, coordinatorRepository, sesiRepository, productRepository, stockOpnameRepository, pool, validate)
 	uploadHandler := handler.NewUploadHandler(uploadService)
 
-	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, sesiRepository, pool, validate)
+	stockOpnameService := service.NewStockOpnameService(stockOpnameRepository, productRepository, sesiRepository, auditRepository, coordinatorRepository, pool, validate)
 	stockOpnameHandler := handler.NewStockOpnameHandler(stockOpnameService)
+	auditService := service.NewAuditService(auditRepository)
+	auditHandler := handler.NewAuditHandler(auditService)
 	reportService := service.NewReportService(sesiService, coordinatorService, uploadService, stockOpnameService)
 	reportHandler := handler.NewReportHandler(reportService)
 
 	router := httprouter.New()
+
+	// Health check for deploy verification.
+	router.GET("/health", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
+		w.WriteHeader(http.StatusOK)
+	})
 
 	// API docs.
 	apidocs.RegisterRoutes(router)
@@ -80,8 +90,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/stockopname/results", stockOpnameHandler.GetAllStockOpname)
 	router.GET("/stockopname/results/:id", stockOpnameHandler.GetStockOpnameById)
 	router.POST("/stockopname/results", stockOpnameHandler.CreateStockOpname)
+	router.POST("/stockopname/results/move", stockOpnameHandler.MoveStockOpname)
 	router.PATCH("/stockopname/results/:id", stockOpnameHandler.UpdateStockOpname)
 	router.DELETE("/stockopname/results/:id", stockOpnameHandler.DeleteStockOpname)
+
+	router.GET("/stockopname/audits", auditHandler.GetAudits)
 
 	return router
 }

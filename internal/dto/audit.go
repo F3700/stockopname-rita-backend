@@ -1,0 +1,18 @@
+package dto
+
+import "encoding/json"
+
+// AuditResponse is one row from GET /stockopname/audits.
+type AuditResponse struct {
+	ID          int64           `json:"id"`
+	BatchID     string          `json:"batch_id,omitempty"`
+	Action      string          `json:"action"`
+	SesiID      int             `json:"sesi_id"`
+	SourceRakID *int            `json:"source_rak_id,omitempty"`
+	TargetRakID *int            `json:"target_rak_id,omitempty"`
+	Actor       string          `json:"actor"`
+	Note        string          `json:"note"`
+	Before      json.RawMessage `json:"before"`
+	After       json.RawMessage `json:"after"`
+	CreatedAt   string          `json:"created_at"`
+}

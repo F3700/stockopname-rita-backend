@@ -22,6 +22,7 @@ type UploadItem struct {
 	PLU       string  `json:"plu"`
 	Barcode   string  `json:"barcode"`
 	Name      string  `json:"name"`
+	Dept      string  `json:"dept"`
 	Qty       float64 `json:"qty"`
 	BuyPrice  float64 `json:"buy_price"`
 	SellPrice float64 `json:"sell_price"`
