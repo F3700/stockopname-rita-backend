@@ -19,6 +19,7 @@ var _ repository.RackRepository = (*fakeRackRepository)(nil)
 var _ repository.SesiRepository = (*fakeSesiRepository)(nil)
 var _ repository.StockOpnameRepository = (*fakeStockOpnameRepository)(nil)
 var _ repository.UploadRepository = (*fakeUploadRepository)(nil)
+var _ repository.AuditRepository = (*fakeAuditRepository)(nil)
 
 var _ SesiService = (*fakeSesiService)(nil)
 var _ CoordinatorService = (*fakeCoordinatorService)(nil)
@@ -62,6 +63,7 @@ type fakeCoordinatorRepository struct {
 	updateFunc             func(ctx context.Context, tx pgx.Tx, coordinator *model.Coordinator) error
 	lockByIdFunc           func(ctx context.Context, tx pgx.Tx, coorID int) error
 	recalcStatusFunc       func(ctx context.Context, tx pgx.Tx, coorID int) error
+	recalcAfterChangeFunc  func(ctx context.Context, tx pgx.Tx, coorID int) error
 	findBySesiAndCoorCodeF func(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error)
 	findByIdFunc           func(ctx context.Context, tx pgx.Tx, id int) (*model.Coordinator, error)
 }
@@ -109,6 +111,13 @@ func (f *fakeCoordinatorRepository) RecalcStatus(ctx context.Context, tx pgx.Tx,
 		return nil
 	}
 	return f.recalcStatusFunc(ctx, tx, coorID)
+}
+
+func (f *fakeCoordinatorRepository) RecalcStatusAfterResultChange(ctx context.Context, tx pgx.Tx, coorID int) error {
+	if f.recalcAfterChangeFunc == nil {
+		return nil
+	}
+	return f.recalcAfterChangeFunc(ctx, tx, coorID)
 }
 
 func (f *fakeCoordinatorRepository) FindBySesiAndCoorCode(ctx context.Context, tx pgx.Tx, sesiCode string, coorCode string) (*model.Coordinator, error) {
@@ -280,6 +289,25 @@ func (f *fakeUploadRepository) FindSummaryByCoordinator(ctx context.Context, coo
 	return f.findSummaryFunc(ctx, coordinatorId)
 }
 
+type fakeAuditRepository struct {
+	saveFunc    func(ctx context.Context, tx pgx.Tx, audit *model.StockOpnameAudit) error
+	findAllFunc func(ctx context.Context, filter repository.AuditFilter) ([]*model.StockOpnameAudit, int, error)
+}
+
+func (f *fakeAuditRepository) Save(ctx context.Context, tx pgx.Tx, audit *model.StockOpnameAudit) error {
+	if f.saveFunc == nil {
+		return nil
+	}
+	return f.saveFunc(ctx, tx, audit)
+}
+
+func (f *fakeAuditRepository) FindAll(ctx context.Context, filter repository.AuditFilter) ([]*model.StockOpnameAudit, int, error) {
+	if f.findAllFunc == nil {
+		return nil, 0, nil
+	}
+	return f.findAllFunc(ctx, filter)
+}
+
 type fakeSesiRepository struct {
 	findByIdFn            func(ctx context.Context, id int) (*model.Sesi, error)
 	findByIdForShareFn    func(ctx context.Context, tx pgx.Tx, id int) (*model.Sesi, error)
@@ -326,15 +354,28 @@ func (f *fakeSesiRepository) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 
 type fakeStockOpnameRepository struct {
 	saveFunc                    func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	createFunc                  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	findByIdFn                  func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
+	findByIdForUpdateFn         func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameAuditData, error)
 	findAllFunc                 func(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error)
 	updateFunc                  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	deleteFunc                  func(ctx context.Context, tx pgx.Tx, id int) error
 	findAllForExportFunc        func(ctx context.Context, sesiId *int, coorId *int) ([]*model.StockOpnameExport, error)
 	findSesiIdByRakFunc         func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
 	findSesiIdByStockOpnameFunc func(ctx context.Context, tx pgx.Tx, stockOpnameID int) (int, error)
+	findRackContextFunc         func(ctx context.Context, tx pgx.Tx, rakID int) (*model.StockOpnameRackContext, error)
+	findForMoveFunc             func(ctx context.Context, tx pgx.Tx, rakID int, ids []int) ([]*model.StockOpnameAuditData, error)
+	findByRakAndPLUFunc         func(ctx context.Context, tx pgx.Tx, rakID int, plu string) (*model.StockOpnameAuditData, error)
+	upsertForMoveFunc           func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error)
 	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 	countByRakFunc              func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
+}
+
+func (f *fakeStockOpnameRepository) Create(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
+	if f.createFunc == nil {
+		return nil
+	}
+	return f.createFunc(ctx, tx, stockOpname)
 }
 
 func (f *fakeStockOpnameRepository) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
@@ -355,6 +396,50 @@ func (f *fakeStockOpnameRepository) Update(ctx context.Context, tx pgx.Tx, stock
 
 func (f *fakeStockOpnameRepository) Delete(ctx context.Context, tx pgx.Tx, id int) error {
 	return f.deleteFunc(ctx, tx, id)
+}
+
+func (f *fakeStockOpnameRepository) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameAuditData, error) {
+	if f.findByIdForUpdateFn == nil {
+		return nil, nil
+	}
+	return f.findByIdForUpdateFn(ctx, tx, id)
+}
+
+func (f *fakeStockOpnameRepository) FindRackContextForUpdate(ctx context.Context, tx pgx.Tx, rakID int) (*model.StockOpnameRackContext, error) {
+	if f.findRackContextFunc == nil {
+		return nil, nil
+	}
+	return f.findRackContextFunc(ctx, tx, rakID)
+}
+
+func (f *fakeStockOpnameRepository) FindForMove(ctx context.Context, tx pgx.Tx, rakID int, ids []int) ([]*model.StockOpnameAuditData, error) {
+	if f.findForMoveFunc == nil {
+		return nil, nil
+	}
+	return f.findForMoveFunc(ctx, tx, rakID, ids)
+}
+
+func (f *fakeStockOpnameRepository) FindByRakAndPLUForUpdate(ctx context.Context, tx pgx.Tx, rakID int, plu string) (*model.StockOpnameAuditData, error) {
+	if f.findByRakAndPLUFunc == nil {
+		return nil, nil
+	}
+	return f.findByRakAndPLUFunc(ctx, tx, rakID, plu)
+}
+
+func (f *fakeStockOpnameRepository) UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error) {
+	if f.upsertForMoveFunc == nil {
+		return &model.StockOpnameAuditData{
+			StockOpnameID: stockOpname.StockOpnameID,
+			RakID:         stockOpname.StockOpnameRakID,
+			PLU:           stockOpname.SoProductPLU,
+			Name:          stockOpname.SoProductName,
+			Barcode:       stockOpname.SoBarcode,
+			Quantity:      stockOpname.StockOpnameQuantity,
+			BuyPrice:      stockOpname.SoBuyPrice,
+			SellPrice:     stockOpname.SoSellPrice,
+		}, nil
+	}
+	return f.upsertForMoveFunc(ctx, tx, stockOpname)
 }
 
 func (f *fakeStockOpnameRepository) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]*model.StockOpnameExport, error) {
@@ -520,7 +605,11 @@ func (f *fakeStockOpnameService) Update(ctx context.Context, id int, req dto.Upd
 	return dto.StockOpnameResponse{}, nil
 }
 
-func (f *fakeStockOpnameService) Delete(ctx context.Context, id int) error { return nil }
+func (f *fakeStockOpnameService) Delete(ctx context.Context, id int, actor string) error { return nil }
+
+func (f *fakeStockOpnameService) Move(ctx context.Context, req dto.MoveStockOpnameRequest) (dto.MoveStockOpnameResponse, error) {
+	return dto.MoveStockOpnameResponse{}, nil
+}
 
 func (f *fakeStockOpnameService) FindById(ctx context.Context, id int) (dto.StockOpnameResponse, error) {
 	return dto.StockOpnameResponse{}, nil

@@ -16,18 +16,19 @@ func newTestStockOpname() *model.StockOpname {
 		StockOpnameRakID:    2,
 		SoProductPLU:        "100251",
 		SoProductName:       "Sari Roti",
+		SoProductDept:       "1138",
 		SoBarcode:           "8991001010016",
 		SoBuyPrice:          14500,
 		SoSellPrice:         17200,
 	}
 }
 
-var soSummaryColumns = []string{"id", "barcode", "name", "quantity", "rackName", "coordinatorCode", "updatedAt"}
+var soSummaryColumns = []string{"id", "barcode", "productPLU", "name", "quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "updatedAt"}
 
 func soTestSummaryRow() *pgxmock.Rows {
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(soSummaryColumns).
-		AddRow(7, "8991001010016", "Sari Roti", 10, "R1", "KOR-01", updatedAt)
+		AddRow(7, "8991001010016", "100251", "Sari Roti", 10, 2, "R1", 4, "KOR-01", updatedAt)
 }
 
 func TestStockOpnameFindAll(t *testing.T) {
@@ -65,7 +66,7 @@ func TestStockOpnameSave(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
-		WithArgs(10.0, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).
+		WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).
 		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7))
 
 	repo := NewStockOpnameRepository(mock)
@@ -84,7 +85,7 @@ func TestStockOpnameSaveUpsertOnReupload(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
-		WithArgs(25.0, 2, "100251", "Sari Roti", "8991001010016", 14500.0, 17200.0).
+		WithArgs(25.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).
 		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7))
 
 	repo := NewStockOpnameRepository(mock)
@@ -103,8 +104,8 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil)).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "buyPrice", "sellPrice", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
-			AddRow(7, "8991001010016", "100251", "Sari Roti", 14500.0, 17200.0, 10, "R1", "KOR-01", updatedAt),
+		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 10, "R1", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock)

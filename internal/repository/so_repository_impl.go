@@ -6,6 +6,7 @@ import (
 	"stockopname-rita-backend/internal/model"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type StockOpnameRepositoryImpl struct {
@@ -43,9 +44,12 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 		SELECT
 			so.stock_opname_id AS id,
 			so.so_barcode AS barcode,
+			so.so_product_plu AS productPLU,
 			so.so_product_name AS name,
 			so.stock_opname_quantity AS quantity,
+			so.stock_opname_rak_id AS rackId,
 			r.rak_name AS rackName,
+			c.coor_id AS coordinatorId,
 			c.coor_code AS coordinatorCode,
 			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
@@ -99,10 +103,13 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 		SELECT
 			so.stock_opname_id AS id,
 			so.so_barcode AS barcode,
-			so.so_product_name,
+			so.so_product_plu AS product_plu,
+			so.so_product_name AS product_name,
 			so.stock_opname_quantity AS quantity,
-			r.rak_name,
-			c.coor_code,
+			so.stock_opname_rak_id AS rak_id,
+			r.rak_name AS rak_name,
+			c.coor_id AS coordinator_id,
+			c.coor_code AS coor_code,
 			so.stock_opname_updatedat AS "updatedAt"
 
 		FROM stock_opname so
@@ -117,7 +124,7 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 	`
 
 	var stockOpname model.StockOpnameSummary
-	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.RackName, &stockOpname.CoordinatorCode, &stockOpname.UpdatedAt)
+	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.ProductPLU, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.RackID, &stockOpname.RackName, &stockOpname.CoordinatorID, &stockOpname.CoordinatorCode, &stockOpname.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &model.NotFoundError{Resource: "Stock Opname", ID: id}
@@ -128,24 +135,47 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 	return &stockOpname, nil
 }
 
+// Create implements [StockOpnameRepository]. It is a strict insert: the
+// (rack, plu) pair must not exist yet. Web correction uses PATCH instead.
+func (s *StockOpnameRepositoryImpl) Create(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
+	const SQL = `
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO NOTHING
+		RETURNING stock_opname_id
+	`
+	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice).Scan(&stockOpname.StockOpnameID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return &model.ConflictError{
+			Resource: "Stock Opname",
+			Detail:   "Produk sudah ada di rak ini; gunakan Edit untuk mengubah quantity",
+		}
+	}
+	if err != nil {
+		return model.MapPgError("Stock Opname", err)
+	}
+	return nil
+}
+
 // Save implements [StockOpnameRepository].
 // It is an idempotent upsert on (rak_id, product_plu): correcting an item
 // from the web refreshes the snapshot instead of failing with a
 // unique-constraint conflict.
 func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_barcode, so_buyprice, so_sellprice)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
 		SET stock_opname_quantity = EXCLUDED.stock_opname_quantity,
 		    so_barcode = EXCLUDED.so_barcode,
 		    so_product_name = EXCLUDED.so_product_name,
+		    so_product_dept = EXCLUDED.so_product_dept,
 		    so_buyprice = EXCLUDED.so_buyprice,
 		    so_sellprice = EXCLUDED.so_sellprice,
 		    stock_opname_updatedat = NOW()
 		RETURNING stock_opname_id
 	`
-	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice).Scan(&stockOpname.StockOpnameID)
+	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice).Scan(&stockOpname.StockOpnameID)
 	if err != nil {
 		return model.MapPgError("Stock Opname", err)
 	}
@@ -178,6 +208,7 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			so.so_barcode AS barcode,
 			so.so_product_plu AS ProductPLU,
 			so.so_product_name AS name,
+			so.so_product_dept AS departmentCode,
 			so.so_buyprice AS buyPrice,
 			so.so_sellprice AS sellPrice,
 			so.stock_opname_quantity AS quantity,
@@ -249,7 +280,208 @@ func (s *StockOpnameRepositoryImpl) FindSesiIdByStockOpnameID(ctx context.Contex
 	return sesiId, nil
 }
 
-// CountBySesi implements [StockOpnameRepository].
+// FindRackContextForUpdate locks one rack and returns its coordinator/upload
+// context. Used by create and move.
+func (s *StockOpnameRepositoryImpl) FindRackContextForUpdate(ctx context.Context, tx pgx.Tx, rakID int) (*model.StockOpnameRackContext, error) {
+	const SQL = `
+		SELECT
+			r.rak_id,
+			r.rak_name,
+			c.coor_id,
+			c.coor_code,
+			c.coor_status,
+			c.coor_sesi_id,
+			r.rak_upload_id,
+			u.upload_createdat
+		FROM rak r
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
+		LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
+		WHERE r.rak_id = $1
+		FOR UPDATE OF r
+	`
+	var rack model.StockOpnameRackContext
+	var uploadID pgtype.Int4
+	var uploadedAt pgtype.Timestamptz
+	err := tx.QueryRow(ctx, SQL, rakID).Scan(
+		&rack.RakID,
+		&rack.RakName,
+		&rack.CoorID,
+		&rack.CoorCode,
+		&rack.CoorStatus,
+		&rack.SesiID,
+		&uploadID,
+		&uploadedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
+	}
+	if err != nil {
+		return nil, err
+	}
+	rack.UploadID = int4Ptr(uploadID)
+	if uploadedAt.Valid {
+		value := uploadedAt.Time
+		rack.UploadedAt = &value
+	}
+	return &rack, nil
+}
+
+const auditDataSelect = `
+	SELECT
+		so.stock_opname_id,
+		so.stock_opname_quantity,
+		so.so_product_plu,
+		so.so_product_name,
+		so.so_product_dept,
+		so.so_barcode,
+		so.so_buyprice,
+		so.so_sellprice,
+		r.rak_id,
+		r.rak_name,
+		c.coor_id,
+		c.coor_code,
+		c.coor_status,
+		r.rak_upload_id,
+		u.upload_createdat
+	FROM stock_opname so
+	JOIN rak r ON r.rak_id = so.stock_opname_rak_id
+	JOIN coordinator c ON c.coor_id = r.rak_coor_id
+	LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
+`
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanAuditData(row rowScanner) (*model.StockOpnameAuditData, error) {
+	var data model.StockOpnameAuditData
+	var uploadID pgtype.Int4
+	var uploadedAt pgtype.Timestamptz
+	if err := row.Scan(
+		&data.StockOpnameID,
+		&data.Quantity,
+		&data.PLU,
+		&data.Name,
+		&data.DepartmentCode,
+		&data.Barcode,
+		&data.BuyPrice,
+		&data.SellPrice,
+		&data.RakID,
+		&data.RakName,
+		&data.CoordinatorID,
+		&data.CoordinatorCode,
+		&data.CoordinatorStatus,
+		&uploadID,
+		&uploadedAt,
+	); err != nil {
+		return nil, err
+	}
+	data.RakUploadID = int4Ptr(uploadID)
+	if uploadedAt.Valid {
+		value := uploadedAt.Time
+		data.RakUploadedAt = &value
+	}
+	return &data, nil
+}
+
+// FindByIdForUpdate locks one result row and returns its full snapshot plus
+// the rack/coordinator context used by the audit log.
+func (s *StockOpnameRepositoryImpl) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameAuditData, error) {
+	data, err := scanAuditData(tx.QueryRow(ctx, auditDataSelect+` WHERE so.stock_opname_id = $1 FOR UPDATE OF so`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, &model.NotFoundError{Resource: "Stock Opname", ID: id}
+	}
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// FindForMove locks the source rows that will be moved.
+func (s *StockOpnameRepositoryImpl) FindForMove(ctx context.Context, tx pgx.Tx, rakID int, ids []int) ([]*model.StockOpnameAuditData, error) {
+	SQL := auditDataSelect + ` WHERE so.stock_opname_rak_id = $1`
+	args := []any{rakID}
+	if ids != nil {
+		ids32 := make([]int32, len(ids))
+		for i, id := range ids {
+			ids32[i] = int32(id)
+		}
+		SQL += ` AND so.stock_opname_id = ANY($2)`
+		args = append(args, ids32)
+	}
+	SQL += ` ORDER BY so.stock_opname_id FOR UPDATE OF so`
+
+	rows, err := tx.Query(ctx, SQL, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	results := make([]*model.StockOpnameAuditData, 0)
+	for rows.Next() {
+		data, err := scanAuditData(rows)
+		if err != nil {
+			return nil, err
+		}
+		results = append(results, data)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return results, nil
+}
+
+// FindByRakAndPLUForUpdate returns the target row when the same PLU already
+// exists in the destination rack.
+func (s *StockOpnameRepositoryImpl) FindByRakAndPLUForUpdate(ctx context.Context, tx pgx.Tx, rakID int, plu string) (*model.StockOpnameAuditData, error) {
+	data, err := scanAuditData(tx.QueryRow(ctx, auditDataSelect+` WHERE so.stock_opname_rak_id = $1 AND so.so_product_plu = $2 FOR UPDATE OF so`, rakID, plu))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return data, nil
+}
+
+// UpsertForMove inserts the moved row or adds its quantity to the existing
+// (rack, plu) row. It returns the resulting target row fields.
+func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error) {
+	const SQL = `
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
+		SET stock_opname_quantity = stock_opname.stock_opname_quantity + EXCLUDED.stock_opname_quantity,
+		    so_product_dept = COALESCE(NULLIF(stock_opname.so_product_dept, ''), EXCLUDED.so_product_dept),
+		    stock_opname_updatedat = NOW()
+		RETURNING stock_opname_id, stock_opname_quantity, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice
+	`
+	var data model.StockOpnameAuditData
+	err := tx.QueryRow(ctx, SQL,
+		stockOpname.StockOpnameQuantity,
+		stockOpname.StockOpnameRakID,
+		stockOpname.SoProductPLU,
+		stockOpname.SoProductName,
+		stockOpname.SoProductDept,
+		stockOpname.SoBarcode,
+		stockOpname.SoBuyPrice,
+		stockOpname.SoSellPrice,
+	).Scan(
+		&data.StockOpnameID,
+		&data.Quantity,
+		&data.PLU,
+		&data.Name,
+		&data.DepartmentCode,
+		&data.Barcode,
+		&data.BuyPrice,
+		&data.SellPrice,
+	)
+	if err != nil {
+		return nil, model.MapPgError("Stock Opname", err)
+	}
+	return &data, nil
+}
+
 func (s *StockOpnameRepositoryImpl) CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error) {
 	const SQL = `
 		SELECT COUNT(*)
