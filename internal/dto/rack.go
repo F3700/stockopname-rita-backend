@@ -5,6 +5,8 @@ type RackResponse struct {
 	RackName      string `json:"name"`
 	CoordinatorID int    `json:"coordinator_id"`
 	UploadedAt    string `json:"uploaded_at"`
+	ItemCount     int    `json:"item_count"`
+	IsEmpty       bool   `json:"is_empty"`
 }
 
 type RackProgressResponse struct {

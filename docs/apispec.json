@@ -1570,7 +1570,7 @@
           "Stock Opname Coordinator"
         ],
         "summary": "Join a coordinator by scanning its QR code",
-        "description": "Validates the coordinator and returns its racks. Each rack carries uploaded_at so a second device can skip finished racks.",
+        "description": "Validates the coordinator and returns its racks with upload history and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at only marks upload history and does not indicate whether the rack still has items. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2258,6 +2258,14 @@
           "uploaded_at": {
             "type": "string",
             "example": "2026-10-26T10:14:00+07:00"
+          },
+          "item_count": {
+            "type": "integer",
+            "example": 5
+          },
+          "is_empty": {
+            "type": "boolean",
+            "example": false
           }
         }
       },
@@ -2410,10 +2418,22 @@
                 },
                 "uploaded_at": {
                   "type": "string",
-                  "example": "2026-10-26T09:14:03+07:00"
+                  "example": "2026-10-26T09:14:03+07:00",
+                  "description": "Upload-history marker. May be set even when the rack is now empty."
+                },
+                "item_count": {
+                  "type": "integer",
+                  "example": 5,
+                  "description": "Live number of result rows currently in the rack."
+                },
+                "is_empty": {
+                  "type": "boolean",
+                  "example": false,
+                  "description": "True when the rack has no live result rows."
                 }
               }
-            }
+            },
+            "description": "Racks owned by the coordinator. item_count and is_empty are live values for mobile; uploaded_at is the upload-history marker."
           }
         }
       },

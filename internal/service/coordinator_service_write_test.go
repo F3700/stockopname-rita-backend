@@ -124,9 +124,9 @@ func TestCoordinatorJoinByQR(t *testing.T) {
 	mock.ExpectQuery("FROM sesi").WithArgs(4).WillReturnRows(sesiStatusRow(4, "IN_PROGRESS"))
 	mock.ExpectQuery("COUNT").WithArgs(4).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt"}).
-			AddRow(31, "Rak 1", 12, nil).
-			AddRow(32, "Rak 2", 12, time.Now()),
+		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt", "ItemCount"}).
+			AddRow(31, "Rak 1", 12, nil, 0).
+			AddRow(32, "Rak 2", 12, time.Now(), 2),
 	)
 	mock.ExpectRollback()
 
@@ -143,6 +143,9 @@ func TestCoordinatorJoinByQR(t *testing.T) {
 	}
 	if res.Rak[1].UploadedAt == "" {
 		t.Error("expected second rack to be uploaded")
+	}
+	if res.Rak[0].ItemCount != 0 || !res.Rak[0].IsEmpty || res.Rak[1].ItemCount != 2 || res.Rak[1].IsEmpty {
+		t.Errorf("unexpected live rack counts %+v", res.Rak)
 	}
 }
 

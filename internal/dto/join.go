@@ -10,6 +10,8 @@ type JoinRackResponse struct {
 	ID         int    `json:"id"`
 	Name       string `json:"name"`
 	UploadedAt string `json:"uploaded_at"`
+	ItemCount  int    `json:"item_count"`
+	IsEmpty    bool   `json:"is_empty"`
 }
 
 type CoordinatorJoinResponse struct {

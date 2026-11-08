@@ -127,6 +127,8 @@ func (c *CoordinatorServiceImpl) JoinByCoordinatorQR(ctx context.Context, req dt
 			ID:         rack.RakID,
 			Name:       rack.RakName,
 			UploadedAt: uploadedAt,
+			ItemCount:  rack.ItemCount,
+			IsEmpty:    rack.ItemCount == 0,
 		})
 	}
 

@@ -44,6 +44,8 @@ func (r *RackServiceImpl) FindAllSummary(ctx context.Context, coordinatorId *int
 			RackName:      rack.RakName,
 			CoordinatorID: rack.CoorID,
 			UploadedAt:    uploadedAt,
+			ItemCount:     rack.ItemCount,
+			IsEmpty:       rack.ItemCount == 0,
 		})
 	}
 	return responses, nil

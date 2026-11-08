@@ -208,7 +208,7 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			so.so_barcode AS barcode,
 			so.so_product_plu AS ProductPLU,
 			so.so_product_name AS name,
-			so.so_product_dept AS departmentCode,
+			COALESCE(p.product_department_code, so.so_product_dept, '') AS departmentCode,
 			so.so_buyprice AS buyPrice,
 			so.so_sellprice AS sellPrice,
 			so.stock_opname_quantity AS quantity,
@@ -220,6 +220,9 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			ON so.stock_opname_rak_id = r.rak_id
 		JOIN coordinator c
 			ON r.rak_coor_id = c.coor_id
+		LEFT JOIN product p
+			ON p.product_sesi_id = c.coor_sesi_id
+			AND p.product_plu = so.so_product_plu
 		WHERE ($1::int IS NULL OR c.coor_sesi_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_id = $2::int)
 		ORDER BY c.coor_code,
