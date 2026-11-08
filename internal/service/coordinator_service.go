@@ -6,6 +6,7 @@ import (
 )
 
 type CoordinatorService interface {
+	Create(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error)
 	FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
 	FindByIdDetail(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	FindByIdReport(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)

@@ -11,6 +11,28 @@ import (
 	"stockopname-rita-backend/internal/model"
 )
 
+func TestCreateCoordinator(t *testing.T) {
+	h := NewCoordinatorHandler(&fakeCoordinatorService{
+		createFunc: func(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error) {
+			if req.SessionID != 3 || req.Code != "KOR-03" || req.RackStart != 1 || req.RackEnd != 2 {
+				t.Errorf("unexpected request %+v", req)
+			}
+			return dto.CoordinatorResponse{ID: 7, Code: "KOR-03", RackAssigned: 2, Status: "IN_PROGRESS"}, nil
+		},
+	})
+
+	req := newJSONRequest(t, http.MethodPost, "/coordinators", `{"session_id":3,"code":"KOR-03","rack_start":1,"rack_end":2}`)
+	rec := httptest.NewRecorder()
+	h.CreateCoordinator(rec, req, nil)
+
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected status %d, got %d", http.StatusCreated, rec.Code)
+	}
+	if msg := decodeMessage(t, rec); msg != "Coordinator created successfully" {
+		t.Errorf("unexpected message %q", msg)
+	}
+}
+
 func TestUpdateCoordinator(t *testing.T) {
 	h := NewCoordinatorHandler(&fakeCoordinatorService{
 		updateFunc: func(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error {

@@ -2,10 +2,12 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -27,6 +29,63 @@ func NewCoordinatorService(coordinatorRepository repository.CoordinatorRepositor
 		RackRepository:        rackRepository,
 		Pool:                  pool,
 	}
+}
+
+// Create adds a coordinator and its rack range to an existing session.
+func (c *CoordinatorServiceImpl) Create(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error) {
+	code := strings.TrimSpace(req.Code)
+	if code == "" || len([]rune(code)) > 20 {
+		return dto.CoordinatorResponse{}, &model.ValidationError{Detail: "coordinator code is required and must be at most 20 characters"}
+	}
+	span := req.RackEnd - req.RackStart + 1
+	if req.RackStart < 1 || req.RackEnd < req.RackStart || span > maxRackSpan {
+		return dto.CoordinatorResponse{}, &model.ValidationError{Detail: fmt.Sprintf("rack range must cover 1 to %d racks", maxRackSpan)}
+	}
+
+	tx, err := c.Pool.Begin(ctx)
+	if err != nil {
+		return dto.CoordinatorResponse{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	sesi, err := c.SesiRepository.FindByIdForUpdate(ctx, tx, req.SessionID)
+	if err != nil {
+		return dto.CoordinatorResponse{}, err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
+		return dto.CoordinatorResponse{}, err
+	}
+
+	coordinator := &model.Coordinator{
+		CoorCode:   code,
+		CoorSesiID: req.SessionID,
+		CoorStatus: "IN_PROGRESS",
+	}
+	if err := c.CoordinatorRepository.Save(ctx, tx, coordinator); err != nil {
+		return dto.CoordinatorResponse{}, err
+	}
+
+	for n := req.RackStart; n <= req.RackEnd; n++ {
+		rack := &model.Rack{
+			RackName: fmt.Sprintf("Rak %d", n),
+			CoorID:   coordinator.CoorID,
+		}
+		if err := c.RackRepository.Save(ctx, tx, rack); err != nil {
+			return dto.CoordinatorResponse{}, err
+		}
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return dto.CoordinatorResponse{}, err
+	}
+
+	return dto.CoordinatorResponse{
+		ID:            coordinator.CoorID,
+		Code:          coordinator.CoorCode,
+		RackAssigned:  span,
+		RackCompleted: 0,
+		Status:        coordinator.CoorStatus,
+	}, nil
 }
 
 func (c *CoordinatorServiceImpl) Update(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error {

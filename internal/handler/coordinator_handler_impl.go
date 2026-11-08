@@ -20,6 +20,30 @@ func NewCoordinatorHandler(coordinatorService service.CoordinatorService) Coordi
 	}
 }
 
+// CreateCoordinator implements [CoordinatorHandler].
+func (c *CoordinatorHandlerImpl) CreateCoordinator(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	var createReq dto.CreateCoordinatorRequest
+	if err := helper.ReadFromRequestBody(req, &createReq); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+
+	coordinator, err := c.CoordinatorService.Create(req.Context(), createReq)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	response := dto.Response{
+		Message: "Coordinator created successfully",
+		Data:    coordinator,
+	}
+	if err := helper.ResponseJson(writer, http.StatusCreated, response); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to send response", err)
+		return
+	}
+}
+
 func (c *CoordinatorHandlerImpl) UpdateCoordinator(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	id, err := helper.ParseIntParam(params, "id")
 	if err != nil {

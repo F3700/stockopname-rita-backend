@@ -770,6 +770,56 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Stock Opname Coordinator"
+        ],
+        "summary": "Add a coordinator to an existing session",
+        "description": "Creates a coordinator and its rack range in a session that is still IN_PROGRESS. Rack names may duplicate another coordinator's rack names because rack identity uses the rack ID.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCoordinatorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Coordinator created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator created successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Coordinator"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
       }
     },
     "/stockopname/coordinators/{id}/pdf": {
@@ -2605,6 +2655,36 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "CreateCoordinatorRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "code",
+          "rack_start",
+          "rack_end"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "integer",
+            "example": 3
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "KOR-03"
+          },
+          "rack_start": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "rack_end": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 10
           }
         }
       }

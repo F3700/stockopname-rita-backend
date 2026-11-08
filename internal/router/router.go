@@ -64,6 +64,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.DELETE("/products/:id", productHandler.DeleteProduct)
 
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
+	router.POST("/stockopname/coordinators", coordinatorHandler.CreateCoordinator)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
 	router.GET("/stockopname/coordinators/:id/pdf", reportHandler.CoordinatorPDF)
 	router.GET("/stockopname/coordinators/:id/uploads/pdf", reportHandler.CoordinatorUploadSummaryPDF)

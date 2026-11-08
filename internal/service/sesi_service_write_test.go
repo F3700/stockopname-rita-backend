@@ -104,32 +104,13 @@ func TestSesiCreateTxCoordinatorError(t *testing.T) {
 	}
 }
 
-func TestSesiCreateRejectsOverlappingRanges(t *testing.T) {
-	mock, err := pgxmock.NewPool()
+func TestValidateRackRangesAllowsOverlap(t *testing.T) {
+	err := validateRackRanges([]dto.CoordinatorInput{
+		{Code: "KOR-01", RackStart: 1, RackEnd: 5},
+		{Code: "KOR-02", RackStart: 4, RackEnd: 8},
+	})
 	if err != nil {
-		t.Fatalf("failed to create mock: %v", err)
-	}
-	t.Cleanup(func() {
-		if err := mock.ExpectationsWereMet(); err != nil {
-			t.Errorf("unfulfilled expectations: %v", err)
-		}
-	})
-
-	svc := newSesiServiceWithMock(mock, t)
-	_, err = svc.Create(context.Background(), dto.CreateSesiRequest{
-		Code:     "SESI-01",
-		Location: "Gudang A",
-		Coordinators: []dto.CoordinatorInput{
-			{Code: "KOR-01", RackStart: 1, RackEnd: 5},
-			{Code: "KOR-02", RackStart: 4, RackEnd: 8},
-		},
-	})
-	if err == nil {
-		t.Fatal("expected validation error, got nil")
-	}
-	var validation *model.ValidationError
-	if !errors.As(err, &validation) {
-		t.Errorf("expected ValidationError, got %T: %v", err, err)
+		t.Fatalf("expected overlapping ranges to be allowed, got %v", err)
 	}
 }
 

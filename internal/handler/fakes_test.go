@@ -27,12 +27,20 @@ var _ service.ReportService = (*fakeReportService)(nil)
 var _ service.AuditService = (*fakeAuditService)(nil)
 
 type fakeCoordinatorService struct {
+	createFunc          func(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error)
 	findByIdSummaryFunc func(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
 	findByIdDetailFunc  func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	findByIdReportFunc  func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 	findAllSummaryFunc  func(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
 	joinFunc            func(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error)
 	updateFunc          func(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error
+}
+
+func (f *fakeCoordinatorService) Create(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error) {
+	if f.createFunc == nil {
+		return dto.CoordinatorResponse{}, nil
+	}
+	return f.createFunc(ctx, req)
 }
 
 func (f *fakeCoordinatorService) FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {

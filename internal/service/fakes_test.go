@@ -503,6 +503,10 @@ type fakeCoordinatorService struct {
 	findByIdReportFunc  func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 }
 
+func (f *fakeCoordinatorService) Create(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error) {
+	return dto.CoordinatorResponse{}, nil
+}
+
 func (f *fakeCoordinatorService) FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
 	return f.findByIdSummaryFunc(ctx, id)
 }

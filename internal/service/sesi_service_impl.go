@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"sort"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
@@ -235,29 +234,14 @@ func (s *SesiServiceImpl) FindAll(ctx context.Context, pagination *dto.Paginatio
 // maxRackSpan caps how many racks one coordinator may own.
 const maxRackSpan = 200
 
-// validateRackRanges rejects overlapping or oversized rack ranges. Overlap is
-// checked here (not by a DB constraint) because rack names are unique per
-// coordinator, while numbering is session-wide.
+// validateRackRanges only checks the span. Different coordinators may own
+// racks with the same name (for example, both may own "Rak 1").
 func validateRackRanges(coordinators []dto.CoordinatorInput) error {
-	ranges := make([]dto.CoordinatorInput, len(coordinators))
-	copy(ranges, coordinators)
-
-	for _, coordinator := range ranges {
+	for _, coordinator := range coordinators {
 		span := coordinator.RackEnd - coordinator.RackStart + 1
 		if span < 1 || span > maxRackSpan {
 			return &model.ValidationError{Detail: fmt.Sprintf(
 				"rack range for %s must cover 1 to %d racks", coordinator.Code, maxRackSpan,
-			)}
-		}
-	}
-
-	sort.Slice(ranges, func(i, j int) bool {
-		return ranges[i].RackStart < ranges[j].RackStart
-	})
-	for i := 1; i < len(ranges); i++ {
-		if ranges[i].RackStart <= ranges[i-1].RackEnd {
-			return &model.ValidationError{Detail: fmt.Sprintf(
-				"rack ranges of %s and %s overlap", ranges[i-1].Code, ranges[i].Code,
 			)}
 		}
 	}

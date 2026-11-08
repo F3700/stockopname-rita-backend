@@ -24,6 +24,7 @@ func TestNewRouterRegisters(t *testing.T) {
 		{"POST", "/stockopname/results"},
 		{"POST", "/stockopname/results/move"},
 		{"GET", "/stockopname/audits"},
+		{"POST", "/stockopname/coordinators"},
 		{"POST", "/stockopname/uploads"},
 		{"GET", "/stockopname/uploads"},
 		{"GET", "/stockopname/uploads/:id/pdf"},
