@@ -12,15 +12,18 @@ import (
 
 func TestSessionPDF(t *testing.T) {
 	h := NewReportHandler(&fakeReportService{
-		sessionPDFFunc: func(ctx context.Context, id int) ([]byte, string, error) {
+		sessionPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 			if id != 1 {
 				t.Errorf("expected id 1, got %d", id)
+			}
+			if !includeCarton {
+				t.Error("expected includeCarton true")
 			}
 			return []byte("%PDF-fake"), "sesi-01.pdf", nil
 		},
 	})
 
-	req := newJSONRequest(t, http.MethodGet, "/sessions/1/pdf", "")
+	req := newJSONRequest(t, http.MethodGet, "/sessions/1/pdf?include_carton=true", "")
 	rec := httptest.NewRecorder()
 	h.SessionPDF(rec, req, paramsWithID("1"))
 
@@ -38,10 +41,31 @@ func TestSessionPDF(t *testing.T) {
 	}
 }
 
+func TestSessionPDFInvalidIncludeCarton(t *testing.T) {
+	called := false
+	h := NewReportHandler(&fakeReportService{
+		sessionPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+			called = true
+			return nil, "", nil
+		},
+	})
+
+	req := newJSONRequest(t, http.MethodGet, "/sessions/1/pdf?include_carton=notabool", "")
+	rec := httptest.NewRecorder()
+	h.SessionPDF(rec, req, paramsWithID("1"))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+	if called {
+		t.Error("service must not be called for invalid include_carton")
+	}
+}
+
 func TestSessionPDFInvalidID(t *testing.T) {
 	called := false
 	h := NewReportHandler(&fakeReportService{
-		sessionPDFFunc: func(ctx context.Context, id int) ([]byte, string, error) {
+		sessionPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 			called = true
 			return nil, "", nil
 		},
@@ -61,7 +85,7 @@ func TestSessionPDFInvalidID(t *testing.T) {
 
 func TestSessionPDFNotFound(t *testing.T) {
 	h := NewReportHandler(&fakeReportService{
-		sessionPDFFunc: func(ctx context.Context, id int) ([]byte, string, error) {
+		sessionPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 			return nil, "", &model.NotFoundError{Resource: "Session", ID: id}
 		},
 	})
@@ -77,7 +101,7 @@ func TestSessionPDFNotFound(t *testing.T) {
 
 func TestCoordinatorPDF(t *testing.T) {
 	h := NewReportHandler(&fakeReportService{
-		coordinatorPDFFunc: func(ctx context.Context, id int) ([]byte, string, error) {
+		coordinatorPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 			if id != 2 {
 				t.Errorf("expected id 2, got %d", id)
 			}
@@ -100,7 +124,7 @@ func TestCoordinatorPDF(t *testing.T) {
 func TestCoordinatorPDFInvalidID(t *testing.T) {
 	called := false
 	h := NewReportHandler(&fakeReportService{
-		coordinatorPDFFunc: func(ctx context.Context, id int) ([]byte, string, error) {
+		coordinatorPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 			called = true
 			return nil, "", nil
 		},
@@ -120,7 +144,7 @@ func TestCoordinatorPDFInvalidID(t *testing.T) {
 
 func TestCoordinatorPDFServiceError(t *testing.T) {
 	h := NewReportHandler(&fakeReportService{
-		coordinatorPDFFunc: func(ctx context.Context, id int) ([]byte, string, error) {
+		coordinatorPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 			return nil, "", errors.New("boom")
 		},
 	})

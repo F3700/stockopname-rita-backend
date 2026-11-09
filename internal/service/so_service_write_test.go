@@ -29,8 +29,8 @@ func newStockOpnameServiceWithMock(mock pgxmock.PgxPoolIface, t *testing.T) Stoc
 
 func soResolveProductRows() *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	return pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}).
-		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+	return pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_per_carton", "product_createdat", "product_updatedat"}).
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 0, ts, ts)
 }
 
 func soSesiIdByRakRows() *pgxmock.Rows {

@@ -250,20 +250,20 @@ func (f *fakeStockOpnameService) FindSellSummary(ctx context.Context, sessionID 
 }
 
 type fakeReportService struct {
-	sessionPDFFunc            func(ctx context.Context, id int) ([]byte, string, error)
-	coordinatorPDFFunc        func(ctx context.Context, id int) ([]byte, string, error)
+	sessionPDFFunc            func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
+	coordinatorPDFFunc        func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	coordinatorSummaryPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
 	uploadPDFFunc             func(ctx context.Context, id int) ([]byte, string, error)
 	sessionExcelFunc          func(ctx context.Context, id int) ([]byte, string, error)
 	sessionDBFFunc            func(ctx context.Context, id int) ([]byte, string, error)
 }
 
-func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
-	return f.sessionPDFFunc(ctx, id)
+func (f *fakeReportService) SessionPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+	return f.sessionPDFFunc(ctx, id, includeCarton)
 }
 
-func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error) {
-	return f.coordinatorPDFFunc(ctx, id)
+func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+	return f.coordinatorPDFFunc(ctx, id, includeCarton)
 }
 
 func (f *fakeReportService) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {

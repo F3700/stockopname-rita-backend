@@ -596,6 +596,7 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId *i
 			SellPrice:          export.SellPrice,
 			SellFactor:         export.SellFactor,
 			EffectiveSellPrice: export.SellPrice * float64(export.SellFactor),
+			PerCarton:          export.PerCarton,
 			Quantity:           export.Quantity,
 			RackName:           export.RackName,
 			CoordinatorCode:    export.CoordinatorCode,

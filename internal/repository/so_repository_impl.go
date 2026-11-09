@@ -216,6 +216,7 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			so.so_buyprice AS buyPrice,
 			so.so_sellprice AS sellPrice,
 			so.so_sell_factor AS sell_factor,
+			COALESCE(p.product_per_carton, 0) AS per_carton,
 			so.stock_opname_quantity AS quantity,
 			r.rak_name AS rackName,
 			c.coor_code AS coordinatorCode,

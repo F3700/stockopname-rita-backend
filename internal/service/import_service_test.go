@@ -18,6 +18,7 @@ type fixtureProdukRow struct {
 	KODEDPT string  `dbase:"KODE_DPT"`
 	HRGJUAL float64 `dbase:"HRG_JUAL"`
 	RPBELI  float64 `dbase:"RP_BELI"`
+	KTN     float64 `dbase:"KTN"`
 }
 
 type fixtureBarcodeRow struct {
@@ -76,6 +77,7 @@ func produkFixture(t *testing.T, rows []interface{}) []byte {
 		mustColumn(t, "KODE_DPT", dbase.Character, 5),
 		mustColumn(t, "HRG_JUAL", dbase.Numeric, 8),
 		mustColumn(t, "RP_BELI", dbase.Numeric, 8),
+		mustColumn(t, "KTN", dbase.Numeric, 5),
 	}, rows)
 }
 
@@ -111,13 +113,13 @@ func sesiWritableRows() *pgxmock.Rows {
 }
 
 func productExportRows() []string {
-	return []string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}
+	return []string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_per_carton", "product_createdat", "product_updatedat"}
 }
 
 func existingProductRows() *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(productExportRows()).
-		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 0, ts, ts)
 }
 
 func TestImportInsertNew(t *testing.T) {
@@ -142,7 +144,7 @@ func TestImportInsertNew(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
 	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(pgxmock.NewRows(productExportRows()))
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(11),
 	)
 	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -230,12 +232,12 @@ func TestImportUpdateChanged(t *testing.T) {
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
 	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(
 		pgxmock.NewRows(productExportRows()).
-			AddRow(11, 3, "100251", "Sari Roti", "1138", 14000.0, 17200.0, ts, ts),
+			AddRow(11, 3, "100251", "Sari Roti", "1138", 14000.0, 17200.0, 0, ts, ts),
 	)
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
 	)
-	mock.ExpectExec("UPDATE product").WithArgs("100251", "Sari Roti", "1138", 14500.0, 17200.0, 11).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE product").WithArgs("100251", "Sari Roti", "1138", 14500.0, 17200.0, 0, 11).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "8991001010016").WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -276,7 +278,7 @@ func TestImportOrphanAndInvalid(t *testing.T) {
 	mock.ExpectBegin()
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiWritableRows())
 	mock.ExpectQuery("FROM product p").WithArgs(3).WillReturnRows(pgxmock.NewRows(productExportRows()))
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(11),
 	)
 	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -361,7 +363,7 @@ func importFixtureProdukABC(t *testing.T) []byte {
 func existingAWithBarcodeRows() *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(productExportRows()).
-		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 0, ts, ts)
 }
 
 func TestImportBarcodeMovesToAnotherPLU(t *testing.T) {
@@ -386,7 +388,7 @@ func TestImportBarcodeMovesToAnotherPLU(t *testing.T) {
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
 	)
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0, 0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(12),
 	)
 	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 1))
@@ -430,10 +432,10 @@ func TestImportBarcodeMultiClaimOwnerReleases(t *testing.T) {
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
 	)
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0, 0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(12),
 	)
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100253", "Chitato", "1138", 9500.0, 11500.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100253", "Chitato", "1138", 9500.0, 11500.0, 0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(13),
 	)
 	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 1))
@@ -450,6 +452,56 @@ func TestImportBarcodeMultiClaimOwnerReleases(t *testing.T) {
 	}
 	if result.BarcodesRemoved != 1 || result.BarcodesAdded != 0 {
 		t.Errorf("owner release must remove one barcode: %+v", result)
+	}
+}
+
+func TestParseProdukPerCarton(t *testing.T) {
+	products, invalid := parseProdukFile(produkFixture(t, toAny([]fixtureProdukRow{
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500, KTN: 12},
+	})))
+
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid rows: %+v", invalid)
+	}
+	if len(products) != 1 || products[0].perCarton != 12 {
+		t.Fatalf("expected per carton 12, got %+v", products)
+	}
+}
+
+func TestParseProdukInvalidPerCarton(t *testing.T) {
+	_, invalid := parseProdukFile(produkFixture(t, toAny([]fixtureProdukRow{
+		{PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500, KTN: -1},
+	})))
+
+	if len(invalid) != 1 || invalid[0].Reason != "invalid KTN" {
+		t.Fatalf("expected invalid KTN row, got %+v", invalid)
+	}
+}
+
+func TestParseProdukWithoutKTN(t *testing.T) {
+	type legacyProdukRow struct {
+		PLU     string  `dbase:"PLU"`
+		NAMABRG string  `dbase:"NAMABRG"`
+		KODEDPT string  `dbase:"KODE_DPT"`
+		HRGJUAL float64 `dbase:"HRG_JUAL"`
+		RPBELI  float64 `dbase:"RP_BELI"`
+	}
+	data := buildDBF(t, "PRODUK.DBF", []*dbase.Column{
+		mustColumn(t, "PLU", dbase.Character, 6),
+		mustColumn(t, "NAMABRG", dbase.Character, 43),
+		mustColumn(t, "KODE_DPT", dbase.Character, 5),
+		mustColumn(t, "HRG_JUAL", dbase.Numeric, 8),
+		mustColumn(t, "RP_BELI", dbase.Numeric, 8),
+	}, []interface{}{legacyProdukRow{
+		PLU: "100251", NAMABRG: "Sari Roti", KODEDPT: "1138", HRGJUAL: 17200, RPBELI: 14500,
+	}})
+
+	products, invalid := parseProdukFile(data)
+	if len(invalid) != 0 {
+		t.Fatalf("unexpected invalid rows: %+v", invalid)
+	}
+	if len(products) != 1 || products[0].perCarton != 0 {
+		t.Fatalf("expected per carton 0, got %+v", products)
 	}
 }
 
@@ -476,7 +528,7 @@ func TestImportBarcodeOwnerKeepsAgainstClaimant(t *testing.T) {
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(
 		pgxmock.NewRows([]string{"barcode_product_id", "barcode_code"}).AddRow(11, "1002515550011"),
 	)
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100252", "Ultra Milk", "1139", 18900.0, 21500.0, 0).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(12),
 	)
 	mock.ExpectCommit()

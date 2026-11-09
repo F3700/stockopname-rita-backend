@@ -7,6 +7,7 @@ type ProductCreateRequest struct {
 	DepartmentCode string   `json:"department_code" validate:"required,max=10"`
 	BuyPrice       *float64 `json:"buy_price" validate:"required,gte=0"`
 	SellPrice      *float64 `json:"sell_price" validate:"required,gte=0"`
+	PerCarton      int      `json:"per_carton" validate:"gte=0,lte=99999"`
 	Barcodes       []string `json:"barcodes" validate:"omitempty,dive,max=15"`
 }
 
@@ -16,6 +17,7 @@ type ProductUpdateRequest struct {
 	DepartmentCode *string  `json:"department_code" validate:"omitempty,max=10"`
 	BuyPrice       *float64 `json:"buy_price" validate:"omitempty,gte=0"`
 	SellPrice      *float64 `json:"sell_price" validate:"omitempty,gte=0"`
+	PerCarton      *int     `json:"per_carton" validate:"omitempty,gte=0,lte=99999"`
 	// Barcodes replaces the whole barcode set when non-nil.
 	// An empty (non-nil) slice removes all barcodes.
 	Barcodes *[]string `json:"barcodes" validate:"omitempty,dive,max=15"`
@@ -28,6 +30,7 @@ type ProductResponse struct {
 	Name           string   `json:"name"`
 	BuyPrice       float64  `json:"buy_price"`
 	SellPrice      float64  `json:"sell_price"`
+	PerCarton      int      `json:"per_carton"`
 	DateCreated    string   `json:"date_created"`
 	DateUpdated    string   `json:"date_updated"`
 	DepartmentCode string   `json:"department_code"`

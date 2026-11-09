@@ -62,6 +62,7 @@ type StockOpnameExport struct {
 	BuyPrice        float64   `json:"buy_price"`
 	SellPrice       float64   `json:"sell_price"`
 	SellFactor      int       `json:"sell_factor"`
+	PerCarton       int       `json:"per_carton"`
 	Quantity        float64   `json:"quantity"`
 	RackName        string    `json:"rak_name"`
 	CoordinatorCode string    `json:"coor_code"`

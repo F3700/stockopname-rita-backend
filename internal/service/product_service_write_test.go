@@ -28,8 +28,8 @@ func newProductServiceWithMock(mock pgxmock.PgxPoolIface, t *testing.T) ProductS
 
 func productDetailRows() *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	return pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}).
-		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+	return pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_per_carton", "product_createdat", "product_updatedat"}).
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 12, ts, ts)
 }
 
 func productBarcodeRows() *pgxmock.Rows {
@@ -41,6 +41,8 @@ func productBarcodeRows() *pgxmock.Rows {
 func floatPtr(f float64) *float64 { return &f }
 
 func stringPtr(s string) *string { return &s }
+
+func intPtr(i int) *int { return &i }
 
 func TestProductCreateRejectsOverlongFields(t *testing.T) {
 	mock, err := pgxmock.NewPool()
@@ -119,7 +121,7 @@ func TestProductCreateTx(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
-	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO product").WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 12).WillReturnRows(
 		pgxmock.NewRows([]string{"product_id"}).AddRow(11),
 	)
 	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
@@ -132,13 +134,13 @@ func TestProductCreateTx(t *testing.T) {
 	svc := newProductServiceWithMock(mock, t)
 	res, err := svc.Create(context.Background(), dto.ProductCreateRequest{
 		SesiID: 3, PLU: "100251", Name: "Sari Roti", DepartmentCode: "1138",
-		BuyPrice: floatPtr(14500), SellPrice: floatPtr(17200),
+		BuyPrice: floatPtr(14500), SellPrice: floatPtr(17200), PerCarton: 12,
 		Barcodes: []string{"1002515550011", "8991001010016"},
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if res.Id != 11 || res.PLU != "100251" || len(res.Barcodes) != 2 {
+	if res.Id != 11 || res.PLU != "100251" || len(res.Barcodes) != 2 || res.PerCarton != 12 {
 		t.Errorf("unexpected response %+v", res)
 	}
 }
@@ -210,7 +212,7 @@ func TestProductDeleteTxNotFound(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
-	mock.ExpectQuery("WHERE p.product_id").WithArgs(99).WillReturnRows(pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}))
+	mock.ExpectQuery("WHERE p.product_id").WithArgs(99).WillReturnRows(pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_per_carton", "product_createdat", "product_updatedat"}))
 	mock.ExpectRollback()
 
 	svc := newProductServiceWithMock(mock, t)
@@ -240,7 +242,7 @@ func TestProductUpdateTx(t *testing.T) {
 	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
 	mock.ExpectQuery("WHERE p.product_id").WithArgs(11).WillReturnRows(productDetailRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(productBarcodeRows())
-	mock.ExpectExec("UPDATE product").WithArgs("100251", "Sari Roti Baru", "1138", 14500.0, 17200.0, 11).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectExec("UPDATE product").WithArgs("100251", "Sari Roti Baru", "1138", 14500.0, 17200.0, 15, 11).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectExec("DELETE FROM barcode").WithArgs(11, 3).WillReturnResult(pgxmock.NewResult("DELETE", 2))
 	mock.ExpectExec("INSERT INTO barcode").WithArgs(3, 11, "1002515550011").WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mock.ExpectQuery("WHERE p.product_id").WithArgs(11).WillReturnRows(productDetailRows())
@@ -252,7 +254,7 @@ func TestProductUpdateTx(t *testing.T) {
 
 	svc := newProductServiceWithMock(mock, t)
 	name := "Sari Roti Baru"
-	res, err := svc.Update(context.Background(), 11, 3, dto.ProductUpdateRequest{Name: &name, Barcodes: &newBarcodes})
+	res, err := svc.Update(context.Background(), 11, 3, dto.ProductUpdateRequest{Name: &name, PerCarton: intPtr(15), Barcodes: &newBarcodes})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -286,8 +288,8 @@ func TestProductClearTx(t *testing.T) {
 
 func productDetailRowsForSesi(sesiId int) *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	return pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}).
-		AddRow(11, sesiId, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+	return pgxmock.NewRows([]string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_per_carton", "product_createdat", "product_updatedat"}).
+		AddRow(11, sesiId, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 0, ts, ts)
 }
 
 func TestProductDeleteTxOwnershipMismatch(t *testing.T) {

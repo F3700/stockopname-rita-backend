@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/service"
+	"strconv"
 
 	"github.com/julienschmidt/httprouter"
 )
@@ -20,7 +21,12 @@ func (h *ReportHandler) SessionPDF(writer http.ResponseWriter, req *http.Request
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid session ID", err)
 		return
 	}
-	data, filename, err := h.Service.SessionPDF(req.Context(), id)
+	includeCarton, err := parseIncludeCarton(req)
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid include_carton parameter", err)
+		return
+	}
+	data, filename, err := h.Service.SessionPDF(req.Context(), id, includeCarton)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return
@@ -34,7 +40,12 @@ func (h *ReportHandler) CoordinatorPDF(writer http.ResponseWriter, req *http.Req
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid coordinator ID", err)
 		return
 	}
-	data, filename, err := h.Service.CoordinatorPDF(req.Context(), id)
+	includeCarton, err := parseIncludeCarton(req)
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid include_carton parameter", err)
+		return
+	}
+	data, filename, err := h.Service.CoordinatorPDF(req.Context(), id, includeCarton)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return
@@ -68,6 +79,14 @@ func (h *ReportHandler) UploadPDF(writer http.ResponseWriter, req *http.Request,
 		return
 	}
 	writePDF(writer, filename, data)
+}
+
+func parseIncludeCarton(req *http.Request) (bool, error) {
+	raw := req.URL.Query().Get("include_carton")
+	if raw == "" {
+		return false, nil
+	}
+	return strconv.ParseBool(raw)
 }
 
 func writePDF(writer http.ResponseWriter, filename string, data []byte) {

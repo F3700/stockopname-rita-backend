@@ -42,6 +42,7 @@ func toProductResponse(product *model.Product) dto.ProductResponse {
 		Name:           product.ProductName,
 		BuyPrice:       product.ProductBuyPrice,
 		SellPrice:      product.ProductSellPrice,
+		PerCarton:      product.ProductPerCarton,
 		DateCreated:    product.ProductCreatedat.Format(time.RFC3339),
 		DateUpdated:    product.ProductUpdatedat.Format(time.RFC3339),
 		DepartmentCode: product.ProductDepartmentCode,
@@ -75,6 +76,7 @@ func (p *ProductServiceImpl) Create(ctx context.Context, req dto.ProductCreateRe
 		ProductDepartmentCode: req.DepartmentCode,
 		ProductBuyPrice:       *req.BuyPrice,
 		ProductSellPrice:      *req.SellPrice,
+		ProductPerCarton:      req.PerCarton,
 	}
 
 	if err := p.ProductRepository.Save(ctx, tx, &product); err != nil {
@@ -229,6 +231,9 @@ func (p *ProductServiceImpl) Update(ctx context.Context, id int, sesiId int, req
 	}
 	if req.SellPrice != nil {
 		product.ProductSellPrice = *req.SellPrice
+	}
+	if req.PerCarton != nil {
+		product.ProductPerCarton = *req.PerCarton
 	}
 
 	if err = p.ProductRepository.Update(ctx, tx, product); err != nil {

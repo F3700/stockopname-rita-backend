@@ -840,6 +840,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "include_carton",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -1054,6 +1063,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "include_carton",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -2285,7 +2303,8 @@
           "sell_price",
           "date_created",
           "date_updated",
-          "department_code"
+          "department_code",
+          "per_carton"
         ],
         "properties": {
           "id": {
@@ -2333,6 +2352,12 @@
           "department_code": {
             "type": "string",
             "example": "1138"
+          },
+          "per_carton": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999,
+            "example": 12
           }
         }
       },
@@ -2377,6 +2402,13 @@
             "maxLength": 10,
             "example": "1138"
           },
+          "per_carton": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999,
+            "default": 0,
+            "example": 12
+          },
           "barcodes": {
             "type": "array",
             "items": {
@@ -2417,6 +2449,12 @@
             "type": "string",
             "maxLength": 10,
             "example": "1138"
+          },
+          "per_carton": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999,
+            "example": 12
           },
           "barcodes": {
             "type": "array",
