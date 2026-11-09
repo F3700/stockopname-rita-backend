@@ -37,6 +37,17 @@ type StockOpnameAuditData struct {
 	Quantity          float64    `json:"quantity"`
 	BuyPrice          float64    `json:"buy_price"`
 	SellPrice         float64    `json:"sell_price"`
+	SellFactor        int        `json:"sell_factor"`
+}
+
+// StockOpnameAuditBatch is one row of the audit batch summary.
+type StockOpnameAuditBatch struct {
+	BatchID   string
+	Action    string
+	Actor     string
+	Note      string
+	ItemCount int
+	CreatedAt time.Time
 }
 
 // StockOpnameRackContext describes the rack and coordinator that own a result.

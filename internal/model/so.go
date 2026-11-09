@@ -16,6 +16,24 @@ type StockOpname struct {
 	SoBarcode     string  `json:"barcode"`
 	SoBuyPrice    float64 `json:"buy_price"`
 	SoSellPrice   float64 `json:"sell_price"`
+	SoSellFactor  int     `json:"sell_factor"`
+}
+
+// SellFactorFilter selects result rows for a filtered bulk factor update.
+type SellFactorFilter struct {
+	Search        string
+	CoordinatorID *int
+	RakID         *int
+}
+
+// SellSummaryGroup is one grouping row for the sell summary report.
+type SellSummaryGroup struct {
+	Key                string
+	Label              string
+	ItemCount          int
+	TotalQty           float64
+	TotalSellOriginal  float64
+	TotalSellEffective float64
 }
 
 type StockOpnameSummary struct {
@@ -28,6 +46,7 @@ type StockOpnameSummary struct {
 	RackName        string    `json:"rak_name"`
 	CoordinatorID   int       `json:"coordinator_id"`
 	CoordinatorCode string    `json:"coor_code"`
+	SellFactor      int       `json:"sell_factor"`
 	UpdatedAt       time.Time `json:"updatedAt"`
 }
 
@@ -42,6 +61,7 @@ type StockOpnameExport struct {
 	DepartmentCode  string    `json:"department_code"`
 	BuyPrice        float64   `json:"buy_price"`
 	SellPrice       float64   `json:"sell_price"`
+	SellFactor      int       `json:"sell_factor"`
 	Quantity        float64   `json:"quantity"`
 	RackName        string    `json:"rak_name"`
 	CoordinatorCode string    `json:"coor_code"`

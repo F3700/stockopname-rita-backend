@@ -126,6 +126,7 @@ func auditDataForRack(rack *model.StockOpnameRackContext, so *model.StockOpname)
 		Quantity:          so.StockOpnameQuantity,
 		BuyPrice:          so.SoBuyPrice,
 		SellPrice:         so.SoSellPrice,
+		SellFactor:        so.SoSellFactor,
 	}
 }
 
@@ -156,6 +157,7 @@ func toStockOpnameResponse(summary *model.StockOpnameSummary) dto.StockOpnameRes
 		RackName:        summary.RackName,
 		CoordinatorID:   summary.CoordinatorID,
 		CoordinatorCode: summary.CoordinatorCode,
+		SellFactor:      summary.SellFactor,
 		UpdatedAt:       summary.UpdatedAt.Format(time.RFC3339),
 	}
 }
@@ -178,6 +180,7 @@ func snapshot(quantity float64, rakID int, product *model.Product, scannedBarcod
 		SoBarcode:           soBarcode,
 		SoBuyPrice:          product.ProductBuyPrice,
 		SoSellPrice:         product.ProductSellPrice,
+		SoSellFactor:        1,
 	}
 }
 
@@ -508,6 +511,12 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 			return dto.MoveStockOpnameResponse{}, err
 		}
 		if existing != nil {
+			if existing.SellFactor != source.SellFactor {
+				return dto.MoveStockOpnameResponse{}, &model.ConflictError{
+					Resource: "Stock Opname",
+					Detail:   "Cannot merge results with different sell factors; set the same factor first",
+				}
+			}
 			mergedCount++
 		}
 
@@ -520,6 +529,7 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 			SoBarcode:           source.Barcode,
 			SoBuyPrice:          source.BuyPrice,
 			SoSellPrice:         source.SellPrice,
+			SoSellFactor:        source.SellFactor,
 		}
 		target, err := s.StockOpnameRepository.UpsertForMove(ctx, tx, moved)
 		if err != nil {
@@ -577,19 +587,217 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId *i
 	var responses []dto.StockOpnameExportResponse
 	for _, export := range exports {
 		responses = append(responses, dto.StockOpnameExportResponse{
-			Id:              export.Id,
-			Barcode:         export.Barcode,
-			PLU:             export.ProductPLU,
-			Name:            export.Name,
-			DepartmentCode:  export.DepartmentCode,
-			BuyPrice:        export.BuyPrice,
-			SellPrice:       export.SellPrice,
-			Quantity:        export.Quantity,
-			RackName:        export.RackName,
-			CoordinatorCode: export.CoordinatorCode,
-			UpdatedAt:       export.UpdatedAt.Format(time.RFC3339),
+			Id:                 export.Id,
+			Barcode:            export.Barcode,
+			PLU:                export.ProductPLU,
+			Name:               export.Name,
+			DepartmentCode:     export.DepartmentCode,
+			BuyPrice:           export.BuyPrice,
+			SellPrice:          export.SellPrice,
+			SellFactor:         export.SellFactor,
+			EffectiveSellPrice: export.SellPrice * float64(export.SellFactor),
+			Quantity:           export.Quantity,
+			RackName:           export.RackName,
+			CoordinatorCode:    export.CoordinatorCode,
+			UpdatedAt:          export.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 
 	return responses, nil
+}
+
+// SetSellFactor updates the sell factor for one or more stock opname rows.
+// Status final does not block this operation: the factor only affects
+// valuation, not quantities or rack contents.
+func (s *StockOpnameServiceImpl) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
+	if err := s.Validator.Struct(req); err != nil {
+		return dto.SetSellFactorResponse{}, err
+	}
+	if sessionID <= 0 {
+		return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "session_id must be greater than 0"}
+	}
+	if req.Factor == nil || (*req.Factor != -1 && *req.Factor != 0 && *req.Factor != 1) {
+		return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "factor must be -1, 0, or 1"}
+	}
+
+	var filter *model.SellFactorFilter
+	switch req.Scope {
+	case "session":
+		if req.ScopeID != nil || len(req.ResultIDs) > 0 || req.Filter != nil {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id, result_ids, and filter must be empty for session scope"}
+		}
+	case "coordinator", "rack", "item":
+		if req.ScopeID == nil || *req.ScopeID <= 0 {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id is required for this scope"}
+		}
+		if len(req.ResultIDs) > 0 || req.Filter != nil {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids and filter are not allowed for this scope"}
+		}
+	case "items":
+		if req.ScopeID != nil {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id is not allowed for items scope"}
+		}
+		if req.Filter != nil {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "filter is not allowed for items scope"}
+		}
+		if len(req.ResultIDs) == 0 {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids is required for items scope"}
+		}
+	case "filter":
+		if req.ScopeID != nil || len(req.ResultIDs) > 0 {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id and result_ids must be empty for filter scope"}
+		}
+		if req.Filter == nil {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "filter is required for filter scope"}
+		}
+		search := strings.TrimSpace(req.Filter.Search)
+		if search == "" && req.Filter.CoordinatorID == nil && req.Filter.RakID == nil {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "filter requires search, coordinator_id, or rak_id"}
+		}
+		if req.Filter.CoordinatorID != nil && *req.Filter.CoordinatorID <= 0 {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "coordinator_id must be greater than 0"}
+		}
+		if req.Filter.RakID != nil && *req.Filter.RakID <= 0 {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "rak_id must be greater than 0"}
+		}
+		filter = &model.SellFactorFilter{
+			Search:        search,
+			CoordinatorID: req.Filter.CoordinatorID,
+			RakID:         req.Filter.RakID,
+		}
+	default:
+		return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "invalid scope"}
+	}
+
+	uniqueIDs := make([]int, 0, len(req.ResultIDs))
+	if req.Scope == "items" {
+		seen := make(map[int]struct{}, len(req.ResultIDs))
+		for _, id := range req.ResultIDs {
+			if id <= 0 {
+				return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids must contain positive IDs"}
+			}
+			if _, ok := seen[id]; ok {
+				continue
+			}
+			seen[id] = struct{}{}
+			uniqueIDs = append(uniqueIDs, id)
+		}
+		if len(uniqueIDs) > 500 {
+			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids supports at most 500 items"}
+		}
+	}
+
+	tx, err := s.Pool.Begin(ctx)
+	if err != nil {
+		return dto.SetSellFactorResponse{}, err
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := s.SesiRepository.FindByIdForUpdate(ctx, tx, sessionID); err != nil {
+		return dto.SetSellFactorResponse{}, err
+	}
+
+	if req.Scope != "items" && req.Scope != "item" {
+		total, err := s.StockOpnameRepository.CountForSellFactorUpdate(ctx, tx, sessionID, req.Scope, req.ScopeID, uniqueIDs, filter)
+		if err != nil {
+			return dto.SetSellFactorResponse{}, err
+		}
+		if total > 1000 {
+			return dto.SetSellFactorResponse{}, &model.ConflictError{
+				Resource: "Stock Opname",
+				Detail:   "Scope too large; narrow the scope to 1000 results or fewer",
+			}
+		}
+	}
+
+	rows, err := s.StockOpnameRepository.FindForSellFactorUpdate(ctx, tx, sessionID, req.Scope, req.ScopeID, uniqueIDs, filter)
+	if err != nil {
+		return dto.SetSellFactorResponse{}, err
+	}
+	if len(rows) == 0 {
+		return dto.SetSellFactorResponse{}, &model.NotFoundError{
+			Resource: "Stock Opname",
+			Detail:   "No stock opname results in scope",
+		}
+	}
+	if req.Scope == "items" && len(rows) != len(uniqueIDs) {
+		return dto.SetSellFactorResponse{}, &model.NotFoundError{
+			Resource: "Stock Opname",
+			Detail:   "One or more results were not found in this session",
+		}
+	}
+
+	batchID := helper.NewUUID()
+	updatedCount := 0
+	for _, before := range rows {
+		if before.SellFactor == *req.Factor {
+			continue
+		}
+		if err := s.StockOpnameRepository.UpdateSellFactor(ctx, tx, before.StockOpnameID, *req.Factor); err != nil {
+			return dto.SetSellFactorResponse{}, err
+		}
+		after := *before
+		after.SellFactor = *req.Factor
+		if err := s.writeAudit(ctx, tx, &model.StockOpnameAudit{
+			BatchID:       batchID,
+			StockOpnameID: before.StockOpnameID,
+			SesiID:        sessionID,
+			SourceRakID:   &before.RakID,
+			TargetRakID:   &before.RakID,
+			SourceCoorID:  &before.CoordinatorID,
+			TargetCoorID:  &before.CoordinatorID,
+			Action:        "UPDATE",
+			BeforeData:    auditJSON(before),
+			AfterData:     auditJSON(&after),
+			Actor:         req.Actor,
+			Note:          req.Note,
+		}); err != nil {
+			return dto.SetSellFactorResponse{}, err
+		}
+		updatedCount++
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return dto.SetSellFactorResponse{}, err
+	}
+	if updatedCount == 0 {
+		batchID = ""
+	}
+	return dto.SetSellFactorResponse{UpdatedCount: updatedCount, BatchID: batchID}, nil
+}
+
+// FindSellSummary returns sell totals grouped by session, coordinator, or rack.
+func (s *StockOpnameServiceImpl) FindSellSummary(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error) {
+	if sessionID <= 0 {
+		return dto.SellSummaryResponse{}, &model.ValidationError{Detail: "session_id must be greater than 0"}
+	}
+	switch groupBy {
+	case "session", "coordinator", "rack":
+	default:
+		return dto.SellSummaryResponse{}, &model.ValidationError{Detail: "groupBy must be session, coordinator, or rack"}
+	}
+	if _, err := s.SesiRepository.FindById(ctx, sessionID); err != nil {
+		return dto.SellSummaryResponse{}, err
+	}
+
+	groups, err := s.StockOpnameRepository.FindSellSummary(ctx, sessionID, groupBy)
+	if err != nil {
+		return dto.SellSummaryResponse{}, err
+	}
+
+	response := dto.SellSummaryResponse{
+		GroupBy: groupBy,
+		Groups:  make([]dto.SellSummaryGroup, 0, len(groups)),
+	}
+	for _, group := range groups {
+		response.Groups = append(response.Groups, dto.SellSummaryGroup{
+			Key:                group.Key,
+			Label:              group.Label,
+			ItemCount:          group.ItemCount,
+			TotalQty:           group.TotalQty,
+			TotalSellOriginal:  group.TotalSellOriginal,
+			TotalSellEffective: group.TotalSellEffective,
+		})
+	}
+	return response, nil
 }

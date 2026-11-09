@@ -212,7 +212,7 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.EffectiveSellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -328,7 +328,7 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 			Barcode:   export.Barcode,
 			Product:   export.Name,
 			BuyPrice:  export.BuyPrice,
-			SellPrice: export.SellPrice,
+			SellPrice: export.EffectiveSellPrice,
 			Quantity:  export.Quantity,
 			Rak:       export.RackName,
 			CoorCode:  export.CoordinatorCode,
@@ -659,7 +659,7 @@ func groupByRack(rows []dto.StockOpnameExportResponse) []rackReportGroup {
 		group.ItemCount++
 		group.TotalQty += row.Quantity
 		group.TotalBuy += row.Quantity * row.BuyPrice
-		group.TotalSell += row.Quantity * row.SellPrice
+		group.TotalSell += row.Quantity * row.EffectiveSellPrice
 	}
 	return groups
 }
@@ -707,7 +707,7 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				item.Name,
 				formatDepartment(item.DepartmentCode),
 				formatQty(item.Quantity),
-				formatMoneyID(item.SellPrice),
+				formatMoneyID(item.EffectiveSellPrice),
 			})
 		}
 		total := []string{
@@ -786,6 +786,11 @@ func formatQty(q float64) string {
 }
 
 func formatMoneyID(v float64) string {
+	sign := ""
+	if v < 0 {
+		sign = "-"
+		v = -v
+	}
 	formatted := strconv.FormatFloat(math.Round(v*100)/100, 'f', 2, 64)
 	parts := strings.SplitN(formatted, ".", 2)
 	whole := parts[0]
@@ -796,7 +801,7 @@ func formatMoneyID(v float64) string {
 		}
 		grouped.WriteRune(r)
 	}
-	return fmt.Sprintf("Rp %s,%s", grouped.String(), parts[1])
+	return fmt.Sprintf("Rp %s%s,%s", sign, grouped.String(), parts[1])
 }
 
 func formatReportDate(value string) string {

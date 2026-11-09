@@ -53,8 +53,8 @@ func soSummaryRows() *pgxmock.Rows {
 
 func soSummaryRowsWithQuantity(quantity float64) *pgxmock.Rows {
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	return pgxmock.NewRows([]string{"id", "barcode", "productPLU", "name", "quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "updatedAt"}).
-		AddRow(7, "8991001010016", "100251", "Sari Roti", quantity, 2, "R1", 4, "KOR-01", updatedAt)
+	return pgxmock.NewRows([]string{"id", "barcode", "productPLU", "name", "quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "sell_factor", "updatedAt"}).
+		AddRow(7, "8991001010016", "100251", "Sari Roti", quantity, 2, "R1", 4, "KOR-01", 1, updatedAt)
 }
 
 func soRackContextRows() *pgxmock.Rows {
@@ -63,8 +63,8 @@ func soRackContextRows() *pgxmock.Rows {
 }
 
 func soAuditDataRows() *pgxmock.Rows {
-	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat"}).
-		AddRow(4, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 2, "R1", 4, "KOR-01", "IN_PROGRESS", nil, nil)
+	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "sell_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat"}).
+		AddRow(4, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1, 2, "R1", 4, "KOR-01", "IN_PROGRESS", nil, nil)
 }
 
 func TestStockOpnameCreateByBarcodeTx(t *testing.T) {
@@ -85,7 +85,7 @@ func TestStockOpnameCreateByBarcodeTx(t *testing.T) {
 	mock.ExpectQuery("FOR UPDATE OF r").WithArgs(2).WillReturnRows(soRackContextRows())
 	mock.ExpectQuery("JOIN barcode").WithArgs(3, "8991001010016").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7),
 	)
 	mock.ExpectExec("INSERT INTO stock_opname_audit").WithArgs(
@@ -127,7 +127,7 @@ func TestStockOpnameCreateByPLUTx(t *testing.T) {
 	mock.ExpectQuery("WHERE p.product_sesi_id").WithArgs(3, "100251").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
 	// PLU-based input falls back to the primary barcode for the snapshot.
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "1002515550011", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "1002515550011", 14500.0, 17200.0, 1).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7),
 	)
 	mock.ExpectExec("INSERT INTO stock_opname_audit").WithArgs(
@@ -190,7 +190,7 @@ func TestStockOpnameCreateTxSaveError(t *testing.T) {
 	mock.ExpectQuery("FOR UPDATE OF r").WithArgs(2).WillReturnRows(soRackContextRows())
 	mock.ExpectQuery("JOIN barcode").WithArgs(3, "8991001010016").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).WillReturnError(errors.New("boom"))
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1).WillReturnError(errors.New("boom"))
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
@@ -218,7 +218,7 @@ func TestStockOpnameCreateDuplicateRejected(t *testing.T) {
 	mock.ExpectQuery("FOR UPDATE OF r").WithArgs(2).WillReturnRows(soRackContextRows())
 	mock.ExpectQuery("JOIN barcode").WithArgs(3, "8991001010016").WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).WillReturnRows(
+	mock.ExpectQuery("INSERT INTO stock_opname").WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1).WillReturnRows(
 		pgxmock.NewRows([]string{"stock_opname_id"}),
 	)
 	mock.ExpectRollback()

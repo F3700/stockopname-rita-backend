@@ -608,6 +608,222 @@
         }
       }
     },
+    "/stockopname/sessions/{id}/sell-factor": {
+      "patch": {
+        "tags": [
+          "Stock Opname Session"
+        ],
+        "summary": "Set sell factor for stock opname results",
+        "description": "Applies a -1, 0, or 1 sell factor to one item, selected items, filtered results, a rack, a coordinator, or a session. Status final does not block this operation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "scope",
+                  "factor"
+                ],
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "session",
+                      "coordinator",
+                      "rack",
+                      "item",
+                      "items",
+                      "filter"
+                    ]
+                  },
+                  "scope_id": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "result_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 500
+                  },
+                  "filter": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "search": {
+                        "type": "string"
+                      },
+                      "coordinator_id": {
+                        "type": "integer",
+                        "nullable": true
+                      },
+                      "rak_id": {
+                        "type": "integer",
+                        "nullable": true
+                      }
+                    }
+                  },
+                  "factor": {
+                    "type": "integer",
+                    "enum": [
+                      -1,
+                      0,
+                      1
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sell factor updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "updated_count": {
+                          "type": "integer"
+                        },
+                        "batch_id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/sell-summary": {
+      "get": {
+        "tags": [
+          "Stock Opname Session"
+        ],
+        "summary": "Get sell totals grouped by session, coordinator, or rack",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "session",
+                "coordinator",
+                "rack"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sell summary retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "group_by": {
+                          "type": "string"
+                        },
+                        "groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "item_count": {
+                                "type": "integer"
+                              },
+                              "total_qty": {
+                                "type": "number"
+                              },
+                              "total_sell_original": {
+                                "type": "number"
+                              },
+                              "total_sell_effective": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/stockopname/sessions/{id}/pdf": {
       "get": {
         "tags": [
@@ -1877,6 +2093,23 @@
             }
           },
           {
+            "name": "batchId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "withoutBatch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": true,
@@ -1911,6 +2144,114 @@
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/AuditEntry"
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/audits/batches": {
+      "get": {
+        "tags": [
+          "Stock Opname Audit"
+        ],
+        "summary": "List audit batch summaries",
+        "description": "Returns one summary row per bulk audit action. Use GET /stockopname/audits?batchId=<uuid> for details.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "resultId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit batches retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "batch_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "actor": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "item_count": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
                       }
                     },
                     "pagination": {
@@ -2237,6 +2578,15 @@
           "coor_code": {
             "type": "string",
             "example": "COOR1"
+          },
+          "sell_factor": {
+            "type": "integer",
+            "enum": [
+              -1,
+              0,
+              1
+            ],
+            "example": 1
           },
           "updatedAt": {
             "type": "string",

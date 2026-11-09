@@ -41,7 +41,7 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
@@ -204,9 +204,9 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 
 func TestGroupByRack(t *testing.T) {
 	rows := []dto.StockOpnameExportResponse{
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750, SellFactor: 1, EffectiveSellPrice: 750},
 	}
 	groups := groupByRack(rows)
 	if len(groups) != 2 {
@@ -229,6 +229,10 @@ func TestFormatMoneyID(t *testing.T) {
 		1500:        "Rp 1.500,00",
 		1234567.89:  "Rp 1.234.567,89",
 		48.5 * 2500: "Rp 121.250,00",
+		-100:        "Rp -100,00",
+		-1000:       "Rp -1.000,00",
+		-10000:      "Rp -10.000,00",
+		-1000000:    "Rp -1.000.000,00",
 	}
 	for value, want := range cases {
 		if got := formatMoneyID(value); got != want {

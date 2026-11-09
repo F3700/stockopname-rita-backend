@@ -200,6 +200,8 @@ type fakeStockOpnameService struct {
 	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
 	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
+	setSellFactorFunc    func(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error)
+	findSellSummaryFunc  func(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error)
 }
 
 func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
@@ -231,6 +233,20 @@ func (f *fakeStockOpnameService) FindById(ctx context.Context, id int) (dto.Stoc
 
 func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error) {
 	return f.findAllFunc(ctx, pagination, search, coorId, sesiId, rakId)
+}
+
+func (f *fakeStockOpnameService) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
+	if f.setSellFactorFunc == nil {
+		return dto.SetSellFactorResponse{}, nil
+	}
+	return f.setSellFactorFunc(ctx, sessionID, req)
+}
+
+func (f *fakeStockOpnameService) FindSellSummary(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error) {
+	if f.findSellSummaryFunc == nil {
+		return dto.SellSummaryResponse{}, nil
+	}
+	return f.findSellSummaryFunc(ctx, sessionID, groupBy)
 }
 
 type fakeReportService struct {
@@ -273,7 +289,8 @@ func (f *fakeReportService) SessionDBF(ctx context.Context, id int) ([]byte, str
 }
 
 type fakeAuditService struct {
-	findAllFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+	findAllFunc     func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+	findBatchesFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
 }
 
 func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error) {
@@ -281,6 +298,13 @@ func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditF
 		return nil, nil
 	}
 	return f.findAllFunc(ctx, filter, pagination)
+}
+
+func (f *fakeAuditService) FindBatches(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error) {
+	if f.findBatchesFunc == nil {
+		return nil, nil
+	}
+	return f.findBatchesFunc(ctx, filter, pagination)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

@@ -103,10 +103,12 @@ func (r *AuditRepositoryImpl) FindAll(ctx context.Context, filter AuditFilter) (
 		WHERE ($1::int IS NULL OR a.sesi_id = $1::int)
 		AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
 		AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
+		AND (NULLIF($4::text, '') IS NULL OR a.batch_id = NULLIF($4::text, '')::uuid)
+		AND (NOT $5::boolean OR a.batch_id IS NULL)
 		ORDER BY a.created_at DESC, a.audit_id DESC
-		LIMIT $4 OFFSET $5
+		LIMIT $6 OFFSET $7
 	`
-	rows, err := r.Pool.Query(ctx, SQL, filter.SesiID, filter.CoordinatorID, filter.ResultID, filter.Limit, filter.Offset)
+	rows, err := r.Pool.Query(ctx, SQL, filter.SesiID, filter.CoordinatorID, filter.ResultID, filter.BatchID, filter.WithoutBatch, filter.Limit, filter.Offset)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -153,11 +155,72 @@ func (r *AuditRepositoryImpl) FindAll(ctx context.Context, filter AuditFilter) (
 		WHERE ($1::int IS NULL OR a.sesi_id = $1::int)
 		AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
 		AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
+		AND (NULLIF($4::text, '') IS NULL OR a.batch_id = NULLIF($4::text, '')::uuid)
+		AND (NOT $5::boolean OR a.batch_id IS NULL)
+	`
+	var total int
+	if err := r.Pool.QueryRow(ctx, countSQL, filter.SesiID, filter.CoordinatorID, filter.ResultID, filter.BatchID, filter.WithoutBatch).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return audits, total, nil
+}
+
+func (r *AuditRepositoryImpl) FindBatches(ctx context.Context, filter AuditFilter) ([]*model.StockOpnameAuditBatch, int, error) {
+	const SQL = `
+		SELECT
+			a.batch_id::text AS batch_id,
+			MIN(a.action) AS action,
+			MIN(a.actor) AS actor,
+			COALESCE(MIN(a.note), '') AS note,
+			COUNT(*)::int AS item_count,
+			MIN(a.created_at) AS created_at
+		FROM stock_opname_audit a
+		WHERE a.batch_id IS NOT NULL
+		AND ($1::int IS NULL OR a.sesi_id = $1::int)
+		AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
+		AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
+		GROUP BY a.batch_id
+		ORDER BY MIN(a.created_at) DESC, a.batch_id
+		LIMIT $4 OFFSET $5
+	`
+	rows, err := r.Pool.Query(ctx, SQL, filter.SesiID, filter.CoordinatorID, filter.ResultID, filter.Limit, filter.Offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	batches := make([]*model.StockOpnameAuditBatch, 0)
+	for rows.Next() {
+		var batch model.StockOpnameAuditBatch
+		if err := rows.Scan(
+			&batch.BatchID,
+			&batch.Action,
+			&batch.Actor,
+			&batch.Note,
+			&batch.ItemCount,
+			&batch.CreatedAt,
+		); err != nil {
+			return nil, 0, err
+		}
+		batches = append(batches, &batch)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	const countSQL = `
+		SELECT COUNT(DISTINCT a.batch_id)
+		FROM stock_opname_audit a
+		WHERE a.batch_id IS NOT NULL
+		AND ($1::int IS NULL OR a.sesi_id = $1::int)
+		AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
+		AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
 	`
 	var total int
 	if err := r.Pool.QueryRow(ctx, countSQL, filter.SesiID, filter.CoordinatorID, filter.ResultID).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 
-	return audits, total, nil
+	return batches, total, nil
 }

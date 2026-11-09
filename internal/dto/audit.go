@@ -16,3 +16,13 @@ type AuditResponse struct {
 	After       json.RawMessage `json:"after"`
 	CreatedAt   string          `json:"created_at"`
 }
+
+// AuditBatchSummaryResponse is one batch group in the audit timeline.
+type AuditBatchSummaryResponse struct {
+	BatchID   string `json:"batch_id"`
+	Action    string `json:"action"`
+	Actor     string `json:"actor"`
+	Note      string `json:"note"`
+	ItemCount int    `json:"item_count"`
+	CreatedAt string `json:"created_at"`
+}

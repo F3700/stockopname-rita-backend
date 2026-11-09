@@ -234,3 +234,59 @@ func (s *StockOpnameHandlerImpl) MoveStockOpname(writer http.ResponseWriter, req
 		return
 	}
 }
+
+// SetSellFactor implements PATCH /stockopname/sessions/:id/sell-factor.
+func (s *StockOpnameHandlerImpl) SetSellFactor(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid session ID", err)
+		return
+	}
+
+	var setRequest dto.SetSellFactorRequest
+	if err := helper.ReadFromRequestBody(req, &setRequest); err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
+		return
+	}
+	setRequest.Actor = helper.ActorFromRequest(req)
+
+	result, err := s.StockOpnameService.SetSellFactor(req.Context(), id, setRequest)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{
+		Message: "Sell factor updated successfully",
+		Data:    result,
+	}); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+	}
+}
+
+// GetSellSummary implements GET /stockopname/sessions/:id/sell-summary.
+func (s *StockOpnameHandlerImpl) GetSellSummary(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+	id, err := helper.ParseIntParam(params, "id")
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid session ID", err)
+		return
+	}
+	groupBy := req.URL.Query().Get("groupBy")
+	if groupBy == "" {
+		helper.WriteError(writer, http.StatusBadRequest, "groupBy parameter is required", nil)
+		return
+	}
+
+	result, err := s.StockOpnameService.FindSellSummary(req.Context(), id, groupBy)
+	if err != nil {
+		helper.WriteServiceError(writer, err)
+		return
+	}
+
+	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{
+		Message: "Sell summary retrieved successfully",
+		Data:    result,
+	}); err != nil {
+		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)
+	}
+}
