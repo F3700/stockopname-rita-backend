@@ -10,12 +10,12 @@ import (
 	"stockopname-rita-backend/internal/model"
 )
 
-var productTestColumns = []string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_createdat", "product_updatedat"}
+var productTestColumns = []string{"product_id", "product_sesi_id", "product_plu", "product_name", "product_department_code", "product_buyprice", "product_sellprice", "product_per_carton", "product_createdat", "product_updatedat"}
 
 func productTestRow() *pgxmock.Rows {
 	ts := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(productTestColumns).
-		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, ts, ts)
+		AddRow(11, 3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 12, ts, ts)
 }
 
 func barcodeAttachRows() *pgxmock.Rows {
@@ -28,11 +28,11 @@ func TestProductSave(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectQuery("INSERT INTO product").
-		WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0).
+		WithArgs(3, "100251", "Sari Roti", "1138", 14500.0, 17200.0, 12).
 		WillReturnRows(pgxmock.NewRows([]string{"product_id"}).AddRow(11))
 
 	repo := NewProductRepository(mock)
-	product := &model.Product{ProductSesiID: 3, ProductPLU: "100251", ProductName: "Sari Roti", ProductDepartmentCode: "1138", ProductBuyPrice: 14500, ProductSellPrice: 17200}
+	product := &model.Product{ProductSesiID: 3, ProductPLU: "100251", ProductName: "Sari Roti", ProductDepartmentCode: "1138", ProductBuyPrice: 14500, ProductSellPrice: 17200, ProductPerCarton: 12}
 	if err := repo.Save(context.Background(), tx, product); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -158,11 +158,11 @@ func TestProductUpdate(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
 	mock.ExpectExec("UPDATE product").
-		WithArgs("100251", "Sari Roti Baru", "1138", 14500.0, 17200.0, 11).
+		WithArgs("100251", "Sari Roti Baru", "1138", 14500.0, 17200.0, 12, 11).
 		WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 
 	repo := NewProductRepository(mock)
-	product := &model.Product{ProductID: 11, ProductPLU: "100251", ProductName: "Sari Roti Baru", ProductDepartmentCode: "1138", ProductBuyPrice: 14500, ProductSellPrice: 17200}
+	product := &model.Product{ProductID: 11, ProductPLU: "100251", ProductName: "Sari Roti Baru", ProductDepartmentCode: "1138", ProductBuyPrice: 14500, ProductSellPrice: 17200, ProductPerCarton: 12}
 	if err := repo.Update(context.Background(), tx, product); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

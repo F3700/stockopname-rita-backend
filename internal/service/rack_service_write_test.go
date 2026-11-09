@@ -28,8 +28,8 @@ func rackStateRows(rakID int, uploaded bool) *pgxmock.Rows {
 	if uploaded {
 		uploadedAt = time.Now()
 	}
-	return pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt"}).
-		AddRow(rakID, "Rak 1", 1, uploadedAt)
+	return pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt", "ItemCount"}).
+		AddRow(rakID, "Rak 1", 1, uploadedAt, 0)
 }
 
 func coordinatorRows(coorID int, sesiID int) *pgxmock.Rows {

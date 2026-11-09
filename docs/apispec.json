@@ -608,6 +608,222 @@
         }
       }
     },
+    "/stockopname/sessions/{id}/sell-factor": {
+      "patch": {
+        "tags": [
+          "Stock Opname Session"
+        ],
+        "summary": "Set sell factor for stock opname results",
+        "description": "Applies a -1, 0, or 1 sell factor to one item, selected items, filtered results, a rack, a coordinator, or a session. Status final does not block this operation.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "scope",
+                  "factor"
+                ],
+                "properties": {
+                  "scope": {
+                    "type": "string",
+                    "enum": [
+                      "session",
+                      "coordinator",
+                      "rack",
+                      "item",
+                      "items",
+                      "filter"
+                    ]
+                  },
+                  "scope_id": {
+                    "type": "integer",
+                    "nullable": true
+                  },
+                  "result_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "integer"
+                    },
+                    "maxItems": 500
+                  },
+                  "filter": {
+                    "type": "object",
+                    "nullable": true,
+                    "properties": {
+                      "search": {
+                        "type": "string"
+                      },
+                      "coordinator_id": {
+                        "type": "integer",
+                        "nullable": true
+                      },
+                      "rak_id": {
+                        "type": "integer",
+                        "nullable": true
+                      }
+                    }
+                  },
+                  "factor": {
+                    "type": "integer",
+                    "enum": [
+                      -1,
+                      0,
+                      1
+                    ]
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Sell factor updated",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "updated_count": {
+                          "type": "integer"
+                        },
+                        "batch_id": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/sessions/{id}/sell-summary": {
+      "get": {
+        "tags": [
+          "Stock Opname Session"
+        ],
+        "summary": "Get sell totals grouped by session, coordinator, or rack",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "groupBy",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "session",
+                "coordinator",
+                "rack"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Sell summary retrieved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "group_by": {
+                          "type": "string"
+                        },
+                        "groups": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "key": {
+                                "type": "string"
+                              },
+                              "label": {
+                                "type": "string"
+                              },
+                              "item_count": {
+                                "type": "integer"
+                              },
+                              "total_qty": {
+                                "type": "number"
+                              },
+                              "total_sell_original": {
+                                "type": "number"
+                              },
+                              "total_sell_effective": {
+                                "type": "number"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
     "/stockopname/sessions/{id}/pdf": {
       "get": {
         "tags": [
@@ -624,6 +840,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "include_carton",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -770,6 +995,56 @@
             "$ref": "#/components/responses/InternalServerError"
           }
         }
+      },
+      "post": {
+        "tags": [
+          "Stock Opname Coordinator"
+        ],
+        "summary": "Add a coordinator to an existing session",
+        "description": "Creates a coordinator and its rack range in a session that is still IN_PROGRESS. Rack names may duplicate another coordinator's rack names because rack identity uses the rack ID.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCoordinatorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Coordinator created successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Coordinator created successfully"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Coordinator"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
       }
     },
     "/stockopname/coordinators/{id}/pdf": {
@@ -788,6 +1063,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "include_carton",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -1570,7 +1854,7 @@
           "Stock Opname Coordinator"
         ],
         "summary": "Join a coordinator by scanning its QR code",
-        "description": "Validates the coordinator and returns its racks. Each rack carries uploaded_at so a second device can skip finished racks.",
+        "description": "Validates the coordinator and returns its racks with upload history and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at only marks upload history and does not indicate whether the rack still has items. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1827,6 +2111,23 @@
             }
           },
           {
+            "name": "batchId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "withoutBatch",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
             "name": "page",
             "in": "query",
             "required": true,
@@ -1879,6 +2180,114 @@
           }
         }
       }
+    },
+    "/stockopname/audits/batches": {
+      "get": {
+        "tags": [
+          "Stock Opname Audit"
+        ],
+        "summary": "List audit batch summaries",
+        "description": "Returns one summary row per bulk audit action. Use GET /stockopname/audits?batchId=<uuid> for details.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "resultId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit batches retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "batch_id": {
+                            "type": "string",
+                            "format": "uuid"
+                          },
+                          "action": {
+                            "type": "string"
+                          },
+                          "actor": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "item_count": {
+                            "type": "integer"
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1894,7 +2303,8 @@
           "sell_price",
           "date_created",
           "date_updated",
-          "department_code"
+          "department_code",
+          "per_carton"
         ],
         "properties": {
           "id": {
@@ -1942,6 +2352,12 @@
           "department_code": {
             "type": "string",
             "example": "1138"
+          },
+          "per_carton": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999,
+            "example": 12
           }
         }
       },
@@ -1963,10 +2379,12 @@
           },
           "plu": {
             "type": "string",
+            "maxLength": 10,
             "example": "100251"
           },
           "name": {
             "type": "string",
+            "maxLength": 150,
             "example": "Product A"
           },
           "buy_price": {
@@ -1981,12 +2399,21 @@
           },
           "department_code": {
             "type": "string",
+            "maxLength": 10,
             "example": "1138"
+          },
+          "per_carton": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999,
+            "default": 0,
+            "example": 12
           },
           "barcodes": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 15
             },
             "example": [
               "1002515550011",
@@ -2000,10 +2427,12 @@
         "properties": {
           "plu": {
             "type": "string",
+            "maxLength": 10,
             "example": "100251"
           },
           "name": {
             "type": "string",
+            "maxLength": 150,
             "example": "Product A"
           },
           "buy_price": {
@@ -2018,12 +2447,20 @@
           },
           "department_code": {
             "type": "string",
+            "maxLength": 10,
             "example": "1138"
+          },
+          "per_carton": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 99999,
+            "example": 12
           },
           "barcodes": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 15
             },
             "description": "Replaces the whole barcode set when present."
           }
@@ -2078,10 +2515,12 @@
         "properties": {
           "sesi_code": {
             "type": "string",
+            "maxLength": 20,
             "example": "SO-14-08-2026-01"
           },
           "location": {
             "type": "string",
+            "maxLength": 100,
             "example": "Location 1"
           },
           "coordinators": {
@@ -2096,6 +2535,7 @@
               "properties": {
                 "code": {
                   "type": "string",
+                  "maxLength": 20,
                   "example": "COOR1"
                 },
                 "rack_start": {
@@ -2188,6 +2628,15 @@
             "type": "string",
             "example": "COOR1"
           },
+          "sell_factor": {
+            "type": "integer",
+            "enum": [
+              -1,
+              0,
+              1
+            ],
+            "example": 1
+          },
           "updatedAt": {
             "type": "string",
             "format": "date-time",
@@ -2258,6 +2707,14 @@
           "uploaded_at": {
             "type": "string",
             "example": "2026-10-26T10:14:00+07:00"
+          },
+          "item_count": {
+            "type": "integer",
+            "example": 5
+          },
+          "is_empty": {
+            "type": "boolean",
+            "example": false
           }
         }
       },
@@ -2410,10 +2867,22 @@
                 },
                 "uploaded_at": {
                   "type": "string",
-                  "example": "2026-10-26T09:14:03+07:00"
+                  "example": "2026-10-26T09:14:03+07:00",
+                  "description": "Upload-history marker. May be set even when the rack is now empty."
+                },
+                "item_count": {
+                  "type": "integer",
+                  "example": 5,
+                  "description": "Live number of result rows currently in the rack."
+                },
+                "is_empty": {
+                  "type": "boolean",
+                  "example": false,
+                  "description": "True when the rack has no live result rows."
                 }
               }
-            }
+            },
+            "description": "Racks owned by the coordinator. item_count and is_empty are live values for mobile; uploaded_at is the upload-history marker."
           }
         }
       },
@@ -2585,6 +3054,36 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          }
+        }
+      },
+      "CreateCoordinatorRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "code",
+          "rack_start",
+          "rack_end"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "integer",
+            "example": 3
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 20,
+            "example": "KOR-03"
+          },
+          "rack_start": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 1
+          },
+          "rack_end": {
+            "type": "integer",
+            "minimum": 1,
+            "example": 10
           }
         }
       }

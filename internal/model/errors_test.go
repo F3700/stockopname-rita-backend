@@ -28,6 +28,11 @@ func TestMapPgError(t *testing.T) {
 			pgErr:    &pgconn.PgError{Code: "23514", ConstraintName: "chk_stock_opname_quantity"},
 			wantType: &ValidationError{},
 		},
+		{
+			name:     "string truncation mapped",
+			pgErr:    &pgconn.PgError{Code: "22001"},
+			wantType: &ValidationError{},
+		},
 	}
 
 	for _, tt := range tests {

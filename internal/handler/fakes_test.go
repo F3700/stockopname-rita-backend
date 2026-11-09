@@ -27,12 +27,20 @@ var _ service.ReportService = (*fakeReportService)(nil)
 var _ service.AuditService = (*fakeAuditService)(nil)
 
 type fakeCoordinatorService struct {
+	createFunc          func(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error)
 	findByIdSummaryFunc func(ctx context.Context, id int) (*dto.CoordinatorResponse, error)
 	findByIdDetailFunc  func(ctx context.Context, id int) (*dto.CoordinatorDetailResponse, error)
 	findByIdReportFunc  func(ctx context.Context, id int) (*dto.CoordinatorReportResponse, error)
 	findAllSummaryFunc  func(ctx context.Context, sesiId *int) ([]*dto.CoordinatorResponse, error)
 	joinFunc            func(ctx context.Context, req dto.JoinByCoordinatorQRRequest) (dto.CoordinatorJoinResponse, error)
 	updateFunc          func(ctx context.Context, id int, req *dto.UpdateCoordinatorRequest) error
+}
+
+func (f *fakeCoordinatorService) Create(ctx context.Context, req dto.CreateCoordinatorRequest) (dto.CoordinatorResponse, error) {
+	if f.createFunc == nil {
+		return dto.CoordinatorResponse{}, nil
+	}
+	return f.createFunc(ctx, req)
 }
 
 func (f *fakeCoordinatorService) FindByIdSummary(ctx context.Context, id int) (*dto.CoordinatorResponse, error) {
@@ -192,6 +200,8 @@ type fakeStockOpnameService struct {
 	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
 	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
+	setSellFactorFunc    func(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error)
+	findSellSummaryFunc  func(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error)
 }
 
 func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error) {
@@ -225,21 +235,35 @@ func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pa
 	return f.findAllFunc(ctx, pagination, search, coorId, sesiId, rakId)
 }
 
+func (f *fakeStockOpnameService) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
+	if f.setSellFactorFunc == nil {
+		return dto.SetSellFactorResponse{}, nil
+	}
+	return f.setSellFactorFunc(ctx, sessionID, req)
+}
+
+func (f *fakeStockOpnameService) FindSellSummary(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error) {
+	if f.findSellSummaryFunc == nil {
+		return dto.SellSummaryResponse{}, nil
+	}
+	return f.findSellSummaryFunc(ctx, sessionID, groupBy)
+}
+
 type fakeReportService struct {
-	sessionPDFFunc            func(ctx context.Context, id int) ([]byte, string, error)
-	coordinatorPDFFunc        func(ctx context.Context, id int) ([]byte, string, error)
+	sessionPDFFunc            func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
+	coordinatorPDFFunc        func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	coordinatorSummaryPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
 	uploadPDFFunc             func(ctx context.Context, id int) ([]byte, string, error)
 	sessionExcelFunc          func(ctx context.Context, id int) ([]byte, string, error)
 	sessionDBFFunc            func(ctx context.Context, id int) ([]byte, string, error)
 }
 
-func (f *fakeReportService) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
-	return f.sessionPDFFunc(ctx, id)
+func (f *fakeReportService) SessionPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+	return f.sessionPDFFunc(ctx, id, includeCarton)
 }
 
-func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error) {
-	return f.coordinatorPDFFunc(ctx, id)
+func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+	return f.coordinatorPDFFunc(ctx, id, includeCarton)
 }
 
 func (f *fakeReportService) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
@@ -265,7 +289,8 @@ func (f *fakeReportService) SessionDBF(ctx context.Context, id int) ([]byte, str
 }
 
 type fakeAuditService struct {
-	findAllFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+	findAllFunc     func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+	findBatchesFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
 }
 
 func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error) {
@@ -273,6 +298,13 @@ func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditF
 		return nil, nil
 	}
 	return f.findAllFunc(ctx, filter, pagination)
+}
+
+func (f *fakeAuditService) FindBatches(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error) {
+	if f.findBatchesFunc == nil {
+		return nil, nil
+	}
+	return f.findBatchesFunc(ctx, filter, pagination)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

@@ -31,6 +31,7 @@ const productColumns = `
 	p.product_department_code,
 	p.product_buyprice,
 	p.product_sellprice,
+	p.product_per_carton,
 	p.product_createdat,
 	p.product_updatedat
 `
@@ -45,6 +46,7 @@ func scanProduct(row pgx.Row) (*model.Product, error) {
 		&product.ProductDepartmentCode,
 		&product.ProductBuyPrice,
 		&product.ProductSellPrice,
+		&product.ProductPerCarton,
 		&product.ProductCreatedat,
 		&product.ProductUpdatedat,
 	)
@@ -297,9 +299,9 @@ func (p *ProductRepositoryImpl) FindAllInPageSearch(ctx context.Context, sesiId 
 
 // Save implements [ProductRepository].
 func (p *ProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, product *model.Product) error {
-	const SQL = "INSERT INTO product (product_sesi_id, product_plu, product_name, product_department_code, product_buyprice, product_sellprice) VALUES ($1, $2, $3, $4, $5, $6) RETURNING product_id"
+	const SQL = "INSERT INTO product (product_sesi_id, product_plu, product_name, product_department_code, product_buyprice, product_sellprice, product_per_carton) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING product_id"
 
-	err := tx.QueryRow(ctx, SQL, product.ProductSesiID, product.ProductPLU, product.ProductName, product.ProductDepartmentCode, product.ProductBuyPrice, product.ProductSellPrice).Scan(&product.ProductID)
+	err := tx.QueryRow(ctx, SQL, product.ProductSesiID, product.ProductPLU, product.ProductName, product.ProductDepartmentCode, product.ProductBuyPrice, product.ProductSellPrice, product.ProductPerCarton).Scan(&product.ProductID)
 	if err != nil {
 		return model.MapPgError("Product", err)
 	}
@@ -308,9 +310,9 @@ func (p *ProductRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, product *mo
 
 // Update implements [ProductRepository].
 func (p *ProductRepositoryImpl) Update(ctx context.Context, tx pgx.Tx, product *model.Product) error {
-	const SQL = "UPDATE product SET product_plu = $1, product_name = $2, product_department_code = $3, product_buyprice = $4, product_sellprice = $5, product_updatedat = NOW() WHERE product_id = $6"
+	const SQL = "UPDATE product SET product_plu = $1, product_name = $2, product_department_code = $3, product_buyprice = $4, product_sellprice = $5, product_per_carton = $6, product_updatedat = NOW() WHERE product_id = $7"
 
-	res, err := tx.Exec(ctx, SQL, product.ProductPLU, product.ProductName, product.ProductDepartmentCode, product.ProductBuyPrice, product.ProductSellPrice, product.ProductID)
+	res, err := tx.Exec(ctx, SQL, product.ProductPLU, product.ProductName, product.ProductDepartmentCode, product.ProductBuyPrice, product.ProductSellPrice, product.ProductPerCarton, product.ProductID)
 	if err != nil {
 		return model.MapPgError("Product", err)
 	}

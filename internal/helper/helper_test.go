@@ -253,3 +253,18 @@ func TestMapServiceErrorValidation(t *testing.T) {
 		t.Errorf("unexpected message %q", message)
 	}
 }
+
+func TestMapServiceErrorValidationMax(t *testing.T) {
+	type request struct {
+		Code string `validate:"max=20"`
+	}
+
+	err := validator.New().Struct(request{Code: strings.Repeat("A", 21)})
+	status, message := mapServiceError(err)
+	if status != http.StatusBadRequest {
+		t.Errorf("expected status %d, got %d", http.StatusBadRequest, status)
+	}
+	if message != "Code must be at most 20 characters" {
+		t.Errorf("unexpected message %q", message)
+	}
+}

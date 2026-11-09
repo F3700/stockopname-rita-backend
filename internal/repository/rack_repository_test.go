@@ -16,9 +16,9 @@ func TestRackFindAll(t *testing.T) {
 	coordinatorId, sessionId := 2, 3
 	uploaded := time.Now()
 	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt"}).
-			AddRow(1, "R1", 2, nil).
-			AddRow(2, "R2", 2, uploaded),
+		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt", "ItemCount"}).
+			AddRow(1, "R1", 2, nil, 0).
+			AddRow(2, "R2", 2, uploaded, 3),
 	)
 
 	repo := NewRackRepository(mock)
@@ -34,6 +34,9 @@ func TestRackFindAll(t *testing.T) {
 	}
 	if !results[1].UploadedAt.Valid {
 		t.Error("expected rack 2 to be uploaded")
+	}
+	if results[1].ItemCount != 3 {
+		t.Errorf("expected 3 items, got %d", results[1].ItemCount)
 	}
 }
 

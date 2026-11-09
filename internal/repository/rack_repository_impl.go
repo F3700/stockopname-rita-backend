@@ -25,7 +25,8 @@ func (r *RackRepositoryImpl) FindAll(ctx context.Context, coordinatorId *int, se
 			r.rak_id AS RakID,
 			r.rak_name AS RakName,
 			r.rak_coor_id AS CoorID,
-			u.upload_createdat AS UploadedAt
+			u.upload_createdat AS UploadedAt,
+			(SELECT COUNT(*) FROM stock_opname so WHERE so.stock_opname_rak_id = r.rak_id) AS ItemCount
 		FROM rak r
 		JOIN coordinator c ON c.coor_id = r.rak_coor_id
 		LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
@@ -133,7 +134,8 @@ const selectRackState = `
 		r.rak_id AS RakID,
 		r.rak_name AS RakName,
 		r.rak_coor_id AS CoorID,
-		u.upload_createdat AS UploadedAt
+		u.upload_createdat AS UploadedAt,
+		(SELECT COUNT(*) FROM stock_opname so WHERE so.stock_opname_rak_id = r.rak_id) AS ItemCount
 	FROM rak r
 	LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
 	WHERE r.rak_id = $1
@@ -143,7 +145,7 @@ const selectRackState = `
 func (r *RackRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
 	var state model.RackState
 	err := tx.QueryRow(ctx, selectRackState, rakID).
-		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt)
+		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt, &state.ItemCount)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
 	}
@@ -157,7 +159,7 @@ func (r *RackRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, rakID int)
 func (r *RackRepositoryImpl) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
 	var state model.RackState
 	err := tx.QueryRow(ctx, selectRackState+" FOR UPDATE OF r", rakID).
-		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt)
+		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt, &state.ItemCount)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
 	}

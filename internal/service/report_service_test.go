@@ -41,13 +41,13 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, RackName: "R1", CoordinatorCode: "KOR-01"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, PerCarton: 12, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
 	)
 
-	data, filename, err := svc.SessionPDF(context.Background(), 1)
+	data, filename, err := svc.SessionPDF(context.Background(), 1, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -69,13 +69,24 @@ func TestSessionPDF(t *testing.T) {
 			t.Errorf("expected session PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli"} {
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Karton"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("session PDF must not contain %q", unwanted)
 		}
 	}
 	if bytes.Contains(data, []byte("/Subtype /Image")) {
 		t.Error("session PDF must not contain a logo image")
+	}
+
+	cartonData, _, err := svc.SessionPDF(context.Background(), 1, true)
+	if err != nil {
+		t.Fatalf("unexpected carton error: %v", err)
+	}
+	cartonText := compressedPDFText(t, cartonData)
+	for _, want := range []string{"Karton", "4,00"} {
+		if !strings.Contains(cartonText, want) {
+			t.Errorf("expected carton PDF to contain %q", want)
+		}
 	}
 }
 
@@ -91,7 +102,7 @@ func TestSessionPDFSesiError(t *testing.T) {
 		&fakeStockOpnameService{},
 	)
 
-	_, _, err := svc.SessionPDF(context.Background(), 99)
+	_, _, err := svc.SessionPDF(context.Background(), 99, false)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -123,7 +134,7 @@ func TestSessionPDFCoordinatorError(t *testing.T) {
 		},
 	)
 
-	_, _, err := svc.SessionPDF(context.Background(), 1)
+	_, _, err := svc.SessionPDF(context.Background(), 1, false)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -161,7 +172,7 @@ func TestCoordinatorPDF(t *testing.T) {
 		},
 	)
 
-	data, filename, err := svc.CoordinatorPDF(context.Background(), 2)
+	data, filename, err := svc.CoordinatorPDF(context.Background(), 2, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -192,7 +203,7 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 		&fakeStockOpnameService{},
 	)
 
-	_, _, err := svc.CoordinatorPDF(context.Background(), 99)
+	_, _, err := svc.CoordinatorPDF(context.Background(), 99, false)
 	if err == nil {
 		t.Fatal("expected error, got nil")
 	}
@@ -204,9 +215,9 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 
 func TestGroupByRack(t *testing.T) {
 	rows := []dto.StockOpnameExportResponse{
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750, SellFactor: 1, EffectiveSellPrice: 750},
 	}
 	groups := groupByRack(rows)
 	if len(groups) != 2 {
@@ -223,12 +234,34 @@ func TestGroupByRack(t *testing.T) {
 	}
 }
 
+func TestFormatCarton(t *testing.T) {
+	cases := []struct {
+		quantity  float64
+		perCarton int
+		want      string
+	}{
+		{30, 12, "2,50"},
+		{24, 12, "2,00"},
+		{5, 0, "-"},
+		{0, 12, "0,00"},
+	}
+	for _, tc := range cases {
+		if got := formatCarton(tc.quantity, tc.perCarton); got != tc.want {
+			t.Errorf("formatCarton(%v, %d) = %q, want %q", tc.quantity, tc.perCarton, got, tc.want)
+		}
+	}
+}
+
 func TestFormatMoneyID(t *testing.T) {
 	cases := map[float64]string{
 		0:           "Rp 0,00",
 		1500:        "Rp 1.500,00",
 		1234567.89:  "Rp 1.234.567,89",
 		48.5 * 2500: "Rp 121.250,00",
+		-100:        "Rp -100,00",
+		-1000:       "Rp -1.000,00",
+		-10000:      "Rp -10.000,00",
+		-1000000:    "Rp -1.000.000,00",
 	}
 	for value, want := range cases {
 		if got := formatMoneyID(value); got != want {

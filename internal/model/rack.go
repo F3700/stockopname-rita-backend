@@ -15,6 +15,7 @@ type RackState struct {
 	RakName    string
 	CoorID     int
 	UploadedAt pgtype.Timestamptz
+	ItemCount  int
 }
 
 // UploadItem is the immutable snapshot stored on the rack at submit time.

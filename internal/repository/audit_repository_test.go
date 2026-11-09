@@ -11,13 +11,13 @@ import (
 func TestAuditFindAll(t *testing.T) {
 	mock := mustMockPool(t)
 	createdAt := time.Date(2026, 11, 5, 8, 0, 0, 0, time.UTC)
-	mock.ExpectQuery("FROM stock_opname_audit").WithArgs((*int)(nil), (*int)(nil), (*int)(nil), 10, 0).
+	mock.ExpectQuery("FROM stock_opname_audit").WithArgs((*int)(nil), (*int)(nil), (*int)(nil), (*string)(nil), false, 10, 0).
 		WillReturnRows(pgxmock.NewRows([]string{
 			"audit_id", "batch_id", "stock_opname_id", "sesi_id",
 			"source_rak_id", "target_rak_id", "source_coor_id", "target_coor_id",
 			"action", "before_data", "after_data", "actor", "note", "created_at",
 		}).AddRow(int64(1), "", 7, 3, nil, nil, nil, nil, "MOVE", []byte(`{"quantity":5}`), []byte(`{"quantity":7}`), "Niko", "salah rak", createdAt))
-	mock.ExpectQuery("COUNT").WithArgs((*int)(nil), (*int)(nil), (*int)(nil)).
+	mock.ExpectQuery("COUNT").WithArgs((*int)(nil), (*int)(nil), (*int)(nil), (*string)(nil), false).
 		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 
 	repo := NewAuditRepository(mock)
@@ -27,5 +27,25 @@ func TestAuditFindAll(t *testing.T) {
 	}
 	if total != 1 || len(audits) != 1 || audits[0].Action != "MOVE" || string(audits[0].BeforeData) != `{"quantity":5}` {
 		t.Errorf("unexpected audits %+v total %d", audits, total)
+	}
+}
+
+func TestAuditFindBatches(t *testing.T) {
+	mock := mustMockPool(t)
+	createdAt := time.Date(2026, 11, 5, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("GROUP BY a.batch_id").WithArgs((*int)(nil), (*int)(nil), (*int)(nil), 10, 0).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"batch_id", "action", "actor", "note", "item_count", "created_at",
+		}).AddRow("11111111-1111-4111-8111-111111111111", "UPDATE", "Niko", "koreksi", 3, createdAt))
+	mock.ExpectQuery("COUNT\\(DISTINCT").WithArgs((*int)(nil), (*int)(nil), (*int)(nil)).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
+
+	repo := NewAuditRepository(mock)
+	batches, total, err := repo.FindBatches(context.Background(), AuditFilter{Limit: 10, Offset: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 1 || len(batches) != 1 || batches[0].ItemCount != 3 || batches[0].Action != "UPDATE" {
+		t.Errorf("unexpected batches %+v total %d", batches, total)
 	}
 }

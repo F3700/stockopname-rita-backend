@@ -21,8 +21,8 @@ import (
 var reportLocation = mustLoadReportLocation()
 
 type ReportService interface {
-	SessionPDF(ctx context.Context, id int) ([]byte, string, error)
-	CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error)
+	SessionPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
+	CoordinatorPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error)
 	UploadPDF(ctx context.Context, id int) ([]byte, string, error)
 	SessionExcel(ctx context.Context, id int) ([]byte, string, error)
@@ -40,7 +40,7 @@ func NewReportService(sesi SesiService, coordinator CoordinatorService, upload U
 	return &ReportServiceImpl{SesiService: sesi, CoordinatorService: coordinator, UploadService: upload, StockOpnameService: stock}
 }
 
-func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, string, error) {
+func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 	session, err := r.SesiService.FindById(ctx, id)
 	if err != nil {
 		return nil, "", err
@@ -75,7 +75,7 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, str
 	rackRecap(pdf, groups, true)
 	if len(groups) > 0 {
 		section(pdf, "DETAIL PER RAK")
-		rackDetails(pdf, groups, true)
+		rackDetails(pdf, groups, true, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL SESI")
 	}
 	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
@@ -84,7 +84,7 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int) ([]byte, str
 	return data, fmt.Sprintf("%s.pdf", session.Code), err
 }
 
-func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte, string, error) {
+func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 	coordinator, err := r.CoordinatorService.FindByIdDetail(ctx, id)
 	if err != nil {
 		return nil, "", err
@@ -107,7 +107,7 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int) ([]byte,
 	rackRecap(pdf, groups, false)
 	if len(groups) > 0 {
 		section(pdf, "DETAIL PER RAK")
-		rackDetails(pdf, groups, false)
+		rackDetails(pdf, groups, false, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL KOORDINATOR")
 	}
 	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
@@ -207,12 +207,12 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 	}
 	file.DeleteSheet("Sheet1")
 
-	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Coordinator", "Session Code", "Updated At"}
+	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Coordinator", "Session Code", "Updated At", "PLU", "Department"}
 	if err := file.SetSheetRow(sheet, "A1", &headers); err != nil {
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.EffectiveSellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt, export.PLU, export.DepartmentCode}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -250,6 +250,8 @@ type dbfExportRow struct {
 	CoorCode  string  `dbase:"COOR"`
 	SesiCode  string  `dbase:"SESI_CODE"`
 	Updated   string  `dbase:"UPDATED"`
+	PLU       string  `dbase:"PLU"`
+	Dept      string  `dbase:"DEPT"`
 }
 
 func sessionDBFColumns() ([]*dbase.Column, error) {
@@ -268,6 +270,8 @@ func sessionDBFColumns() ([]*dbase.Column, error) {
 		{"COOR", dbase.Character, 20, 0},
 		{"SESI_CODE", dbase.Character, 20, 0},
 		{"UPDATED", dbase.Character, 25, 0},
+		{"PLU", dbase.Character, 10, 0},
+		{"DEPT", dbase.Character, 10, 0},
 	}
 	columns := make([]*dbase.Column, 0, len(specs))
 	for _, spec := range specs {
@@ -328,12 +332,14 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 			Barcode:   export.Barcode,
 			Product:   export.Name,
 			BuyPrice:  export.BuyPrice,
-			SellPrice: export.SellPrice,
+			SellPrice: export.EffectiveSellPrice,
 			Quantity:  export.Quantity,
 			Rak:       export.RackName,
 			CoorCode:  export.CoordinatorCode,
 			SesiCode:  session.Code,
 			Updated:   export.UpdatedAt,
+			PLU:       export.PLU,
+			Dept:      export.DepartmentCode,
 		})
 		if err != nil {
 			_ = table.Close()
@@ -659,7 +665,7 @@ func groupByRack(rows []dto.StockOpnameExportResponse) []rackReportGroup {
 		group.ItemCount++
 		group.TotalQty += row.Quantity
 		group.TotalBuy += row.Quantity * row.BuyPrice
-		group.TotalSell += row.Quantity * row.SellPrice
+		group.TotalSell += row.Quantity * row.EffectiveSellPrice
 	}
 	return groups
 }
@@ -689,7 +695,7 @@ func rackRecap(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool)
 	table(pdf, headers, rows, widths...)
 }
 
-func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool) {
+func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool, includeCarton bool) {
 	for _, group := range groups {
 		title := group.Rack
 		if withCoordinator {
@@ -700,15 +706,33 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 		pdf.Ln(1)
 
 		rows := make([][]string, 0, len(group.Items))
+		totalCarton := 0.0
+		hasCarton := false
 		for _, item := range group.Items {
-			rows = append(rows, []string{
+			row := []string{
 				item.Barcode,
 				item.PLU,
 				item.Name,
 				formatDepartment(item.DepartmentCode),
 				formatQty(item.Quantity),
-				formatMoneyID(item.SellPrice),
-			})
+				formatMoneyID(item.EffectiveSellPrice),
+			}
+			if includeCarton {
+				row = []string{
+					item.Barcode,
+					item.PLU,
+					item.Name,
+					formatDepartment(item.DepartmentCode),
+					formatQty(item.Quantity),
+					formatCarton(item.Quantity, item.PerCarton),
+					formatMoneyID(item.EffectiveSellPrice),
+				}
+				if carton, ok := cartonQuantity(item.Quantity, item.PerCarton); ok {
+					totalCarton += carton
+					hasCarton = true
+				}
+			}
+			rows = append(rows, row)
 		}
 		total := []string{
 			"TOTAL",
@@ -718,7 +742,26 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 			formatQty(group.TotalQty),
 			formatMoneyID(group.TotalSell),
 		}
-		uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}, rows, total, []float64{24, 18, 72, 18, 14, 40})
+		headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}
+		widths := []float64{24, 18, 72, 18, 14, 40}
+		if includeCarton {
+			cartonTotal := "-"
+			if hasCarton {
+				cartonTotal = formatQty(totalCarton)
+			}
+			total = []string{
+				"TOTAL",
+				"",
+				fmt.Sprintf("%d item", group.ItemCount),
+				"",
+				formatQty(group.TotalQty),
+				cartonTotal,
+				formatMoneyID(group.TotalSell),
+			}
+			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Jual"}
+			widths = []float64{24, 18, 56, 18, 14, 32, 24}
+		}
+		uploadTable(pdf, headers, rows, total, widths)
 		pdf.Ln(1)
 	}
 }
@@ -785,7 +828,27 @@ func formatQty(q float64) string {
 	return strings.Replace(strconv.FormatFloat(q, 'f', 2, 64), ".", ",", 1)
 }
 
+func cartonQuantity(quantity float64, perCarton int) (float64, bool) {
+	if perCarton <= 0 {
+		return 0, false
+	}
+	return quantity / float64(perCarton), true
+}
+
+func formatCarton(quantity float64, perCarton int) string {
+	carton, ok := cartonQuantity(quantity, perCarton)
+	if !ok {
+		return "-"
+	}
+	return formatQty(carton)
+}
+
 func formatMoneyID(v float64) string {
+	sign := ""
+	if v < 0 {
+		sign = "-"
+		v = -v
+	}
 	formatted := strconv.FormatFloat(math.Round(v*100)/100, 'f', 2, 64)
 	parts := strings.SplitN(formatted, ".", 2)
 	whole := parts[0]
@@ -796,7 +859,7 @@ func formatMoneyID(v float64) string {
 		}
 		grouped.WriteRune(r)
 	}
-	return fmt.Sprintf("Rp %s,%s", grouped.String(), parts[1])
+	return fmt.Sprintf("Rp %s%s,%s", sign, grouped.String(), parts[1])
 }
 
 func formatReportDate(value string) string {

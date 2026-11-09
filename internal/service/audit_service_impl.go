@@ -56,3 +56,30 @@ func (a *AuditServiceImpl) FindAll(ctx context.Context, filter repository.AuditF
 
 	return responses, nil
 }
+
+func (a *AuditServiceImpl) FindBatches(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error) {
+	filter.Limit = pagination.Limit
+	filter.Offset = (pagination.Page - 1) * pagination.Limit
+
+	batches, total, err := a.AuditRepository.FindBatches(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]dto.AuditBatchSummaryResponse, 0, len(batches))
+	for _, batch := range batches {
+		responses = append(responses, dto.AuditBatchSummaryResponse{
+			BatchID:   batch.BatchID,
+			Action:    batch.Action,
+			Actor:     batch.Actor,
+			Note:      batch.Note,
+			ItemCount: batch.ItemCount,
+			CreatedAt: batch.CreatedAt.Format(time.RFC3339),
+		})
+	}
+
+	pagination.TotalItems = total
+	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
+
+	return responses, nil
+}

@@ -21,8 +21,10 @@ type CoordinatorDetailResponse struct {
 }
 
 type CreateCoordinatorRequest struct {
-	Code   string `json:"code" validate:"required"`
-	SesiId int    `json:"sesiId" validate:"required"`
+	SessionID int    `json:"session_id"`
+	Code      string `json:"code"`
+	RackStart int    `json:"rack_start"`
+	RackEnd   int    `json:"rack_end"`
 }
 
 type UpdateCoordinatorRequest struct {

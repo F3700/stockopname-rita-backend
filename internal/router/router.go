@@ -64,6 +64,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.DELETE("/products/:id", productHandler.DeleteProduct)
 
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
+	router.POST("/stockopname/coordinators", coordinatorHandler.CreateCoordinator)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
 	router.GET("/stockopname/coordinators/:id/pdf", reportHandler.CoordinatorPDF)
 	router.GET("/stockopname/coordinators/:id/uploads/pdf", reportHandler.CoordinatorUploadSummaryPDF)
@@ -73,6 +74,8 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.POST("/stockopname/sessions", sesiHandler.CreateSesi)
 	router.GET("/stockopname/sessions", sesiHandler.GetAllSesi)
 	router.GET("/stockopname/sessions/:id", sesiHandler.GetSesiById)
+	router.PATCH("/stockopname/sessions/:id/sell-factor", stockOpnameHandler.SetSellFactor)
+	router.GET("/stockopname/sessions/:id/sell-summary", stockOpnameHandler.GetSellSummary)
 	router.GET("/stockopname/sessions/:id/pdf", reportHandler.SessionPDF)
 	router.GET("/stockopname/sessions/:id/excel", reportHandler.SessionExcel)
 	router.GET("/stockopname/sessions/:id/dbf", reportHandler.SessionDBF)
@@ -95,6 +98,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.DELETE("/stockopname/results/:id", stockOpnameHandler.DeleteStockOpname)
 
 	router.GET("/stockopname/audits", auditHandler.GetAudits)
+	router.GET("/stockopname/audits/batches", auditHandler.GetAuditBatches)
 
 	return router
 }

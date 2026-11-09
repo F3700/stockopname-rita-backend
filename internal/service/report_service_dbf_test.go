@@ -40,8 +40,8 @@ func dbfTestReportService(t *testing.T, sesiErr, exportErr error) ReportService 
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
-					{Id: 2, Barcode: "8991234567891", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", DepartmentCode: "1138", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 2, Barcode: "8991234567891", PLU: "100252", DepartmentCode: "1139", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 				}, nil
 			},
 		},
@@ -79,14 +79,14 @@ func TestSessionDBF(t *testing.T) {
 	if count := binary.LittleEndian.Uint32(data[4:8]); count != 2 {
 		t.Errorf("expected 2 records in header, got %d", count)
 	}
-	// Strict dBase III layout: header(32) + 9 descriptors(288) + terminator(1).
-	if first := binary.LittleEndian.Uint16(data[8:10]); first != 321 {
-		t.Errorf("expected first-row offset 321, got %d", first)
+	// Strict dBase III layout: header(32) + 11 descriptors(352) + terminator(1).
+	if first := binary.LittleEndian.Uint16(data[8:10]); first != 385 {
+		t.Errorf("expected first-row offset 385, got %d", first)
 	}
-	if data[320] != 0x0D {
-		t.Errorf("expected header terminator 0x0D at offset 320, got 0x%02x", data[320])
+	if data[384] != 0x0D {
+		t.Errorf("expected header terminator 0x0D at offset 384, got 0x%02x", data[384])
 	}
-	if want := 321 + 2*291 + 1; len(data) != want {
+	if want := 385 + 2*311 + 1; len(data) != want {
 		t.Errorf("expected exact file size %d, got %d", want, len(data))
 	}
 	if data[len(data)-1] != 0x1A {
@@ -120,6 +120,12 @@ func TestSessionDBF(t *testing.T) {
 	}
 	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("UPDATED").GetValue())); got != "2026-09-10T08:00:00Z" {
 		t.Errorf("expected updated timestamp, got %q", got)
+	}
+	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("PLU").GetValue())); got != "100251" {
+		t.Errorf("expected PLU %q, got %q", "100251", got)
+	}
+	if got := strings.TrimSpace(fmt.Sprintf("%v", row.FieldByName("DEPT").GetValue())); got != "1138" {
+		t.Errorf("expected department %q, got %q", "1138", got)
 	}
 }
 
@@ -180,8 +186,8 @@ func TestSessionDBFColumns(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(columns) != 9 {
-		t.Fatalf("expected 9 columns, got %d", len(columns))
+	if len(columns) != 11 {
+		t.Fatalf("expected 11 columns, got %d", len(columns))
 	}
 	for _, column := range columns {
 		if len(column.Name()) > 10 {

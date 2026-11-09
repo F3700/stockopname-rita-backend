@@ -3,7 +3,9 @@ package service
 import (
 	"context"
 	"fmt"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"stockopname-rita-backend/internal/dto"
@@ -22,13 +24,14 @@ type ImportServiceImpl struct {
 }
 
 type importProduct struct {
-	line  int
-	plu   string
-	name  string
-	dept  string
-	buy   float64
-	sell  float64
-	codes []importCode
+	line      int
+	plu       string
+	name      string
+	dept      string
+	buy       float64
+	sell      float64
+	perCarton int
+	codes     []importCode
 }
 
 type importCode struct {
@@ -194,6 +197,7 @@ func (s *ImportServiceImpl) Import(ctx context.Context, sesiId int, produkData [
 				ProductDepartmentCode: p.dept,
 				ProductBuyPrice:       p.buy,
 				ProductSellPrice:      p.sell,
+				ProductPerCarton:      p.perCarton,
 			}
 			if err := s.ProductRepository.Save(ctx, tx, product); err != nil {
 				return result, fmt.Errorf("save product %s: %w", p.plu, err)
@@ -211,7 +215,8 @@ func (s *ImportServiceImpl) Import(ctx context.Context, sesiId int, produkData [
 		fieldsChanged := old.ProductName != p.name ||
 			old.ProductDepartmentCode != p.dept ||
 			old.ProductBuyPrice != p.buy ||
-			old.ProductSellPrice != p.sell
+			old.ProductSellPrice != p.sell ||
+			old.ProductPerCarton != p.perCarton
 		barcodesChanged := added > 0 || removed > 0
 
 		if fieldsChanged {
@@ -219,6 +224,7 @@ func (s *ImportServiceImpl) Import(ctx context.Context, sesiId int, produkData [
 			old.ProductDepartmentCode = p.dept
 			old.ProductBuyPrice = p.buy
 			old.ProductSellPrice = p.sell
+			old.ProductPerCarton = p.perCarton
 			if err := s.ProductRepository.Update(ctx, tx, old); err != nil {
 				return result, fmt.Errorf("update product %s: %w", p.plu, err)
 			}
@@ -383,6 +389,15 @@ func parseProdukFile(data []byte) ([]*importProduct, []dto.ImportInvalidRow) {
 		// Legacy names: HRG_JUAL is the selling price, RP_BELI the purchase price.
 		sell, sellErr := row.FloatValueByName("HRG_JUAL")
 		buy, buyErr := row.FloatValueByName("RP_BELI")
+		perCarton := 0
+		if table.ColumnPosByName("KTN") >= 0 {
+			value, parseErr := parsePerCarton(row.MustValueByName("KTN"))
+			if !parseErr {
+				invalid = append(invalid, dto.ImportInvalidRow{File: "produk", Line: line, PLU: plu, Reason: "invalid KTN"})
+				continue
+			}
+			perCarton = value
+		}
 
 		reject := func(reason string) {
 			invalid = append(invalid, dto.ImportInvalidRow{File: "produk", Line: line, PLU: plu, Reason: reason})
@@ -434,9 +449,46 @@ func parseProdukFile(data []byte) ([]*importProduct, []dto.ImportInvalidRow) {
 			continue
 		}
 		seen[plu] = line
-		products = append(products, &importProduct{line: line, plu: plu, name: name, dept: dept, buy: buy, sell: sell})
+		products = append(products, &importProduct{line: line, plu: plu, name: name, dept: dept, buy: buy, sell: sell, perCarton: perCarton})
 	}
 	return products, invalid
+}
+
+func parsePerCarton(value any) (int, bool) {
+	switch v := value.(type) {
+	case nil:
+		return 0, true
+	case float64:
+		if v < 0 || v > 99999 || v != math.Trunc(v) {
+			return 0, false
+		}
+		return int(v), true
+	case int64:
+		if v < 0 || v > 99999 {
+			return 0, false
+		}
+		return int(v), true
+	case int:
+		if v < 0 || v > 99999 {
+			return 0, false
+		}
+		return v, true
+	case string:
+		raw := strings.TrimSpace(v)
+		if raw == "" {
+			return 0, true
+		}
+		parsed, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return 0, false
+		}
+		if parsed < 0 || parsed > 99999 || parsed != math.Trunc(parsed) {
+			return 0, false
+		}
+		return int(parsed), true
+	default:
+		return 0, false
+	}
 }
 
 func parseBarcodeFile(data []byte) ([]importBarcodeLine, []dto.ImportInvalidRow) {

@@ -29,6 +29,60 @@ func sesiStatusRow(id int, status string) *pgxmock.Rows {
 		AddRow(id, "Gudang A", "SESI-01", status, started, nil)
 }
 
+func TestCoordinatorCreateTx(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FOR UPDATE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
+	mock.ExpectQuery("INSERT INTO coordinator").WithArgs("KOR-03", 3, "IN_PROGRESS").
+		WillReturnRows(pgxmock.NewRows([]string{"coor_id"}).AddRow(7))
+	mock.ExpectQuery("INSERT INTO rak").WithArgs("Rak 1", 7).
+		WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(11))
+	mock.ExpectQuery("INSERT INTO rak").WithArgs("Rak 2", 7).
+		WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(12))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	svc := newCoordinatorServiceWithMock(mock, t)
+	res, err := svc.Create(context.Background(), dto.CreateCoordinatorRequest{
+		SessionID: 3,
+		Code:      "KOR-03",
+		RackStart: 1,
+		RackEnd:   2,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.ID != 7 || res.Code != "KOR-03" || res.RackAssigned != 2 || res.Status != "IN_PROGRESS" {
+		t.Errorf("unexpected response %+v", res)
+	}
+}
+
+func TestCoordinatorCreateRejectsOversizedRange(t *testing.T) {
+	svc := newCoordinatorServiceWithMock(nil, t)
+	_, err := svc.Create(context.Background(), dto.CreateCoordinatorRequest{
+		SessionID: 3,
+		Code:      "KOR-03",
+		RackStart: 1,
+		RackEnd:   201,
+	})
+	if err == nil {
+		t.Fatal("expected validation error, got nil")
+	}
+	var validation *model.ValidationError
+	if !errors.As(err, &validation) {
+		t.Errorf("expected ValidationError, got %T: %v", err, err)
+	}
+}
+
 func TestCoordinatorUpdateTx(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
@@ -124,9 +178,9 @@ func TestCoordinatorJoinByQR(t *testing.T) {
 	mock.ExpectQuery("FROM sesi").WithArgs(4).WillReturnRows(sesiStatusRow(4, "IN_PROGRESS"))
 	mock.ExpectQuery("COUNT").WithArgs(4).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
 	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt"}).
-			AddRow(31, "Rak 1", 12, nil).
-			AddRow(32, "Rak 2", 12, time.Now()),
+		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt", "ItemCount"}).
+			AddRow(31, "Rak 1", 12, nil, 0).
+			AddRow(32, "Rak 2", 12, time.Now(), 2),
 	)
 	mock.ExpectRollback()
 
@@ -143,6 +197,9 @@ func TestCoordinatorJoinByQR(t *testing.T) {
 	}
 	if res.Rak[1].UploadedAt == "" {
 		t.Error("expected second rack to be uploaded")
+	}
+	if res.Rak[0].ItemCount != 0 || !res.Rak[0].IsEmpty || res.Rak[1].ItemCount != 2 || res.Rak[1].IsEmpty {
+		t.Errorf("unexpected live rack counts %+v", res.Rak)
 	}
 }
 

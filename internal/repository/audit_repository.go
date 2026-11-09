@@ -11,6 +11,8 @@ type AuditFilter struct {
 	SesiID        *int
 	CoordinatorID *int
 	ResultID      *int
+	BatchID       *string
+	WithoutBatch  bool
 	Limit         int
 	Offset        int
 }
@@ -18,4 +20,5 @@ type AuditFilter struct {
 type AuditRepository interface {
 	Save(ctx context.Context, tx pgx.Tx, audit *model.StockOpnameAudit) error
 	FindAll(ctx context.Context, filter AuditFilter) ([]*model.StockOpnameAudit, int, error)
+	FindBatches(ctx context.Context, filter AuditFilter) ([]*model.StockOpnameAuditBatch, int, error)
 }

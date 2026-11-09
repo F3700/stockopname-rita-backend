@@ -23,12 +23,12 @@ func newTestStockOpname() *model.StockOpname {
 	}
 }
 
-var soSummaryColumns = []string{"id", "barcode", "productPLU", "name", "quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "updatedAt"}
+var soSummaryColumns = []string{"id", "barcode", "productPLU", "name", "quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "sell_factor", "updatedAt"}
 
 func soTestSummaryRow() *pgxmock.Rows {
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(soSummaryColumns).
-		AddRow(7, "8991001010016", "100251", "Sari Roti", 10, 2, "R1", 4, "KOR-01", updatedAt)
+		AddRow(7, "8991001010016", "100251", "Sari Roti", 10, 2, "R1", 4, "KOR-01", 1, updatedAt)
 }
 
 func TestStockOpnameFindAll(t *testing.T) {
@@ -104,8 +104,8 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil)).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
-			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 10, "R1", "KOR-01", updatedAt),
+		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock)
@@ -113,7 +113,24 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(exports) != 1 || exports[0].BuyPrice != 14500 || exports[0].SellPrice != 17200 || exports[0].ProductPLU != "100251" {
+	if len(exports) != 1 || exports[0].BuyPrice != 14500 || exports[0].SellPrice != 17200 || exports[0].ProductPLU != "100251" || exports[0].PerCarton != 12 {
 		t.Errorf("unexpected exports %+v", exports)
+	}
+}
+
+func TestStockOpnameFindSellSummary(t *testing.T) {
+	mock := mustMockPool(t)
+	mock.ExpectQuery("GROUP BY s.sesi_id").WithArgs(3).WillReturnRows(
+		pgxmock.NewRows([]string{"key", "label", "item_count", "total_qty", "total_sell_original", "total_sell_effective"}).
+			AddRow("3", "SESI-01", 2, 15.5, 250000.0, 200000.0),
+	)
+
+	repo := NewStockOpnameRepository(mock)
+	groups, err := repo.FindSellSummary(context.Background(), 3, "session")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(groups) != 1 || groups[0].Label != "SESI-01" || groups[0].TotalSellEffective != 200000 {
+		t.Errorf("unexpected groups %+v", groups)
 	}
 }

@@ -24,4 +24,8 @@ type StockOpnameRepository interface {
 	UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error)
 	CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 	CountByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
+	CountForSellFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) (int, error)
+	FindForSellFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) ([]*model.StockOpnameAuditData, error)
+	UpdateSellFactor(ctx context.Context, tx pgx.Tx, id int, factor int) error
+	FindSellSummary(ctx context.Context, sessionID int, groupBy string) ([]*model.SellSummaryGroup, error)
 }

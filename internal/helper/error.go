@@ -78,6 +78,8 @@ func validationErrorMessage(errs validator.ValidationErrors) string {
 		return fieldErr.Field() + " is required"
 	case "gte":
 		return fieldErr.Field() + " must be at least " + fieldErr.Param()
+	case "max":
+		return fieldErr.Field() + " must be at most " + fieldErr.Param() + " characters"
 	default:
 		return fieldErr.Field() + " is invalid"
 	}
