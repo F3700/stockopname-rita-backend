@@ -2469,6 +2469,7 @@
         "properties": {
           "sesi_code": {
             "type": "string",
+            "maxLength": 20,
             "example": "SO-14-08-2026-01"
           },
           "location": {
@@ -2487,6 +2488,7 @@
               "properties": {
                 "code": {
                   "type": "string",
+                  "maxLength": 20,
                   "example": "COOR1"
                 },
                 "rack_start": {
