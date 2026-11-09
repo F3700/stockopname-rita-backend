@@ -4,12 +4,12 @@
 --
 -- Drops every object in schema public (tables, functions, triggers,
 -- indexes, sequences, views) and recreates an empty public schema.
--- Does NOT drop the database itself, so schema1.sql can run next
+-- Does NOT drop the database itself, so 001_schema.sql can run next
 -- on the same connection.
 --
 -- Usage:
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/reset.sql
---   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/schema1.sql
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/001_schema.sql
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_stock_opname_audit.sql
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/003_stock_opname_department.sql
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/004_stock_opname_sell_factor.sql
