@@ -207,12 +207,12 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 	}
 	file.DeleteSheet("Sheet1")
 
-	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Coordinator", "Session Code", "Updated At"}
+	headers := []string{"Barcode", "Product", "Buy Price", "Sell Price", "Quantity", "Rak", "Coordinator", "Session Code", "Updated At", "PLU", "Department"}
 	if err := file.SetSheetRow(sheet, "A1", &headers); err != nil {
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.EffectiveSellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.EffectiveSellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt, export.PLU, export.DepartmentCode}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -250,6 +250,8 @@ type dbfExportRow struct {
 	CoorCode  string  `dbase:"COOR"`
 	SesiCode  string  `dbase:"SESI_CODE"`
 	Updated   string  `dbase:"UPDATED"`
+	PLU       string  `dbase:"PLU"`
+	Dept      string  `dbase:"DEPT"`
 }
 
 func sessionDBFColumns() ([]*dbase.Column, error) {
@@ -268,6 +270,8 @@ func sessionDBFColumns() ([]*dbase.Column, error) {
 		{"COOR", dbase.Character, 20, 0},
 		{"SESI_CODE", dbase.Character, 20, 0},
 		{"UPDATED", dbase.Character, 25, 0},
+		{"PLU", dbase.Character, 10, 0},
+		{"DEPT", dbase.Character, 10, 0},
 	}
 	columns := make([]*dbase.Column, 0, len(specs))
 	for _, spec := range specs {
@@ -334,6 +338,8 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 			CoorCode:  export.CoordinatorCode,
 			SesiCode:  session.Code,
 			Updated:   export.UpdatedAt,
+			PLU:       export.PLU,
+			Dept:      export.DepartmentCode,
 		})
 		if err != nil {
 			_ = table.Close()
