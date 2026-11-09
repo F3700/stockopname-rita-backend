@@ -759,7 +759,7 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				formatMoneyID(group.TotalSell),
 			}
 			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Jual"}
-			widths = []float64{24, 18, 56, 18, 14, 32, 24}
+			widths = []float64{24, 18, 62, 18, 14, 14, 36}
 		}
 		uploadTable(pdf, headers, rows, total, widths)
 		pdf.Ln(1)
