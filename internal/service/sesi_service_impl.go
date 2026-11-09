@@ -7,6 +7,7 @@ import (
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/model"
 	"stockopname-rita-backend/internal/repository"
+	"strings"
 	"time"
 
 	"github.com/go-playground/validator/v10"
@@ -61,6 +62,11 @@ func (s *SesiServiceImpl) FindById(ctx context.Context, id int) (dto.SesiRespons
 
 // Create implements [SesiService].
 func (s *SesiServiceImpl) Create(ctx context.Context, req dto.CreateSesiRequest) (dto.SesiResponse, error) {
+	req.Code = strings.TrimSpace(req.Code)
+	req.Location = strings.TrimSpace(req.Location)
+	for i := range req.Coordinators {
+		req.Coordinators[i].Code = strings.TrimSpace(req.Coordinators[i].Code)
+	}
 	if err := s.Validator.Struct(req); err != nil {
 		return dto.SesiResponse{}, err
 	}

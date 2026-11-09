@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/pashagolub/pgxmock/v4"
 
 	"stockopname-rita-backend/internal/dto"
@@ -37,6 +39,72 @@ func productBarcodeRows() *pgxmock.Rows {
 }
 
 func floatPtr(f float64) *float64 { return &f }
+
+func stringPtr(s string) *string { return &s }
+
+func TestProductCreateRejectsOverlongFields(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newProductServiceWithMock(mock, t)
+	base := dto.ProductCreateRequest{
+		SesiID: 3, PLU: "100251", Name: "Sari Roti", DepartmentCode: "1138",
+		BuyPrice: floatPtr(14500), SellPrice: floatPtr(17200),
+	}
+	cases := map[string]func(*dto.ProductCreateRequest){
+		"plu":        func(req *dto.ProductCreateRequest) { req.PLU = strings.Repeat("P", 11) },
+		"name":       func(req *dto.ProductCreateRequest) { req.Name = strings.Repeat("N", 151) },
+		"department": func(req *dto.ProductCreateRequest) { req.DepartmentCode = strings.Repeat("D", 11) },
+		"barcode":    func(req *dto.ProductCreateRequest) { req.Barcodes = []string{strings.Repeat("B", 16)} },
+	}
+	for name, mutate := range cases {
+		t.Run(name, func(t *testing.T) {
+			req := base
+			mutate(&req)
+			_, err := svc.Create(context.Background(), req)
+			var validationErrs validator.ValidationErrors
+			if !errors.As(err, &validationErrs) {
+				t.Errorf("expected validator error, got %T: %v", err, err)
+			}
+		})
+	}
+}
+
+func TestProductUpdateRejectsOverlongFields(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newProductServiceWithMock(mock, t)
+	cases := map[string]dto.ProductUpdateRequest{
+		"plu":        {PLU: stringPtr(strings.Repeat("P", 11))},
+		"name":       {Name: stringPtr(strings.Repeat("N", 151))},
+		"department": {DepartmentCode: stringPtr(strings.Repeat("D", 11))},
+		"barcodes":   {Barcodes: &[]string{strings.Repeat("B", 16)}},
+	}
+	for name, req := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := svc.Update(context.Background(), 11, 3, req)
+			var validationErrs validator.ValidationErrors
+			if !errors.As(err, &validationErrs) {
+				t.Errorf("expected validator error, got %T: %v", err, err)
+			}
+		})
+	}
+}
 
 func TestProductCreateTx(t *testing.T) {
 	mock, err := pgxmock.NewPool()

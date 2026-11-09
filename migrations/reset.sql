@@ -13,6 +13,7 @@
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/002_stock_opname_audit.sql
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/003_stock_opname_department.sql
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/004_stock_opname_sell_factor.sql
+--   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/005_stock_opname_audit_session_fk.sql
 --   psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f migrations/seed.sql
 --
 -- Stop the backend first so no connection is holding locks.

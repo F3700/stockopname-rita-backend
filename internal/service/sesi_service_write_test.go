@@ -60,10 +60,10 @@ func TestSesiCreateTx(t *testing.T) {
 
 	svc := newSesiServiceWithMock(mock, t)
 	res, err := svc.Create(context.Background(), dto.CreateSesiRequest{
-		Code:     "SESI-01",
-		Location: "Gudang A",
+		Code:     "  SESI-01  ",
+		Location: "  Gudang A  ",
 		Coordinators: []dto.CoordinatorInput{
-			{Code: "KOR-01", RackStart: 3, RackEnd: 4},
+			{Code: "  KOR-01  ", RackStart: 3, RackEnd: 4},
 		},
 	})
 	if err != nil {
@@ -171,7 +171,7 @@ func TestSesiCreateRejectsInvertedRange(t *testing.T) {
 	}
 }
 
-func TestSesiCreateRejectsCodeLongerThan20(t *testing.T) {
+func TestSesiCreateRejectsOverlongFields(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -193,6 +193,51 @@ func TestSesiCreateRejectsCodeLongerThan20(t *testing.T) {
 			Code:         "SESI-01",
 			Location:     "Gudang A",
 			Coordinators: []dto.CoordinatorInput{{Code: strings.Repeat("K", 21), RackStart: 1, RackEnd: 1}},
+		},
+		"location": {
+			Code:         "SESI-01",
+			Location:     strings.Repeat("L", 101),
+			Coordinators: []dto.CoordinatorInput{{Code: "KOR-01", RackStart: 1, RackEnd: 1}},
+		},
+	}
+	for name, req := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := svc.Create(context.Background(), req)
+			var validationErrs validator.ValidationErrors
+			if !errors.As(err, &validationErrs) {
+				t.Errorf("expected validator error, got %T: %v", err, err)
+			}
+		})
+	}
+}
+
+func TestSesiCreateRejectsBlankAfterTrim(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	svc := newSesiServiceWithMock(mock, t)
+	cases := map[string]dto.CreateSesiRequest{
+		"session code": {
+			Code:         "   ",
+			Location:     "Gudang A",
+			Coordinators: []dto.CoordinatorInput{{Code: "KOR-01", RackStart: 1, RackEnd: 1}},
+		},
+		"location": {
+			Code:         "SESI-01",
+			Location:     "   ",
+			Coordinators: []dto.CoordinatorInput{{Code: "KOR-01", RackStart: 1, RackEnd: 1}},
+		},
+		"coordinator code": {
+			Code:         "SESI-01",
+			Location:     "Gudang A",
+			Coordinators: []dto.CoordinatorInput{{Code: "   ", RackStart: 1, RackEnd: 1}},
 		},
 	}
 	for name, req := range cases {

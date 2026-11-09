@@ -2354,10 +2354,12 @@
           },
           "plu": {
             "type": "string",
+            "maxLength": 10,
             "example": "100251"
           },
           "name": {
             "type": "string",
+            "maxLength": 150,
             "example": "Product A"
           },
           "buy_price": {
@@ -2372,12 +2374,14 @@
           },
           "department_code": {
             "type": "string",
+            "maxLength": 10,
             "example": "1138"
           },
           "barcodes": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 15
             },
             "example": [
               "1002515550011",
@@ -2391,10 +2395,12 @@
         "properties": {
           "plu": {
             "type": "string",
+            "maxLength": 10,
             "example": "100251"
           },
           "name": {
             "type": "string",
+            "maxLength": 150,
             "example": "Product A"
           },
           "buy_price": {
@@ -2409,12 +2415,14 @@
           },
           "department_code": {
             "type": "string",
+            "maxLength": 10,
             "example": "1138"
           },
           "barcodes": {
             "type": "array",
             "items": {
-              "type": "string"
+              "type": "string",
+              "maxLength": 15
             },
             "description": "Replaces the whole barcode set when present."
           }
@@ -2474,6 +2482,7 @@
           },
           "location": {
             "type": "string",
+            "maxLength": 100,
             "example": "Location 1"
           },
           "coordinators": {

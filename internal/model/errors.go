@@ -87,6 +87,8 @@ func MapPgError(resource string, err error) error {
 		return &ForeignKeyError{Resource: resource, Detail: "referenced record not found"}
 	case "23514": // check_violation
 		return &ValidationError{Detail: pgErr.ConstraintName}
+	case "22001": // string_data_right_truncation
+		return &ValidationError{Detail: "One of the fields is too long"}
 	}
 
 	return err

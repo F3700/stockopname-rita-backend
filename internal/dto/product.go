@@ -2,23 +2,23 @@ package dto
 
 type ProductCreateRequest struct {
 	SesiID         int      `json:"sesi_id" validate:"required,gte=1"`
-	PLU            string   `json:"plu" validate:"required"`
-	Name           string   `json:"name" validate:"required"`
-	DepartmentCode string   `json:"department_code" validate:"required"`
+	PLU            string   `json:"plu" validate:"required,max=10"`
+	Name           string   `json:"name" validate:"required,max=150"`
+	DepartmentCode string   `json:"department_code" validate:"required,max=10"`
 	BuyPrice       *float64 `json:"buy_price" validate:"required,gte=0"`
 	SellPrice      *float64 `json:"sell_price" validate:"required,gte=0"`
-	Barcodes       []string `json:"barcodes"`
+	Barcodes       []string `json:"barcodes" validate:"omitempty,dive,max=15"`
 }
 
 type ProductUpdateRequest struct {
-	PLU            *string  `json:"plu"`
-	Name           *string  `json:"name"`
-	DepartmentCode *string  `json:"department_code"`
+	PLU            *string  `json:"plu" validate:"omitempty,max=10"`
+	Name           *string  `json:"name" validate:"omitempty,max=150"`
+	DepartmentCode *string  `json:"department_code" validate:"omitempty,max=10"`
 	BuyPrice       *float64 `json:"buy_price" validate:"omitempty,gte=0"`
 	SellPrice      *float64 `json:"sell_price" validate:"omitempty,gte=0"`
 	// Barcodes replaces the whole barcode set when non-nil.
 	// An empty (non-nil) slice removes all barcodes.
-	Barcodes *[]string `json:"barcodes"`
+	Barcodes *[]string `json:"barcodes" validate:"omitempty,dive,max=15"`
 }
 
 type ProductResponse struct {

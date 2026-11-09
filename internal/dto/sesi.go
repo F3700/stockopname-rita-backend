@@ -17,7 +17,7 @@ type CoordinatorInput struct {
 
 type CreateSesiRequest struct {
 	Code         string             `json:"sesi_code" validate:"required,max=20"`
-	Location     string             `json:"location" validate:"required"`
+	Location     string             `json:"location" validate:"required,max=100"`
 	Coordinators []CoordinatorInput `json:"coordinators" validate:"required,min=1,dive"`
 }
 
