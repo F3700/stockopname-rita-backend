@@ -200,7 +200,7 @@ type fakeStockOpnameService struct {
 	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
 	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
-	setSellFactorFunc    func(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error)
+	setQtyFactorFunc     func(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error)
 	findSellSummaryFunc  func(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error)
 }
 
@@ -235,11 +235,11 @@ func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pa
 	return f.findAllFunc(ctx, pagination, search, coorId, sesiId, rakId)
 }
 
-func (f *fakeStockOpnameService) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
-	if f.setSellFactorFunc == nil {
-		return dto.SetSellFactorResponse{}, nil
+func (f *fakeStockOpnameService) SetQtyFactor(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error) {
+	if f.setQtyFactorFunc == nil {
+		return dto.SetQtyFactorResponse{}, nil
 	}
-	return f.setSellFactorFunc(ctx, sessionID, req)
+	return f.setQtyFactorFunc(ctx, sessionID, req)
 }
 
 func (f *fakeStockOpnameService) FindSellSummary(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error) {

@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Rita Stock Opname API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "REST API untuk mendukung proses stock opname, pengelolaan produk, dan pemantauan hasil stock opname."
   },
   "servers": [
@@ -608,13 +608,13 @@
         }
       }
     },
-    "/stockopname/sessions/{id}/sell-factor": {
+    "/stockopname/sessions/{id}/qty-factor": {
       "patch": {
         "tags": [
           "Stock Opname Session"
         ],
-        "summary": "Set sell factor for stock opname results",
-        "description": "Applies a -1, 0, or 1 sell factor to one item, selected items, filtered results, a rack, a coordinator, or a session. Status final does not block this operation.",
+        "summary": "Set qty factor for stock opname results",
+        "description": "Applies a -1, 0, or 1 qty factor to one item, selected items, filtered results, a rack, a coordinator, or a session. Effective quantity is quantity × qty_factor. Status final does not block this operation.",
         "parameters": [
           {
             "name": "id",
@@ -633,7 +633,7 @@
                 "type": "object",
                 "required": [
                   "scope",
-                  "factor"
+                  "qty_factor"
                 ],
                 "properties": {
                   "scope": {
@@ -675,7 +675,7 @@
                       }
                     }
                   },
-                  "factor": {
+                  "qty_factor": {
                     "type": "integer",
                     "enum": [
                       -1,
@@ -693,7 +693,7 @@
         },
         "responses": {
           "200": {
-            "description": "Sell factor updated",
+            "description": "Qty factor updated",
             "content": {
               "application/json": {
                 "schema": {
@@ -794,13 +794,16 @@
                                 "type": "integer"
                               },
                               "total_qty": {
-                                "type": "number"
+                                "type": "number",
+                                "description": "Effective quantity (quantity × qty_factor)."
                               },
                               "total_sell_original": {
-                                "type": "number"
+                                "type": "number",
+                                "description": "Raw quantity × sell price."
                               },
                               "total_sell_effective": {
-                                "type": "number"
+                                "type": "number",
+                                "description": "Effective quantity × sell price."
                               }
                             }
                           }
@@ -2620,6 +2623,11 @@
             "multipleOf": 0.01,
             "example": 10.5
           },
+          "effective_quantity": {
+            "type": "number",
+            "format": "double",
+            "example": 10.5
+          },
           "rak_name": {
             "type": "string",
             "example": "RAK-001"
@@ -2628,7 +2636,7 @@
             "type": "string",
             "example": "COOR1"
           },
-          "sell_factor": {
+          "qty_factor": {
             "type": "integer",
             "enum": [
               -1,

@@ -12,27 +12,27 @@ import (
 	"stockopname-rita-backend/internal/service"
 )
 
-func TestSetSellFactorHandler(t *testing.T) {
+func TestSetQtyFactorHandler(t *testing.T) {
 	fake := &fakeStockOpnameService{
-		setSellFactorFunc: func(_ context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
-			if sessionID != 3 || req.Scope != "session" || req.Factor == nil || *req.Factor != -1 {
+		setQtyFactorFunc: func(_ context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error) {
+			if sessionID != 3 || req.Scope != "session" || req.QtyFactor == nil || *req.QtyFactor != -1 {
 				t.Fatalf("unexpected request session=%d req=%+v", sessionID, req)
 			}
-			return dto.SetSellFactorResponse{UpdatedCount: 2, BatchID: "11111111-1111-4111-8111-111111111111"}, nil
+			return dto.SetQtyFactorResponse{UpdatedCount: 2, BatchID: "11111111-1111-4111-8111-111111111111"}, nil
 		},
 	}
 	handler := NewStockOpnameHandler(fake)
 
-	req := newJSONRequest(t, http.MethodPatch, "/stockopname/sessions/3/sell-factor", `{"scope":"session","factor":-1}`)
+	req := newJSONRequest(t, http.MethodPatch, "/stockopname/sessions/3/qty-factor", `{"scope":"session","qty_factor":-1}`)
 	req.Header.Set("X-Actor", "Niko")
 	rec := httptest.NewRecorder()
-	handler.SetSellFactor(rec, req, paramsWithID("3"))
+	handler.SetQtyFactor(rec, req, paramsWithID("3"))
 
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected status 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 	var response struct {
-		Data dto.SetSellFactorResponse `json:"data"`
+		Data dto.SetQtyFactorResponse `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
 		t.Fatalf("invalid response: %v", err)

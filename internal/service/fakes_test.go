@@ -385,9 +385,9 @@ type fakeStockOpnameRepository struct {
 	upsertForMoveFunc           func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error)
 	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 	countByRakFunc              func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
-	countForSellFactorFunc      func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) (int, error)
-	findForSellFactorFunc       func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) ([]*model.StockOpnameAuditData, error)
-	updateSellFactorFunc        func(ctx context.Context, tx pgx.Tx, id int, factor int) error
+	countForQtyFactorFunc       func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error)
+	findForQtyFactorFunc        func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) ([]*model.StockOpnameAuditData, error)
+	updateQtyFactorFunc         func(ctx context.Context, tx pgx.Tx, id int, factor int) error
 	findSellSummaryFunc         func(ctx context.Context, sessionID int, groupBy string) ([]*model.SellSummaryGroup, error)
 }
 
@@ -452,15 +452,16 @@ func (f *fakeStockOpnameRepository) FindByRakAndPLUForUpdate(ctx context.Context
 func (f *fakeStockOpnameRepository) UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error) {
 	if f.upsertForMoveFunc == nil {
 		return &model.StockOpnameAuditData{
-			StockOpnameID: stockOpname.StockOpnameID,
-			RakID:         stockOpname.StockOpnameRakID,
-			PLU:           stockOpname.SoProductPLU,
-			Name:          stockOpname.SoProductName,
-			Barcode:       stockOpname.SoBarcode,
-			Quantity:      stockOpname.StockOpnameQuantity,
-			BuyPrice:      stockOpname.SoBuyPrice,
-			SellPrice:     stockOpname.SoSellPrice,
-			SellFactor:    stockOpname.SoSellFactor,
+			StockOpnameID:     stockOpname.StockOpnameID,
+			RakID:             stockOpname.StockOpnameRakID,
+			PLU:               stockOpname.SoProductPLU,
+			Name:              stockOpname.SoProductName,
+			Barcode:           stockOpname.SoBarcode,
+			Quantity:          stockOpname.StockOpnameQuantity,
+			BuyPrice:          stockOpname.SoBuyPrice,
+			SellPrice:         stockOpname.SoSellPrice,
+			QtyFactor:         stockOpname.SoQtyFactor,
+			EffectiveQuantity: stockOpname.StockOpnameQuantity * float64(stockOpname.SoQtyFactor),
 		}, nil
 	}
 	return f.upsertForMoveFunc(ctx, tx, stockOpname)
@@ -498,25 +499,25 @@ func (f *fakeStockOpnameRepository) CountByRak(ctx context.Context, tx pgx.Tx, r
 	return f.countByRakFunc(ctx, tx, rakID)
 }
 
-func (f *fakeStockOpnameRepository) CountForSellFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) (int, error) {
-	if f.countForSellFactorFunc == nil {
+func (f *fakeStockOpnameRepository) CountForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error) {
+	if f.countForQtyFactorFunc == nil {
 		return 0, nil
 	}
-	return f.countForSellFactorFunc(ctx, tx, sessionID, scope, scopeID, resultIDs, filter)
+	return f.countForQtyFactorFunc(ctx, tx, sessionID, scope, scopeID, resultIDs, filter)
 }
 
-func (f *fakeStockOpnameRepository) FindForSellFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) ([]*model.StockOpnameAuditData, error) {
-	if f.findForSellFactorFunc == nil {
+func (f *fakeStockOpnameRepository) FindForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) ([]*model.StockOpnameAuditData, error) {
+	if f.findForQtyFactorFunc == nil {
 		return nil, nil
 	}
-	return f.findForSellFactorFunc(ctx, tx, sessionID, scope, scopeID, resultIDs, filter)
+	return f.findForQtyFactorFunc(ctx, tx, sessionID, scope, scopeID, resultIDs, filter)
 }
 
-func (f *fakeStockOpnameRepository) UpdateSellFactor(ctx context.Context, tx pgx.Tx, id int, factor int) error {
-	if f.updateSellFactorFunc == nil {
+func (f *fakeStockOpnameRepository) UpdateQtyFactor(ctx context.Context, tx pgx.Tx, id int, factor int) error {
+	if f.updateQtyFactorFunc == nil {
 		return nil
 	}
-	return f.updateSellFactorFunc(ctx, tx, id, factor)
+	return f.updateQtyFactorFunc(ctx, tx, id, factor)
 }
 
 func (f *fakeStockOpnameRepository) FindSellSummary(ctx context.Context, sessionID int, groupBy string) ([]*model.SellSummaryGroup, error) {
@@ -651,7 +652,7 @@ func (f *fakeUploadService) FindSummaryByCoordinator(ctx context.Context, coordi
 type fakeStockOpnameService struct {
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
 	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
-	setSellFactorFunc    func(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error)
+	setQtyFactorFunc     func(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error)
 	findSellSummaryFunc  func(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error)
 }
 
@@ -681,11 +682,11 @@ func (f *fakeStockOpnameService) FindAllForExport(ctx context.Context, sesiId *i
 	return f.findAllForExportFunc(ctx, sesiId, coorId)
 }
 
-func (f *fakeStockOpnameService) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
-	if f.setSellFactorFunc == nil {
-		return dto.SetSellFactorResponse{}, nil
+func (f *fakeStockOpnameService) SetQtyFactor(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error) {
+	if f.setQtyFactorFunc == nil {
+		return dto.SetQtyFactorResponse{}, nil
 	}
-	return f.setSellFactorFunc(ctx, sessionID, req)
+	return f.setQtyFactorFunc(ctx, sessionID, req)
 }
 
 func (f *fakeStockOpnameService) FindSellSummary(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error) {

@@ -41,7 +41,7 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, PerCarton: 12, RackName: "R1", CoordinatorCode: "KOR-01"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, QtyFactor: 1, EffectiveQuantity: 48, PerCarton: 12, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
@@ -87,6 +87,26 @@ func TestSessionPDF(t *testing.T) {
 		if !strings.Contains(cartonText, want) {
 			t.Errorf("expected carton PDF to contain %q", want)
 		}
+	}
+}
+
+func TestGroupByRackUsesEffectiveQuantity(t *testing.T) {
+	groups := groupByRack([]dto.StockOpnameExportResponse{
+		{
+			CoordinatorCode:   "KOR-01",
+			RackName:          "R1",
+			Quantity:          10,
+			QtyFactor:         -1,
+			EffectiveQuantity: -10,
+			BuyPrice:          1000,
+			SellPrice:         1500,
+		},
+	})
+	if len(groups) != 1 {
+		t.Fatalf("expected one group, got %d", len(groups))
+	}
+	if groups[0].TotalQty != -10 || groups[0].TotalSell != -15000 || groups[0].TotalBuy != -10000 {
+		t.Errorf("expected effective totals, got %+v", groups[0])
 	}
 }
 
@@ -215,9 +235,9 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 
 func TestGroupByRack(t *testing.T) {
 	rows := []dto.StockOpnameExportResponse{
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750, SellFactor: 1, EffectiveSellPrice: 750},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500, QtyFactor: 1, EffectiveQuantity: 2.5},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500, QtyFactor: 1, EffectiveQuantity: 1},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750, QtyFactor: 1, EffectiveQuantity: 4},
 	}
 	groups := groupByRack(rows)
 	if len(groups) != 2 {

@@ -13,6 +13,6 @@ type StockOpnameHandler interface {
 	UpdateStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	DeleteStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	MoveStockOpname(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
-	SetSellFactor(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
+	SetQtyFactor(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 	GetSellSummary(writer http.ResponseWriter, req *http.Request, params httprouter.Params)
 }

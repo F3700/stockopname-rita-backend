@@ -70,11 +70,12 @@ func (s *StockOpnameRepositoryImpl) FindAll(ctx context.Context, limit int, offs
 			so.so_product_plu AS productPLU,
 			so.so_product_name AS name,
 			so.stock_opname_quantity AS quantity,
+			so.stock_opname_quantity * so.so_qty_factor AS effective_quantity,
 			so.stock_opname_rak_id AS rackId,
 			r.rak_name AS rackName,
 			c.coor_id AS coordinatorId,
 			c.coor_code AS coordinatorCode,
-			so.so_sell_factor AS sell_factor,
+			so.so_qty_factor AS qty_factor,
 			so.stock_opname_updatedat AS "updatedAt"
 		FROM stock_opname so
 		JOIN rak r
@@ -130,11 +131,12 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 			so.so_product_plu AS product_plu,
 			so.so_product_name AS product_name,
 			so.stock_opname_quantity AS quantity,
+			so.stock_opname_quantity * so.so_qty_factor AS effective_quantity,
 			so.stock_opname_rak_id AS rak_id,
 			r.rak_name AS rak_name,
 			c.coor_id AS coordinator_id,
 			c.coor_code AS coor_code,
-			so.so_sell_factor AS sell_factor,
+			so.so_qty_factor AS qty_factor,
 			so.stock_opname_updatedat AS "updatedAt"
 
 		FROM stock_opname so
@@ -149,7 +151,7 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 	`
 
 	var stockOpname model.StockOpnameSummary
-	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.ProductPLU, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.RackID, &stockOpname.RackName, &stockOpname.CoordinatorID, &stockOpname.CoordinatorCode, &stockOpname.SellFactor, &stockOpname.UpdatedAt)
+	err := tx.QueryRow(ctx, SQL, id).Scan(&stockOpname.Id, &stockOpname.Barcode, &stockOpname.ProductPLU, &stockOpname.Name, &stockOpname.Quantity, &stockOpname.EffectiveQuantity, &stockOpname.RackID, &stockOpname.RackName, &stockOpname.CoordinatorID, &stockOpname.CoordinatorCode, &stockOpname.QtyFactor, &stockOpname.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, &model.NotFoundError{Resource: "Stock Opname", ID: id}
@@ -164,12 +166,12 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 // (rack, plu) pair must not exist yet. Web correction uses PATCH instead.
 func (s *StockOpnameRepositoryImpl) Create(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_sell_factor)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::smallint)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO NOTHING
 		RETURNING stock_opname_id
 	`
-	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice, stockOpname.SoSellFactor).Scan(&stockOpname.StockOpnameID)
+	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice, stockOpname.SoQtyFactor).Scan(&stockOpname.StockOpnameID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &model.ConflictError{
 			Resource: "Stock Opname",
@@ -191,7 +193,7 @@ func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, sto
 	}
 
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_sell_factor)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor)
 		SELECT * FROM unnest(
 			$1::numeric[], $2::int[], $3::text[], $4::text[], $5::text[],
 			$6::text[], $7::numeric[], $8::numeric[], $9::smallint[]
@@ -225,7 +227,7 @@ func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, sto
 		barcodes[i] = stockOpname.SoBarcode
 		buyPrices[i] = stockOpname.SoBuyPrice
 		sellPrices[i] = stockOpname.SoSellPrice
-		factors[i] = int16(stockOpname.SoSellFactor)
+		factors[i] = int16(stockOpname.SoQtyFactor)
 	}
 
 	_, err := tx.Exec(ctx, SQL, quantities, rakIDs, plus, names, depts, barcodes, buyPrices, sellPrices, factors)
@@ -264,9 +266,10 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			COALESCE(p.product_department_code, so.so_product_dept, '') AS departmentCode,
 			so.so_buyprice AS buyPrice,
 			so.so_sellprice AS sellPrice,
-			so.so_sell_factor AS sell_factor,
+			so.so_qty_factor AS qty_factor,
 			COALESCE(p.product_per_carton, 0) AS per_carton,
 			so.stock_opname_quantity AS quantity,
+			so.stock_opname_quantity * so.so_qty_factor AS effective_quantity,
 			r.rak_name AS rackName,
 			c.coor_code AS coordinatorCode,
 			so.stock_opname_updatedat AS "updatedAt"
@@ -407,7 +410,7 @@ const auditDataSelect = `
 		so.so_barcode,
 		so.so_buyprice,
 		so.so_sellprice,
-		so.so_sell_factor,
+		so.so_qty_factor,
 		r.rak_id,
 		r.rak_name,
 		c.coor_id,
@@ -438,7 +441,7 @@ func scanAuditData(row rowScanner) (*model.StockOpnameAuditData, error) {
 		&data.Barcode,
 		&data.BuyPrice,
 		&data.SellPrice,
-		&data.SellFactor,
+		&data.QtyFactor,
 		&data.RakID,
 		&data.RakName,
 		&data.CoordinatorID,
@@ -454,6 +457,7 @@ func scanAuditData(row rowScanner) (*model.StockOpnameAuditData, error) {
 		value := uploadedAt.Time
 		data.RakUploadedAt = &value
 	}
+	data.EffectiveQuantity = data.Quantity * float64(data.QtyFactor)
 	return &data, nil
 }
 
@@ -521,13 +525,13 @@ func (s *StockOpnameRepositoryImpl) FindByRakAndPLUForUpdate(ctx context.Context
 // (rack, plu) row. It returns the resulting target row fields.
 func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error) {
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_sell_factor)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::smallint)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
 		SET stock_opname_quantity = stock_opname.stock_opname_quantity + EXCLUDED.stock_opname_quantity,
 		    so_product_dept = COALESCE(NULLIF(stock_opname.so_product_dept, ''), EXCLUDED.so_product_dept),
 		    stock_opname_updatedat = NOW()
-		RETURNING stock_opname_id, stock_opname_quantity, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_sell_factor
+		RETURNING stock_opname_id, stock_opname_quantity, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor
 	`
 	var data model.StockOpnameAuditData
 	err := tx.QueryRow(ctx, SQL,
@@ -539,7 +543,7 @@ func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx
 		stockOpname.SoBarcode,
 		stockOpname.SoBuyPrice,
 		stockOpname.SoSellPrice,
-		stockOpname.SoSellFactor,
+		stockOpname.SoQtyFactor,
 	).Scan(
 		&data.StockOpnameID,
 		&data.Quantity,
@@ -549,11 +553,12 @@ func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx
 		&data.Barcode,
 		&data.BuyPrice,
 		&data.SellPrice,
-		&data.SellFactor,
+		&data.QtyFactor,
 	)
 	if err != nil {
 		return nil, model.MapPgError("Stock Opname", err)
 	}
+	data.EffectiveQuantity = data.Quantity * float64(data.QtyFactor)
 	return &data, nil
 }
 
@@ -582,14 +587,14 @@ func (s *StockOpnameRepositoryImpl) CountByRak(ctx context.Context, tx pgx.Tx, r
 	return total, nil
 }
 
-const sellFactorFrom = `
+const qtyFactorFrom = `
 	FROM stock_opname so
 	JOIN rak r ON r.rak_id = so.stock_opname_rak_id
 	JOIN coordinator c ON c.coor_id = r.rak_coor_id
 	LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
 `
 
-const sellFactorWhere = `
+const qtyFactorWhere = `
 	WHERE c.coor_sesi_id = $1
 	AND (
 		$2 = 'session'
@@ -606,7 +611,7 @@ const sellFactorWhere = `
 	)
 `
 
-func sellFactorArgs(sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) []any {
+func qtyFactorArgs(sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) []any {
 	var scopeIDArg any
 	if scopeID != nil {
 		scopeIDArg = *scopeID
@@ -639,16 +644,16 @@ func sellFactorArgs(sessionID int, scope string, scopeID *int, resultIDs []int, 
 	return []any{sessionID, scope, scopeIDArg, resultIDsArg, searchArg, coordinatorArg, rakArg}
 }
 
-func (s *StockOpnameRepositoryImpl) CountForSellFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) (int, error) {
+func (s *StockOpnameRepositoryImpl) CountForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error) {
 	var total int
-	if err := tx.QueryRow(ctx, `SELECT COUNT(*) `+sellFactorFrom+sellFactorWhere, sellFactorArgs(sessionID, scope, scopeID, resultIDs, filter)...).Scan(&total); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT COUNT(*) `+qtyFactorFrom+qtyFactorWhere, qtyFactorArgs(sessionID, scope, scopeID, resultIDs, filter)...).Scan(&total); err != nil {
 		return 0, err
 	}
 	return total, nil
 }
 
-func (s *StockOpnameRepositoryImpl) FindForSellFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.SellFactorFilter) ([]*model.StockOpnameAuditData, error) {
-	rows, err := tx.Query(ctx, auditDataSelect+sellFactorWhere+` ORDER BY so.stock_opname_id FOR UPDATE OF so`, sellFactorArgs(sessionID, scope, scopeID, resultIDs, filter)...)
+func (s *StockOpnameRepositoryImpl) FindForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) ([]*model.StockOpnameAuditData, error) {
+	rows, err := tx.Query(ctx, auditDataSelect+qtyFactorWhere+` ORDER BY so.stock_opname_id FOR UPDATE OF so`, qtyFactorArgs(sessionID, scope, scopeID, resultIDs, filter)...)
 	if err != nil {
 		return nil, err
 	}
@@ -668,10 +673,10 @@ func (s *StockOpnameRepositoryImpl) FindForSellFactorUpdate(ctx context.Context,
 	return results, nil
 }
 
-func (s *StockOpnameRepositoryImpl) UpdateSellFactor(ctx context.Context, tx pgx.Tx, id int, factor int) error {
+func (s *StockOpnameRepositoryImpl) UpdateQtyFactor(ctx context.Context, tx pgx.Tx, id int, factor int) error {
 	const SQL = `
 		UPDATE stock_opname
-		SET so_sell_factor = $1::smallint, stock_opname_updatedat = NOW()
+		SET so_qty_factor = $1::smallint, stock_opname_updatedat = NOW()
 		WHERE stock_opname_id = $2
 	`
 	res, err := tx.Exec(ctx, SQL, factor, id)
@@ -693,9 +698,9 @@ func (s *StockOpnameRepositoryImpl) FindSellSummary(ctx context.Context, session
 				s.sesi_id::text AS key,
 				s.sesi_code AS label,
 				COUNT(so.stock_opname_id)::int AS item_count,
-				COALESCE(SUM(so.stock_opname_quantity), 0)::float8 AS total_qty,
+				COALESCE(SUM(so.stock_opname_quantity * so.so_qty_factor), 0)::float8 AS total_qty,
 				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice), 0)::float8 AS total_sell_original,
-				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice * so.so_sell_factor), 0)::float8 AS total_sell_effective
+				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice * so.so_qty_factor), 0)::float8 AS total_sell_effective
 			FROM sesi s
 			LEFT JOIN coordinator c ON c.coor_sesi_id = s.sesi_id
 			LEFT JOIN rak r ON r.rak_coor_id = c.coor_id
@@ -709,9 +714,9 @@ func (s *StockOpnameRepositoryImpl) FindSellSummary(ctx context.Context, session
 				c.coor_id::text AS key,
 				c.coor_code AS label,
 				COUNT(*)::int AS item_count,
-				COALESCE(SUM(so.stock_opname_quantity), 0)::float8 AS total_qty,
+				COALESCE(SUM(so.stock_opname_quantity * so.so_qty_factor), 0)::float8 AS total_qty,
 				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice), 0)::float8 AS total_sell_original,
-				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice * so.so_sell_factor), 0)::float8 AS total_sell_effective
+				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice * so.so_qty_factor), 0)::float8 AS total_sell_effective
 			FROM stock_opname so
 			JOIN rak r ON r.rak_id = so.stock_opname_rak_id
 			JOIN coordinator c ON c.coor_id = r.rak_coor_id
@@ -725,9 +730,9 @@ func (s *StockOpnameRepositoryImpl) FindSellSummary(ctx context.Context, session
 				r.rak_id::text AS key,
 				r.rak_name || ' · ' || c.coor_code AS label,
 				COUNT(*)::int AS item_count,
-				COALESCE(SUM(so.stock_opname_quantity), 0)::float8 AS total_qty,
+				COALESCE(SUM(so.stock_opname_quantity * so.so_qty_factor), 0)::float8 AS total_qty,
 				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice), 0)::float8 AS total_sell_original,
-				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice * so.so_sell_factor), 0)::float8 AS total_sell_effective
+				COALESCE(SUM(so.stock_opname_quantity * so.so_sellprice * so.so_qty_factor), 0)::float8 AS total_sell_effective
 			FROM stock_opname so
 			JOIN rak r ON r.rak_id = so.stock_opname_rak_id
 			JOIN coordinator c ON c.coor_id = r.rak_coor_id

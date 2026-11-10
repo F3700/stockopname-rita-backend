@@ -126,7 +126,8 @@ func auditDataForRack(rack *model.StockOpnameRackContext, so *model.StockOpname)
 		Quantity:          so.StockOpnameQuantity,
 		BuyPrice:          so.SoBuyPrice,
 		SellPrice:         so.SoSellPrice,
-		SellFactor:        so.SoSellFactor,
+		QtyFactor:         so.SoQtyFactor,
+		EffectiveQuantity: so.StockOpnameQuantity * float64(so.SoQtyFactor),
 	}
 }
 
@@ -148,17 +149,18 @@ func (s *StockOpnameServiceImpl) writeAudit(ctx context.Context, tx pgx.Tx, audi
 
 func toStockOpnameResponse(summary *model.StockOpnameSummary) dto.StockOpnameResponse {
 	return dto.StockOpnameResponse{
-		Id:              summary.Id,
-		Barcode:         summary.Barcode,
-		PLU:             summary.ProductPLU,
-		Name:            summary.Name,
-		Quantity:        summary.Quantity,
-		RackID:          summary.RackID,
-		RackName:        summary.RackName,
-		CoordinatorID:   summary.CoordinatorID,
-		CoordinatorCode: summary.CoordinatorCode,
-		SellFactor:      summary.SellFactor,
-		UpdatedAt:       summary.UpdatedAt.Format(time.RFC3339),
+		Id:                summary.Id,
+		Barcode:           summary.Barcode,
+		PLU:               summary.ProductPLU,
+		Name:              summary.Name,
+		Quantity:          summary.Quantity,
+		EffectiveQuantity: summary.EffectiveQuantity,
+		RackID:            summary.RackID,
+		RackName:          summary.RackName,
+		CoordinatorID:     summary.CoordinatorID,
+		CoordinatorCode:   summary.CoordinatorCode,
+		QtyFactor:         summary.QtyFactor,
+		UpdatedAt:         summary.UpdatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -180,7 +182,7 @@ func snapshot(quantity float64, rakID int, product *model.Product, scannedBarcod
 		SoBarcode:           soBarcode,
 		SoBuyPrice:          product.ProductBuyPrice,
 		SoSellPrice:         product.ProductSellPrice,
-		SoSellFactor:        1,
+		SoQtyFactor:         1,
 	}
 }
 
@@ -387,6 +389,7 @@ func (s *StockOpnameServiceImpl) Update(ctx context.Context, id int, req dto.Upd
 
 	after := *before
 	after.Quantity = *req.Quantity
+	after.EffectiveQuantity = after.Quantity * float64(after.QtyFactor)
 
 	audit := &model.StockOpnameAudit{
 		StockOpnameID: id,
@@ -511,10 +514,10 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 			return dto.MoveStockOpnameResponse{}, err
 		}
 		if existing != nil {
-			if existing.SellFactor != source.SellFactor {
+			if existing.QtyFactor != source.QtyFactor {
 				return dto.MoveStockOpnameResponse{}, &model.ConflictError{
 					Resource: "Stock Opname",
-					Detail:   "Cannot merge results with different sell factors; set the same factor first",
+					Detail:   "Cannot merge results with different qty factors; set the same qty factor first",
 				}
 			}
 			mergedCount++
@@ -529,7 +532,7 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 			SoBarcode:           source.Barcode,
 			SoBuyPrice:          source.BuyPrice,
 			SoSellPrice:         source.SellPrice,
-			SoSellFactor:        source.SellFactor,
+			SoQtyFactor:         source.QtyFactor,
 		}
 		target, err := s.StockOpnameRepository.UpsertForMove(ctx, tx, moved)
 		if err != nil {
@@ -587,87 +590,87 @@ func (s *StockOpnameServiceImpl) FindAllForExport(ctx context.Context, sesiId *i
 	var responses []dto.StockOpnameExportResponse
 	for _, export := range exports {
 		responses = append(responses, dto.StockOpnameExportResponse{
-			Id:                 export.Id,
-			Barcode:            export.Barcode,
-			PLU:                export.ProductPLU,
-			Name:               export.Name,
-			DepartmentCode:     export.DepartmentCode,
-			BuyPrice:           export.BuyPrice,
-			SellPrice:          export.SellPrice,
-			SellFactor:         export.SellFactor,
-			EffectiveSellPrice: export.SellPrice * float64(export.SellFactor),
-			PerCarton:          export.PerCarton,
-			Quantity:           export.Quantity,
-			RackName:           export.RackName,
-			CoordinatorCode:    export.CoordinatorCode,
-			UpdatedAt:          export.UpdatedAt.Format(time.RFC3339),
+			Id:                export.Id,
+			Barcode:           export.Barcode,
+			PLU:               export.ProductPLU,
+			Name:              export.Name,
+			DepartmentCode:    export.DepartmentCode,
+			BuyPrice:          export.BuyPrice,
+			SellPrice:         export.SellPrice,
+			QtyFactor:         export.QtyFactor,
+			PerCarton:         export.PerCarton,
+			Quantity:          export.Quantity,
+			EffectiveQuantity: export.EffectiveQuantity,
+			RackName:          export.RackName,
+			CoordinatorCode:   export.CoordinatorCode,
+			UpdatedAt:         export.UpdatedAt.Format(time.RFC3339),
 		})
 	}
 
 	return responses, nil
 }
 
-// SetSellFactor updates the sell factor for one or more stock opname rows.
+// SetQtyFactor updates the qty factor for one or more stock opname rows.
 // Status final does not block this operation: the factor only affects
-// valuation, not quantities or rack contents.
-func (s *StockOpnameServiceImpl) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
+// qty valuation, not the stored counted quantity or rack contents.
+func (s *StockOpnameServiceImpl) SetQtyFactor(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error) {
 	if err := s.Validator.Struct(req); err != nil {
-		return dto.SetSellFactorResponse{}, err
+		return dto.SetQtyFactorResponse{}, err
 	}
 	if sessionID <= 0 {
-		return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "session_id must be greater than 0"}
+		return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "session_id must be greater than 0"}
 	}
-	if req.Factor == nil || (*req.Factor != -1 && *req.Factor != 0 && *req.Factor != 1) {
-		return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "factor must be -1, 0, or 1"}
+	if req.QtyFactor == nil || (*req.QtyFactor != -1 && *req.QtyFactor != 0 && *req.QtyFactor != 1) {
+		return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "qty_factor must be -1, 0, or 1"}
 	}
 
-	var filter *model.SellFactorFilter
+	var filter *model.QtyFactorFilter
 	switch req.Scope {
 	case "session":
 		if req.ScopeID != nil || len(req.ResultIDs) > 0 || req.Filter != nil {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id, result_ids, and filter must be empty for session scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "scope_id, result_ids, and filter must be empty for session scope"}
 		}
 	case "coordinator", "rack", "item":
 		if req.ScopeID == nil || *req.ScopeID <= 0 {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id is required for this scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "scope_id is required for this scope"}
 		}
 		if len(req.ResultIDs) > 0 || req.Filter != nil {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids and filter are not allowed for this scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "result_ids and filter are not allowed for this scope"}
 		}
 	case "items":
 		if req.ScopeID != nil {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id is not allowed for items scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "scope_id is not allowed for items scope"}
 		}
 		if req.Filter != nil {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "filter is not allowed for items scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "filter is not allowed for items scope"}
 		}
 		if len(req.ResultIDs) == 0 {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids is required for items scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "result_ids is required for items scope"}
 		}
 	case "filter":
 		if req.ScopeID != nil || len(req.ResultIDs) > 0 {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "scope_id and result_ids must be empty for filter scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "scope_id and result_ids must be empty for filter scope"}
 		}
 		if req.Filter == nil {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "filter is required for filter scope"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "filter is required for filter scope"}
 		}
 		search := strings.TrimSpace(req.Filter.Search)
 		if search == "" && req.Filter.CoordinatorID == nil && req.Filter.RakID == nil {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "filter requires search, coordinator_id, or rak_id"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "filter requires search, coordinator_id, or rak_id"}
 		}
 		if req.Filter.CoordinatorID != nil && *req.Filter.CoordinatorID <= 0 {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "coordinator_id must be greater than 0"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "coordinator_id must be greater than 0"}
 		}
 		if req.Filter.RakID != nil && *req.Filter.RakID <= 0 {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "rak_id must be greater than 0"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "rak_id must be greater than 0"}
 		}
-		filter = &model.SellFactorFilter{
+		filter = &model.QtyFactorFilter{
 			Search:        search,
 			CoordinatorID: req.Filter.CoordinatorID,
 			RakID:         req.Filter.RakID,
 		}
 	default:
-		return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "invalid scope"}
+		return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "invalid scope"}
 	}
 
 	uniqueIDs := make([]int, 0, len(req.ResultIDs))
@@ -675,7 +678,7 @@ func (s *StockOpnameServiceImpl) SetSellFactor(ctx context.Context, sessionID in
 		seen := make(map[int]struct{}, len(req.ResultIDs))
 		for _, id := range req.ResultIDs {
 			if id <= 0 {
-				return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids must contain positive IDs"}
+				return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "result_ids must contain positive IDs"}
 			}
 			if _, ok := seen[id]; ok {
 				continue
@@ -684,45 +687,45 @@ func (s *StockOpnameServiceImpl) SetSellFactor(ctx context.Context, sessionID in
 			uniqueIDs = append(uniqueIDs, id)
 		}
 		if len(uniqueIDs) > 500 {
-			return dto.SetSellFactorResponse{}, &model.ValidationError{Detail: "result_ids supports at most 500 items"}
+			return dto.SetQtyFactorResponse{}, &model.ValidationError{Detail: "result_ids supports at most 500 items"}
 		}
 	}
 
 	tx, err := s.Pool.Begin(ctx)
 	if err != nil {
-		return dto.SetSellFactorResponse{}, err
+		return dto.SetQtyFactorResponse{}, err
 	}
 	defer tx.Rollback(ctx)
 
 	if _, err := s.SesiRepository.FindByIdForUpdate(ctx, tx, sessionID); err != nil {
-		return dto.SetSellFactorResponse{}, err
+		return dto.SetQtyFactorResponse{}, err
 	}
 
 	if req.Scope != "items" && req.Scope != "item" {
-		total, err := s.StockOpnameRepository.CountForSellFactorUpdate(ctx, tx, sessionID, req.Scope, req.ScopeID, uniqueIDs, filter)
+		total, err := s.StockOpnameRepository.CountForQtyFactorUpdate(ctx, tx, sessionID, req.Scope, req.ScopeID, uniqueIDs, filter)
 		if err != nil {
-			return dto.SetSellFactorResponse{}, err
+			return dto.SetQtyFactorResponse{}, err
 		}
 		if total > 1000 {
-			return dto.SetSellFactorResponse{}, &model.ConflictError{
+			return dto.SetQtyFactorResponse{}, &model.ConflictError{
 				Resource: "Stock Opname",
 				Detail:   "Scope too large; narrow the scope to 1000 results or fewer",
 			}
 		}
 	}
 
-	rows, err := s.StockOpnameRepository.FindForSellFactorUpdate(ctx, tx, sessionID, req.Scope, req.ScopeID, uniqueIDs, filter)
+	rows, err := s.StockOpnameRepository.FindForQtyFactorUpdate(ctx, tx, sessionID, req.Scope, req.ScopeID, uniqueIDs, filter)
 	if err != nil {
-		return dto.SetSellFactorResponse{}, err
+		return dto.SetQtyFactorResponse{}, err
 	}
 	if len(rows) == 0 {
-		return dto.SetSellFactorResponse{}, &model.NotFoundError{
+		return dto.SetQtyFactorResponse{}, &model.NotFoundError{
 			Resource: "Stock Opname",
 			Detail:   "No stock opname results in scope",
 		}
 	}
 	if req.Scope == "items" && len(rows) != len(uniqueIDs) {
-		return dto.SetSellFactorResponse{}, &model.NotFoundError{
+		return dto.SetQtyFactorResponse{}, &model.NotFoundError{
 			Resource: "Stock Opname",
 			Detail:   "One or more results were not found in this session",
 		}
@@ -731,14 +734,15 @@ func (s *StockOpnameServiceImpl) SetSellFactor(ctx context.Context, sessionID in
 	batchID := helper.NewUUID()
 	updatedCount := 0
 	for _, before := range rows {
-		if before.SellFactor == *req.Factor {
+		if before.QtyFactor == *req.QtyFactor {
 			continue
 		}
-		if err := s.StockOpnameRepository.UpdateSellFactor(ctx, tx, before.StockOpnameID, *req.Factor); err != nil {
-			return dto.SetSellFactorResponse{}, err
+		if err := s.StockOpnameRepository.UpdateQtyFactor(ctx, tx, before.StockOpnameID, *req.QtyFactor); err != nil {
+			return dto.SetQtyFactorResponse{}, err
 		}
 		after := *before
-		after.SellFactor = *req.Factor
+		after.QtyFactor = *req.QtyFactor
+		after.EffectiveQuantity = after.Quantity * float64(after.QtyFactor)
 		if err := s.writeAudit(ctx, tx, &model.StockOpnameAudit{
 			BatchID:       batchID,
 			StockOpnameID: before.StockOpnameID,
@@ -753,18 +757,18 @@ func (s *StockOpnameServiceImpl) SetSellFactor(ctx context.Context, sessionID in
 			Actor:         req.Actor,
 			Note:          req.Note,
 		}); err != nil {
-			return dto.SetSellFactorResponse{}, err
+			return dto.SetQtyFactorResponse{}, err
 		}
 		updatedCount++
 	}
 
 	if err := tx.Commit(ctx); err != nil {
-		return dto.SetSellFactorResponse{}, err
+		return dto.SetQtyFactorResponse{}, err
 	}
 	if updatedCount == 0 {
 		batchID = ""
 	}
-	return dto.SetSellFactorResponse{UpdatedCount: updatedCount, BatchID: batchID}, nil
+	return dto.SetQtyFactorResponse{UpdatedCount: updatedCount, BatchID: batchID}, nil
 }
 
 // FindSellSummary returns sell totals grouped by session, coordinator, or rack.

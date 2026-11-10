@@ -221,7 +221,7 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.EffectiveSellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt, export.PLU, export.DepartmentCode}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.EffectiveQuantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt, export.PLU, export.DepartmentCode}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -344,8 +344,8 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 			Barcode:   export.Barcode,
 			Product:   export.Name,
 			BuyPrice:  export.BuyPrice,
-			SellPrice: export.EffectiveSellPrice,
-			Quantity:  export.Quantity,
+			SellPrice: export.SellPrice,
+			Quantity:  export.EffectiveQuantity,
 			Rak:       export.RackName,
 			CoorCode:  export.CoordinatorCode,
 			SesiCode:  session.Code,
@@ -675,9 +675,9 @@ func groupByRack(rows []dto.StockOpnameExportResponse) []rackReportGroup {
 		group := &groups[position]
 		group.Items = append(group.Items, row)
 		group.ItemCount++
-		group.TotalQty += row.Quantity
-		group.TotalBuy += row.Quantity * row.BuyPrice
-		group.TotalSell += row.Quantity * row.EffectiveSellPrice
+		group.TotalQty += row.EffectiveQuantity
+		group.TotalBuy += row.EffectiveQuantity * row.BuyPrice
+		group.TotalSell += row.EffectiveQuantity * row.SellPrice
 	}
 	return groups
 }
@@ -726,8 +726,8 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				item.PLU,
 				item.Name,
 				formatDepartment(item.DepartmentCode),
-				formatQty(item.Quantity),
-				formatMoneyID(item.EffectiveSellPrice),
+				formatQty(item.EffectiveQuantity),
+				formatMoneyID(item.SellPrice),
 			}
 			if includeCarton {
 				row = []string{
@@ -735,11 +735,11 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 					item.PLU,
 					item.Name,
 					formatDepartment(item.DepartmentCode),
-					formatQty(item.Quantity),
-					formatCarton(item.Quantity, item.PerCarton),
-					formatMoneyID(item.EffectiveSellPrice),
+					formatQty(item.EffectiveQuantity),
+					formatCarton(item.EffectiveQuantity, item.PerCarton),
+					formatMoneyID(item.SellPrice),
 				}
-				if carton, ok := cartonQuantity(item.Quantity, item.PerCarton); ok {
+				if carton, ok := cartonQuantity(item.EffectiveQuantity, item.PerCarton); ok {
 					totalCarton += carton
 					hasCarton = true
 				}

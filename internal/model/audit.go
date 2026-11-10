@@ -37,7 +37,8 @@ type StockOpnameAuditData struct {
 	Quantity          float64    `json:"quantity"`
 	BuyPrice          float64    `json:"buy_price"`
 	SellPrice         float64    `json:"sell_price"`
-	SellFactor        int        `json:"sell_factor"`
+	QtyFactor         int        `json:"qty_factor"`
+	EffectiveQuantity float64    `json:"effective_quantity,omitempty"`
 }
 
 // StockOpnameAuditBatch is one row of the audit batch summary.
