@@ -81,7 +81,7 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int, includeCarto
 		rackDetails(pdf, groups, true, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL SESI")
 	}
-	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
+	reportNote(pdf, "Data terkini; koreksi admin sudah tercermin.")
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", session.Code), err
@@ -116,7 +116,7 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int, includeC
 		rackDetails(pdf, groups, false, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL KOORDINATOR")
 	}
-	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
+	reportNote(pdf, "Data terkini; koreksi admin sudah tercermin.")
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
@@ -146,9 +146,13 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 	tableRows := make([][]string, 0, len(rows))
 	var totalQty, totalSell float64
 	for _, row := range rows {
+		uploadNumber := "-"
+		if row.UploadID != 0 {
+			uploadNumber = strconv.Itoa(row.UploadNumber)
+		}
 		tableRows = append(tableRows, []string{
 			row.CoordinatorCode,
-			strconv.Itoa(row.UploadNumber),
+			uploadNumber,
 			formatQty(row.Qty),
 			formatMoneyID(row.TotalSell),
 		})
@@ -161,8 +165,9 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
-	reportNote(pdf, "Histori submit asli; tidak berubah oleh koreksi admin.")
+	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty Efektif", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
+	reportNote(pdf, "Data terkini; termasuk hasil yang belum upload.")
+	reportNote(pdf, "Nomor upload dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.")
 	footer(pdf)
 
 	data, err := pdfBytes(pdf)
@@ -173,7 +178,7 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 	return data, filename, nil
 }
 
-// UploadPDF renders the immutable snapshot taken when the batch was uploaded.
+// UploadPDF renders the current results for the racks still assigned to the upload.
 func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
 	detail, err := r.UploadService.FindDetail(ctx, id)
 	if err != nil {
@@ -185,7 +190,10 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, stri
 	for _, rack := range detail.Racks {
 		uploadRackSection(pdf, rack)
 	}
-	reportNote(pdf, "Histori submit asli; tidak berubah oleh koreksi admin.")
+	if len(detail.Racks) == 0 {
+		reportNote(pdf, "Tidak ada rak aktif untuk upload ini.")
+	}
+	reportNote(pdf, "Data terkini; mengikuti koreksi admin.")
 	footer(pdf)
 
 	data, err := pdfBytes(pdf)
@@ -594,7 +602,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse) {
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}, rows, total, []float64{24, 18, 72, 18, 14, 40})
+	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Harga Jual"}, rows, total, []float64{24, 18, 66, 18, 20, 40})
 	pdf.Ln(1)
 }
 

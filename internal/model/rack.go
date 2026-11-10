@@ -18,7 +18,9 @@ type RackState struct {
 	ItemCount  int
 }
 
-// UploadItem is the immutable snapshot stored on the rack at submit time.
+// UploadItem is the item shape written to rak_upload_snapshot at submit time.
+// The snapshot is an archive only: upload reports read the current
+// stock_opname rows, and the next upload of the rack overwrites it.
 type UploadItem struct {
 	PLU       string  `json:"plu"`
 	Barcode   string  `json:"barcode"`
