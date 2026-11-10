@@ -201,6 +201,59 @@ func (p *ProductRepositoryImpl) FindByBarcode(ctx context.Context, tx pgx.Tx, se
 	return product, nil
 }
 
+// FindByBarcodesOrPLUs implements [ProductRepository]. Two queries regardless of
+// how many items the batch holds, and only the referenced products are loaded.
+func (p *ProductRepositoryImpl) FindByBarcodesOrPLUs(ctx context.Context, tx pgx.Tx, sesiId int, codes []string, plus []string) ([]*model.Product, error) {
+	if len(codes) == 0 && len(plus) == 0 {
+		return nil, nil
+	}
+	// nil slices would be sent as NULL, which makes ANY() return NULL.
+	if codes == nil {
+		codes = []string{}
+	}
+	if plus == nil {
+		plus = []string{}
+	}
+
+	const SQL = `
+		SELECT ` + productColumns + `
+		FROM product p
+		WHERE p.product_sesi_id = $1
+		  AND (
+			p.product_plu = ANY($2)
+			OR EXISTS (
+				SELECT 1 FROM barcode b
+				WHERE b.barcode_product_id = p.product_id
+				  AND b.barcode_sesi_id = $1
+				  AND b.barcode_code = ANY($3)
+			)
+		  )
+	`
+
+	rows, err := tx.Query(ctx, SQL, sesiId, plus, codes)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := make([]*model.Product, 0, len(plus)+len(codes))
+	for rows.Next() {
+		product, err := scanProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	if err := attachBarcodes(ctx, tx, products); err != nil {
+		return nil, err
+	}
+	return products, nil
+}
+
 // FindAllForImport implements [ProductRepository].
 func (p *ProductRepositoryImpl) FindAllForImport(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.Product, error) {
 	const SQL = `

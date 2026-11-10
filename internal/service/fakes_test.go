@@ -142,6 +142,7 @@ type fakeProductRepository struct {
 	findByIdFn            func(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error)
 	findByPLUFn           func(ctx context.Context, tx pgx.Tx, sesiId int, plu string) (*model.Product, error)
 	findByBarcodeFn       func(ctx context.Context, tx pgx.Tx, sesiId int, code string) (*model.Product, error)
+	findByCodesOrPLUsFn   func(ctx context.Context, tx pgx.Tx, sesiId int, codes []string, plus []string) ([]*model.Product, error)
 }
 
 func (f *fakeProductRepository) Save(ctx context.Context, tx pgx.Tx, product *model.Product) error {
@@ -177,6 +178,13 @@ func (f *fakeProductRepository) FindByPLU(ctx context.Context, tx pgx.Tx, sesiId
 
 func (f *fakeProductRepository) FindByBarcode(ctx context.Context, tx pgx.Tx, sesiId int, code string) (*model.Product, error) {
 	return f.findByBarcodeFn(ctx, tx, sesiId, code)
+}
+
+func (f *fakeProductRepository) FindByBarcodesOrPLUs(ctx context.Context, tx pgx.Tx, sesiId int, codes []string, plus []string) ([]*model.Product, error) {
+	if f.findByCodesOrPLUsFn == nil {
+		return nil, nil
+	}
+	return f.findByCodesOrPLUsFn(ctx, tx, sesiId, codes, plus)
 }
 
 func (f *fakeProductRepository) FindAllInPageSearch(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error) {
@@ -361,7 +369,7 @@ func (f *fakeSesiRepository) Delete(ctx context.Context, tx pgx.Tx, id int) erro
 }
 
 type fakeStockOpnameRepository struct {
-	saveFunc                    func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	saveManyFunc                func(ctx context.Context, tx pgx.Tx, stockOpnames []*model.StockOpname) error
 	createFunc                  func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
 	findByIdFn                  func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
 	findByIdForUpdateFn         func(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameAuditData, error)
@@ -390,8 +398,11 @@ func (f *fakeStockOpnameRepository) Create(ctx context.Context, tx pgx.Tx, stock
 	return f.createFunc(ctx, tx, stockOpname)
 }
 
-func (f *fakeStockOpnameRepository) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
-	return f.saveFunc(ctx, tx, stockOpname)
+func (f *fakeStockOpnameRepository) SaveMany(ctx context.Context, tx pgx.Tx, stockOpnames []*model.StockOpname) error {
+	if f.saveManyFunc == nil {
+		return nil
+	}
+	return f.saveManyFunc(ctx, tx, stockOpnames)
 }
 
 func (f *fakeStockOpnameRepository) FindById(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error) {

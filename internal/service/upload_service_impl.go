@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/jackc/pgx/v5"
 )
 
 type UploadServiceImpl struct {
@@ -52,13 +51,22 @@ type uploadRackPayload struct {
 	itemCount int
 }
 
-// resolveProduct finds the master product by scanned barcode or PLU.
-func (s *UploadServiceImpl) resolveProduct(ctx context.Context, tx pgx.Tx, sesiId int, item dto.UploadItemRequest) (*model.Product, error) {
+// resolveFromBatch finds a product in the batch that was prefetched for this
+// upload. Barcode wins over PLU, matching the previous per-item behaviour.
+func resolveFromBatch(byBarcode, byPLU map[string]*model.Product, item dto.UploadItemRequest) (*model.Product, error) {
 	if item.Barcode != "" {
-		return s.ProductRepository.FindByBarcode(ctx, tx, sesiId, item.Barcode)
+		product, ok := byBarcode[item.Barcode]
+		if !ok {
+			return nil, &model.NotFoundError{Resource: "Product", Detail: "Product with barcode " + item.Barcode + " not found in this session"}
+		}
+		return product, nil
 	}
 	if item.PLU != "" {
-		return s.ProductRepository.FindByPLU(ctx, tx, sesiId, item.PLU)
+		product, ok := byPLU[item.PLU]
+		if !ok {
+			return nil, &model.NotFoundError{Resource: "Product", Detail: "Product with PLU " + item.PLU + " not found in this session"}
+		}
+		return product, nil
 	}
 	return nil, &model.ValidationError{Detail: "barcode or plu is required"}
 }
@@ -108,6 +116,39 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 		return dto.UploadResponse{}, &model.ConflictError{Resource: "Session", Detail: "Session has no products yet"}
 	}
 
+	// Pass 1 only collects the referenced codes, so every product is resolved by
+	// one query instead of one query per item.
+	codes := make([]string, 0, len(req.Racks))
+	plus := make([]string, 0, len(req.Racks))
+	for _, rackReq := range req.Racks {
+		for _, item := range rackReq.Items {
+			switch {
+			case item.Barcode != "":
+				codes = append(codes, item.Barcode)
+			case item.PLU != "":
+				plus = append(plus, item.PLU)
+			}
+		}
+	}
+
+	found, err := s.ProductRepository.FindByBarcodesOrPLUs(ctx, tx, coordinator.CoorSesiID, codes, plus)
+	if err != nil {
+		return dto.UploadResponse{}, err
+	}
+
+	byBarcode := make(map[string]*model.Product, len(found))
+	byPLU := make(map[string]*model.Product, len(found))
+	for _, product := range found {
+		byPLU[product.ProductPLU] = product
+		for _, code := range product.ProductBarcodes {
+			if _, exists := byBarcode[code]; !exists {
+				byBarcode[code] = product
+			}
+		}
+	}
+
+	// Pass 2 keeps the original per-item order so validation errors surface at
+	// the same item they used to.
 	payloads := make([]uploadRackPayload, 0, len(req.Racks))
 	rakIDs := make([]int32, 0, len(req.Racks))
 	totalItems := 0
@@ -121,7 +162,7 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 			if err := validateQuantity(*item.Quantity); err != nil {
 				return dto.UploadResponse{}, err
 			}
-			product, err := s.resolveProduct(ctx, tx, coordinator.CoorSesiID, item)
+			product, err := resolveFromBatch(byBarcode, byPLU, item)
 			if err != nil {
 				return dto.UploadResponse{}, err
 			}
@@ -173,15 +214,16 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 		return dto.UploadResponse{}, &model.ConflictError{Resource: "Rack", Detail: "One or more racks are already uploaded or invalid"}
 	}
 
+	allResults := make([]*model.StockOpname, 0, totalItems)
 	for _, payload := range payloads {
 		if err := s.RackRepository.SetSnapshot(ctx, tx, payload.rakID, payload.snapshot); err != nil {
 			return dto.UploadResponse{}, err
 		}
-		for _, result := range payload.results {
-			if err := s.StockOpnameRepository.Save(ctx, tx, result); err != nil {
-				return dto.UploadResponse{}, err
-			}
-		}
+		allResults = append(allResults, payload.results...)
+	}
+	// One statement for the whole batch instead of one upsert per item.
+	if err := s.StockOpnameRepository.SaveMany(ctx, tx, allResults); err != nil {
+		return dto.UploadResponse{}, err
 	}
 
 	if err := tx.Commit(ctx); err != nil {

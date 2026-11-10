@@ -9,7 +9,9 @@ import (
 
 type StockOpnameRepository interface {
 	Create(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
-	Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error
+	// SaveMany upserts a whole upload batch in one statement. Callers must not
+	// repeat a (rack, plu) pair: Postgres rejects a second conflict on it.
+	SaveMany(ctx context.Context, tx pgx.Tx, stockOpnames []*model.StockOpname) error
 	FindById(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameSummary, error)
 	FindByIdForUpdate(ctx context.Context, tx pgx.Tx, id int) (*model.StockOpnameAuditData, error)
 	FindAll(ctx context.Context, limit int, offset int, search string, sesiId *int, coorId *int, rakId *int) ([]*model.StockOpnameSummary, int, error)

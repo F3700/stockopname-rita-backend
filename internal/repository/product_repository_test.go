@@ -107,6 +107,40 @@ func TestProductFindByBarcode(t *testing.T) {
 	}
 }
 
+// A whole upload batch resolves with one product query plus one barcode query.
+func TestProductFindByBarcodesOrPLUs(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("OR EXISTS").
+		WithArgs(3, []string{"100251"}, []string{"8991001010016"}).
+		WillReturnRows(productTestRow())
+	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(barcodeAttachRows())
+
+	repo := NewProductRepository(mock)
+	products, err := repo.FindByBarcodesOrPLUs(context.Background(), tx, 3, []string{"8991001010016"}, []string{"100251"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(products) != 1 || len(products[0].ProductBarcodes) != 2 {
+		t.Errorf("unexpected products %+v", products)
+	}
+}
+
+// No codes means nothing to resolve: the repository must not query at all.
+func TestProductFindByBarcodesOrPLUsWithoutCodes(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+
+	repo := NewProductRepository(mock)
+	products, err := repo.FindByBarcodesOrPLUs(context.Background(), tx, 3, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if products != nil {
+		t.Errorf("expected no products, got %+v", products)
+	}
+}
+
 func TestProductFindAllForImport(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)

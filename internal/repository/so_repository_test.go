@@ -21,6 +21,7 @@ func newTestStockOpname() *model.StockOpname {
 		SoBarcode:           "8991001010016",
 		SoBuyPrice:          14500,
 		SoSellPrice:         17200,
+		SoSellFactor:        1,
 	}
 }
 
@@ -63,40 +64,40 @@ func TestStockOpnameFindById(t *testing.T) {
 	}
 }
 
-func TestStockOpnameSave(t *testing.T) {
+func TestStockOpnameSaveMany(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
-		WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).
-		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7))
+	mock.ExpectExec("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
+		WithArgs(
+			[]float64{10, 25},
+			[]int32{2, 2},
+			[]string{"100251", "100251"},
+			[]string{"Sari Roti", "Sari Roti"},
+			[]string{"1138", "1138"},
+			[]string{"8991001010016", "8991001010016"},
+			[]float64{14500, 14500},
+			[]float64{17200, 17200},
+			[]int16{1, 1},
+		).
+		WillReturnResult(pgxmock.NewResult("INSERT", 2))
 
 	repo := NewStockOpnameRepository(mock)
-	so := newTestStockOpname()
-	if err := repo.Save(context.Background(), tx, so); err != nil {
+	first := newTestStockOpname()
+	second := newTestStockOpname()
+	second.StockOpnameQuantity = 25
+	if err := repo.SaveMany(context.Background(), tx, []*model.StockOpname{first, second}); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if so.StockOpnameID != 7 {
-		t.Errorf("expected id 7, got %d", so.StockOpnameID)
 	}
 }
 
-// Re-uploading an edited rack must upsert the existing (rak_id, plu) row
-// instead of failing with a unique-constraint conflict.
-func TestStockOpnameSaveUpsertOnReupload(t *testing.T) {
+// An empty batch must not touch the database at all.
+func TestStockOpnameSaveManyEmpty(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").
-		WithArgs(25.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).
-		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(7))
 
 	repo := NewStockOpnameRepository(mock)
-	so := newTestStockOpname()
-	so.StockOpnameQuantity = 25
-	if err := repo.Save(context.Background(), tx, so); err != nil {
+	if err := repo.SaveMany(context.Background(), tx, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
-	}
-	if so.StockOpnameID != 7 {
-		t.Errorf("expected existing id 7 after upsert, got %d", so.StockOpnameID)
 	}
 }
 

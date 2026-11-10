@@ -182,14 +182,20 @@ func (s *StockOpnameRepositoryImpl) Create(ctx context.Context, tx pgx.Tx, stock
 	return nil
 }
 
-// Save implements [StockOpnameRepository].
-// It is an idempotent upsert on (rak_id, product_plu): correcting an item
-// from the web refreshes the snapshot instead of failing with a
-// unique-constraint conflict.
-func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
+// SaveMany implements [StockOpnameRepository]. It is an idempotent upsert on
+// (rak_id, product_plu) for a whole upload batch in one round trip: pointers are
+// unpacked into arrays and handed to a single INSERT ... SELECT FROM unnest.
+func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, stockOpnames []*model.StockOpname) error {
+	if len(stockOpnames) == 0 {
+		return nil
+	}
+
 	const SQL = `
 		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_sell_factor)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+		SELECT * FROM unnest(
+			$1::numeric[], $2::int[], $3::text[], $4::text[], $5::text[],
+			$6::text[], $7::numeric[], $8::numeric[], $9::smallint[]
+		)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
 		SET stock_opname_quantity = EXCLUDED.stock_opname_quantity,
 		    so_barcode = EXCLUDED.so_barcode,
@@ -198,9 +204,31 @@ func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOp
 		    so_buyprice = EXCLUDED.so_buyprice,
 		    so_sellprice = EXCLUDED.so_sellprice,
 		    stock_opname_updatedat = NOW()
-		RETURNING stock_opname_id
 	`
-	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice).Scan(&stockOpname.StockOpnameID)
+
+	quantities := make([]float64, len(stockOpnames))
+	rakIDs := make([]int32, len(stockOpnames))
+	plus := make([]string, len(stockOpnames))
+	names := make([]string, len(stockOpnames))
+	depts := make([]string, len(stockOpnames))
+	barcodes := make([]string, len(stockOpnames))
+	buyPrices := make([]float64, len(stockOpnames))
+	sellPrices := make([]float64, len(stockOpnames))
+	factors := make([]int16, len(stockOpnames))
+
+	for i, stockOpname := range stockOpnames {
+		quantities[i] = stockOpname.StockOpnameQuantity
+		rakIDs[i] = int32(stockOpname.StockOpnameRakID)
+		plus[i] = stockOpname.SoProductPLU
+		names[i] = stockOpname.SoProductName
+		depts[i] = stockOpname.SoProductDept
+		barcodes[i] = stockOpname.SoBarcode
+		buyPrices[i] = stockOpname.SoBuyPrice
+		sellPrices[i] = stockOpname.SoSellPrice
+		factors[i] = int16(stockOpname.SoSellFactor)
+	}
+
+	_, err := tx.Exec(ctx, SQL, quantities, rakIDs, plus, names, depts, barcodes, buyPrices, sellPrices, factors)
 	if err != nil {
 		return model.MapPgError("Stock Opname", err)
 	}
