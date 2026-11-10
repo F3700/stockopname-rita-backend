@@ -52,6 +52,7 @@ func TestStockOpnameMoveMergesAndAudits(t *testing.T) {
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}))
 	mock.ExpectExec("UPDATE coordinator").WithArgs(4).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
 	mock.ExpectRollback()
@@ -94,6 +95,7 @@ func TestStockOpnameMoveWholeRackCrossCoordinator(t *testing.T) {
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(2))
 	mock.ExpectExec("UPDATE coordinator").WithArgs(4).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectExec("UPDATE coordinator").WithArgs(6).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectCommit()
@@ -106,6 +108,9 @@ func TestStockOpnameMoveWholeRackCrossCoordinator(t *testing.T) {
 	}
 	if res.MovedCount != 1 || res.MergedCount != 0 {
 		t.Errorf("unexpected move response %+v", res)
+	}
+	if res.ReopenedRackID == nil || *res.ReopenedRackID != 2 {
+		t.Errorf("expected reopened rack 2, got %+v", res.ReopenedRackID)
 	}
 }
 

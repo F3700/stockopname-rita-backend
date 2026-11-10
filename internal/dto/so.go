@@ -63,8 +63,9 @@ type MoveStockOpnameRequest struct {
 }
 
 type MoveStockOpnameResponse struct {
-	MovedCount  int `json:"moved_count"`
-	MergedCount int `json:"merged_count"`
+	MovedCount     int  `json:"moved_count"`
+	MergedCount    int  `json:"merged_count"`
+	ReopenedRackID *int `json:"reopened_rack_id,omitempty"`
 }
 
 type QtyFactorFilterRequest struct {

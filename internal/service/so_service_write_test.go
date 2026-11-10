@@ -247,9 +247,10 @@ func TestStockOpnameDeleteTx(t *testing.T) {
 
 	mock.ExpectBegin()
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(4).WillReturnRows(soSesiIdByResultRows())
-	mock.ExpectQuery("FOR SHARE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
+	mock.ExpectQuery("FOR UPDATE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
 	mock.ExpectQuery("FOR UPDATE OF so").WithArgs(4).WillReturnRows(soAuditDataRows())
 	mock.ExpectExec("DELETE FROM stock_opname").WithArgs(4).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}))
 	mock.ExpectExec("INSERT INTO stock_opname_audit").WithArgs(
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
@@ -290,6 +291,38 @@ func TestStockOpnameDeleteTxNotFound(t *testing.T) {
 	var notFound *model.NotFoundError
 	if !errors.As(err, &notFound) {
 		t.Errorf("expected NotFoundError, got %T: %v", err, err)
+	}
+}
+
+func TestStockOpnameDeleteLastResultReopensUpload(t *testing.T) {
+	mock, err := pgxmock.NewPool()
+	if err != nil {
+		t.Fatalf("failed to create mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unfulfilled expectations: %v", err)
+		}
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(4).WillReturnRows(soSesiIdByResultRows())
+	mock.ExpectQuery("FOR UPDATE").WithArgs(3).WillReturnRows(sesiStatusRow(3, "IN_PROGRESS"))
+	mock.ExpectQuery("FOR UPDATE OF so").WithArgs(4).WillReturnRows(soAuditDataRows())
+	mock.ExpectExec("DELETE FROM stock_opname").WithArgs(4).WillReturnResult(pgxmock.NewResult("DELETE", 1))
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(2))
+	mock.ExpectExec("INSERT INTO stock_opname_audit").WithArgs(
+		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
+	).WillReturnResult(pgxmock.NewResult("INSERT", 1))
+	mock.ExpectExec("UPDATE coordinator").WithArgs(4).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectCommit()
+	mock.ExpectRollback()
+
+	svc := newStockOpnameServiceWithMock(mock, t)
+	if err := svc.Delete(context.Background(), 4, "tester"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

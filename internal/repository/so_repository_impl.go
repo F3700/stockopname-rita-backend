@@ -587,6 +587,32 @@ func (s *StockOpnameRepositoryImpl) CountByRak(ctx context.Context, tx pgx.Tx, r
 	return total, nil
 }
 
+// ReopenUploadIfEmpty clears the current upload pointer only when the rack is
+// uploaded and has no results. The snapshot is intentionally left untouched:
+// upload reports read current results, and the next upload overwrites it.
+func (s *StockOpnameRepositoryImpl) ReopenUploadIfEmpty(ctx context.Context, tx pgx.Tx, rakID int) (bool, error) {
+	const SQL = `
+		UPDATE rak
+		SET rak_upload_id = NULL
+		WHERE rak_id = $1
+		  AND rak_upload_id IS NOT NULL
+		  AND NOT EXISTS (
+		      SELECT 1 FROM stock_opname so
+		      WHERE so.stock_opname_rak_id = rak.rak_id
+		  )
+		RETURNING rak_id
+	`
+	var id int
+	err := tx.QueryRow(ctx, SQL, rakID).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
 const qtyFactorFrom = `
 	FROM stock_opname so
 	JOIN rak r ON r.rak_id = so.stock_opname_rak_id

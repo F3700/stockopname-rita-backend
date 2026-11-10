@@ -127,6 +127,36 @@ func TestStockOpnameSaveManyEmpty(t *testing.T) {
 	}
 }
 
+func TestStockOpnameReopenUploadIfEmpty(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(2))
+
+	repo := NewStockOpnameRepository(mock)
+	reopened, err := repo.ReopenUploadIfEmpty(context.Background(), tx, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reopened {
+		t.Error("expected uploaded empty rack to reopen")
+	}
+}
+
+func TestStockOpnameReopenUploadIfEmptyNoop(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}))
+
+	repo := NewStockOpnameRepository(mock)
+	reopened, err := repo.ReopenUploadIfEmpty(context.Background(), tx, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reopened {
+		t.Error("expected non-empty or unuploaded rack to stay closed")
+	}
+}
+
 func TestStockOpnameFindAllForExport(t *testing.T) {
 	mock := mustMockPool(t)
 	sesiId := 3

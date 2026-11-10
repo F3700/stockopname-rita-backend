@@ -3014,6 +3014,11 @@
           },
           "merged_count": {
             "type": "integer"
+          },
+          "reopened_rack_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Source rack whose upload was reopened because it became empty."
           }
         }
       },

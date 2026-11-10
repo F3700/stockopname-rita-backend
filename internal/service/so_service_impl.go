@@ -164,7 +164,8 @@ func toStockOpnameResponse(summary *model.StockOpnameSummary) dto.StockOpnameRes
 	}
 }
 
-// snapshot builds the immutable history row from the resolved product.
+// snapshot builds the stock opname row for one scanned item. These rows are
+// what reports read; the JSON copy stored on the rack is only an archive.
 // soBarcode is the actually scanned barcode (may differ from the
 // product's primary barcode); it falls back to the primary barcode
 // (or "" for products without any barcode) on PLU-based input.
@@ -275,7 +276,11 @@ func (s *StockOpnameServiceImpl) Delete(ctx context.Context, id int, actor strin
 	if err != nil {
 		return err
 	}
-	if err := s.checkSessionWritable(ctx, tx, sesiId); err != nil {
+	sesi, err := s.SesiRepository.FindByIdForUpdate(ctx, tx, sesiId)
+	if err != nil {
+		return err
+	}
+	if err := ensureSessionWritable(sesi); err != nil {
 		return err
 	}
 
@@ -288,6 +293,9 @@ func (s *StockOpnameServiceImpl) Delete(ctx context.Context, id int, actor strin
 	}
 
 	if err := s.StockOpnameRepository.Delete(ctx, tx, id); err != nil {
+		return err
+	}
+	if _, err := s.StockOpnameRepository.ReopenUploadIfEmpty(ctx, tx, before.RakID); err != nil {
 		return err
 	}
 
@@ -507,6 +515,7 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 	batchID := helper.NewUUID()
 	movedCount := 0
 	mergedCount := 0
+	var reopenedRackID *int
 
 	for _, source := range sources {
 		existing, err := s.StockOpnameRepository.FindByRakAndPLUForUpdate(ctx, tx, targetCtx.RakID, source.PLU)
@@ -564,6 +573,14 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 		movedCount++
 	}
 
+	reopened, err := s.StockOpnameRepository.ReopenUploadIfEmpty(ctx, tx, sourceCtx.RakID)
+	if err != nil {
+		return dto.MoveStockOpnameResponse{}, err
+	}
+	if reopened {
+		reopenedRackID = &sourceCtx.RakID
+	}
+
 	if err := s.CoordinatorRepository.RecalcStatusAfterResultChange(ctx, tx, sourceCtx.CoorID); err != nil {
 		return dto.MoveStockOpnameResponse{}, err
 	}
@@ -577,7 +594,7 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 		return dto.MoveStockOpnameResponse{}, err
 	}
 
-	return dto.MoveStockOpnameResponse{MovedCount: movedCount, MergedCount: mergedCount}, nil
+	return dto.MoveStockOpnameResponse{MovedCount: movedCount, MergedCount: mergedCount, ReopenedRackID: reopenedRackID}, nil
 }
 
 // FindAllForExport implements [StockOpnameService].

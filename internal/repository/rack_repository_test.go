@@ -111,7 +111,7 @@ func TestRackSaveConflict(t *testing.T) {
 func TestRackClaimForUpload(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectExec("UPDATE rak").WithArgs(7, []int32{1, 2}, 3).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+	mock.ExpectExec("NOT EXISTS").WithArgs(7, []int32{1, 2}, 3).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
 
 	repo := NewRackRepository(mock)
 	claimed, err := repo.ClaimForUpload(context.Background(), tx, 7, []int32{1, 2}, 3)

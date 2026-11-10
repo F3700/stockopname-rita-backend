@@ -385,6 +385,7 @@ type fakeStockOpnameRepository struct {
 	upsertForMoveFunc           func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error)
 	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 	countByRakFunc              func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
+	reopenUploadIfEmptyFunc     func(ctx context.Context, tx pgx.Tx, rakID int) (bool, error)
 	countForQtyFactorFunc       func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error)
 	findForQtyFactorFunc        func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) ([]*model.StockOpnameAuditData, error)
 	updateQtyFactorFunc         func(ctx context.Context, tx pgx.Tx, id int, factor int) error
@@ -497,6 +498,13 @@ func (f *fakeStockOpnameRepository) CountByRak(ctx context.Context, tx pgx.Tx, r
 		return 0, nil
 	}
 	return f.countByRakFunc(ctx, tx, rakID)
+}
+
+func (f *fakeStockOpnameRepository) ReopenUploadIfEmpty(ctx context.Context, tx pgx.Tx, rakID int) (bool, error) {
+	if f.reopenUploadIfEmptyFunc == nil {
+		return false, nil
+	}
+	return f.reopenUploadIfEmptyFunc(ctx, tx, rakID)
 }
 
 func (f *fakeStockOpnameRepository) CountForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error) {

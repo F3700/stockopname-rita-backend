@@ -26,6 +26,7 @@ type StockOpnameRepository interface {
 	UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error)
 	CountBySesi(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 	CountByRak(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
+	ReopenUploadIfEmpty(ctx context.Context, tx pgx.Tx, rakID int) (bool, error)
 	CountForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error)
 	FindForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) ([]*model.StockOpnameAuditData, error)
 	UpdateQtyFactor(ctx context.Context, tx pgx.Tx, id int, factor int) error
