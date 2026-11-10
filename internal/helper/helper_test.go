@@ -109,6 +109,8 @@ func TestMapServiceError(t *testing.T) {
 		{"conflict", &model.ConflictError{Resource: "Product"}, http.StatusConflict},
 		{"foreign key", &model.ForeignKeyError{Resource: "Product"}, http.StatusConflict},
 		{"validation", &model.ValidationError{Detail: "quantity must be positive"}, http.StatusBadRequest},
+		{"too large", &model.TooLargeError{Resource: "Laporan stock opname", Limit: 20000}, http.StatusRequestEntityTooLarge},
+		{"busy", &model.BusyError{Detail: "report busy"}, http.StatusServiceUnavailable},
 		{"unexpected", errors.New("boom"), http.StatusInternalServerError},
 	}
 

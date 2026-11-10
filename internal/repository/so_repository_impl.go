@@ -12,13 +12,34 @@ import (
 )
 
 type StockOpnameRepositoryImpl struct {
-	Pool DBPool
+	Pool        DBPool
+	exportLimit int
 }
 
-func NewStockOpnameRepository(pool DBPool) StockOpnameRepository {
-	return &StockOpnameRepositoryImpl{
-		Pool: pool,
+// DefaultExportLimit bounds how many rows a single export may load. Exports are
+// rendered fully in memory, so an unbounded result set is an OOM waiting for a
+// large enough session.
+const DefaultExportLimit = 20000
+
+type StockOpnameRepositoryOption func(*StockOpnameRepositoryImpl)
+
+// WithExportLimit overrides the row limit used by FindAllForExport. A
+// non-positive limit disables the check.
+func WithExportLimit(limit int) StockOpnameRepositoryOption {
+	return func(r *StockOpnameRepositoryImpl) {
+		r.exportLimit = limit
 	}
+}
+
+func NewStockOpnameRepository(pool DBPool, opts ...StockOpnameRepositoryOption) StockOpnameRepository {
+	repo := &StockOpnameRepositoryImpl{
+		Pool:        pool,
+		exportLimit: DefaultExportLimit,
+	}
+	for _, opt := range opts {
+		opt(repo)
+	}
+	return repo
 }
 
 // Delete implements [StockOpnameRepository].
@@ -235,10 +256,19 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			regexp_replace(r.rak_name, '[0-9]+$', ''),
 			(substring(r.rak_name from '[0-9]+$'))::int,
 			r.rak_name,
-			so.so_product_name;
+			so.so_product_name
 	`
 
-	rows, err := s.Pool.Query(ctx, SQL, sesiId, coorId)
+	query := SQL
+	args := []any{sesiId, coorId}
+	if s.exportLimit > 0 {
+		// Fetch one row past the limit so an oversized result set is detectable
+		// without a second COUNT query.
+		query += ` LIMIT $3`
+		args = append(args, s.exportLimit+1)
+	}
+
+	rows, err := s.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +277,10 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 	exports, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.StockOpnameExport])
 	if err != nil {
 		return nil, err
+	}
+
+	if s.exportLimit > 0 && len(exports) > s.exportLimit {
+		return nil, &model.TooLargeError{Resource: "Laporan stock opname", Limit: s.exportLimit}
 	}
 
 	return exports, nil

@@ -52,6 +52,32 @@ func (e *ValidationError) Error() string {
 	return fmt.Sprintf("validation failed: %s", e.Detail)
 }
 
+// TooLargeError reports a result set above the configured limit. Paging is not
+// an option for these callers, so the fix is to narrow the scope.
+type TooLargeError struct {
+	Resource string
+	Limit    int
+}
+
+func (e *TooLargeError) Error() string {
+	return fmt.Sprintf(
+		"%s terlalu besar (lebih dari %d baris). Pecah per koordinator atau rak, lalu ekspor ulang",
+		e.Resource, e.Limit,
+	)
+}
+
+// BusyError reports an operation that cannot start right now.
+type BusyError struct {
+	Detail string
+}
+
+func (e *BusyError) Error() string {
+	if e.Detail != "" {
+		return e.Detail
+	}
+	return "Server is busy, try again shortly"
+}
+
 var constraintMessages = map[string]string{
 	"uq_product_sesi_plu":      "Product PLU already exists in this session",
 	"uq_barcode_sesi_code":     "Barcode already exists in this session",

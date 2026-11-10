@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -103,18 +104,63 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	mock := mustMockPool(t)
 	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil)).WillReturnRows(
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil), 11).WillReturnRows(
 		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
 			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt),
 	)
 
-	repo := NewStockOpnameRepository(mock)
+	repo := NewStockOpnameRepository(mock, WithExportLimit(10))
 	exports, err := repo.FindAllForExport(context.Background(), &sesiId, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(exports) != 1 || exports[0].BuyPrice != 14500 || exports[0].SellPrice != 17200 || exports[0].ProductPLU != "100251" || exports[0].PerCarton != 12 {
 		t.Errorf("unexpected exports %+v", exports)
+	}
+}
+
+// A result set one row past the limit must be rejected instead of rendered: the
+// export is built entirely in memory.
+func TestStockOpnameFindAllForExportRejectsOversizedResult(t *testing.T) {
+	mock := mustMockPool(t)
+	sesiId := 3
+	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	rows := pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"})
+	for i := 0; i < 3; i++ {
+		rows.AddRow(i+1, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt)
+	}
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil), 3).WillReturnRows(rows)
+
+	repo := NewStockOpnameRepository(mock, WithExportLimit(2))
+	_, err := repo.FindAllForExport(context.Background(), &sesiId, nil)
+
+	var tooLarge *model.TooLargeError
+	if !errors.As(err, &tooLarge) {
+		t.Fatalf("expected TooLargeError, got %v", err)
+	}
+	if tooLarge.Limit != 2 {
+		t.Errorf("expected the error to carry limit 2, got %d", tooLarge.Limit)
+	}
+}
+
+// A non-positive limit is the operational escape hatch: no LIMIT clause and no
+// truncation check.
+func TestStockOpnameFindAllForExportWithoutLimit(t *testing.T) {
+	mock := mustMockPool(t)
+	sesiId := 3
+	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil)).WillReturnRows(
+		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt),
+	)
+
+	repo := NewStockOpnameRepository(mock, WithExportLimit(0))
+	exports, err := repo.FindAllForExport(context.Background(), &sesiId, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(exports) != 1 {
+		t.Errorf("expected 1 export, got %d", len(exports))
 	}
 }
 

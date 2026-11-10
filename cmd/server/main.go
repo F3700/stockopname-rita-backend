@@ -50,7 +50,14 @@ func main() {
 	}
 	defer pool.Close()
 
-	r := router.NewRouter(validate, pool)
+	r := router.NewRouter(
+		validate,
+		pool,
+		router.WithExportLimits(
+			int(envInt64("REPORT_MAX_ROWS", router.DefaultMaxExportRows)),
+			int(envInt64("REPORT_MAX_CONCURRENT", router.DefaultMaxConcurrentExport)),
+		),
+	)
 
 	// Order matters: Recovery stays outermost so a panic anywhere is caught,
 	// and CORS sits outside LimitBody so a 413 still carries CORS headers.
