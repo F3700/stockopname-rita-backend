@@ -53,6 +53,9 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int, includeCarto
 	if err != nil {
 		return nil, "", err
 	}
+	if err := canceled(ctx); err != nil {
+		return nil, "", err
+	}
 	groups := groupByRack(exports)
 	pdf := newPDF("Session Report")
 	reportPair(pdf, "Session", session.Code)
@@ -91,6 +94,9 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int, includeC
 	}
 	exports, err := r.StockOpnameService.FindAllForExport(ctx, nil, &id)
 	if err != nil {
+		return nil, "", err
+	}
+	if err := canceled(ctx); err != nil {
 		return nil, "", err
 	}
 	groups := groupByRack(exports)
@@ -199,6 +205,9 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 	if err != nil {
 		return nil, "", err
 	}
+	if err := canceled(ctx); err != nil {
+		return nil, "", err
+	}
 
 	file := excelize.NewFile()
 	sheet := "Results"
@@ -291,6 +300,9 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 	}
 	exports, err := r.StockOpnameService.FindAllForExport(ctx, &id, nil)
 	if err != nil {
+		return nil, "", err
+	}
+	if err := canceled(ctx); err != nil {
 		return nil, "", err
 	}
 
@@ -759,7 +771,7 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				formatMoneyID(group.TotalSell),
 			}
 			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Jual"}
-			widths = []float64{24, 18, 56, 18, 14, 32, 24}
+			widths = []float64{24, 18, 62, 18, 14, 14, 36}
 		}
 		uploadTable(pdf, headers, rows, total, widths)
 		pdf.Ln(1)
@@ -878,4 +890,13 @@ func pdfBytes(pdf *gofpdf.Fpdf) ([]byte, error) {
 		return nil, err
 	}
 	return buffer.Bytes(), nil
+}
+
+// canceled reports whether the caller went away. Rendering itself cannot be
+// interrupted, so this only avoids starting work nobody will collect.
+func canceled(ctx context.Context) error {
+	if err := ctx.Err(); err != nil {
+		return fmt.Errorf("report export canceled: %w", err)
+	}
+	return nil
 }

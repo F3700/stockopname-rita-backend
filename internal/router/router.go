@@ -5,6 +5,7 @@ import (
 
 	apidocs "stockopname-rita-backend/docs"
 	"stockopname-rita-backend/internal/handler"
+	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/repository"
 	"stockopname-rita-backend/internal/service"
 
@@ -13,14 +14,78 @@ import (
 	"github.com/julienschmidt/httprouter"
 )
 
-func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Router {
+const (
+	// DefaultMaxExportRows bounds how many rows one report export may load.
+	DefaultMaxExportRows = repository.DefaultExportLimit
+	// DefaultMaxConcurrentExport keeps several large reports from being built
+	// at the same time; each one is rendered fully in memory.
+	DefaultMaxConcurrentExport = 2
+)
+
+type routerOptions struct {
+	maxExportRows       int
+	maxConcurrentExport int
+}
+
+// Option tunes how the router assembles its handlers.
+type Option func(*routerOptions)
+
+// WithExportLimits overrides the export row cap and the concurrency limit.
+// Non-positive values disable the corresponding limit.
+func WithExportLimits(maxRows, maxConcurrent int) Option {
+	return func(o *routerOptions) {
+		o.maxExportRows = maxRows
+		o.maxConcurrentExport = maxConcurrent
+	}
+}
+
+// exportGuard bounds how many reports are generated at once.
+type exportGuard struct {
+	sem chan struct{}
+}
+
+func newExportGuard(maxConcurrent int) *exportGuard {
+	if maxConcurrent <= 0 {
+		return &exportGuard{}
+	}
+	return &exportGuard{sem: make(chan struct{}, maxConcurrent)}
+}
+
+func (g *exportGuard) wrap(next httprouter.Handle) httprouter.Handle {
+	if g.sem == nil {
+		return next
+	}
+
+	return func(w http.ResponseWriter, r *http.Request, params httprouter.Params) {
+		select {
+		case g.sem <- struct{}{}:
+			defer func() { <-g.sem }()
+			next(w, r, params)
+		default:
+			// Fail fast instead of queueing: a queue would only move the memory
+			// pressure into the HTTP layer.
+			helper.WriteError(w, http.StatusServiceUnavailable,
+				"Laporan sedang dibuat, coba lagi sebentar.", nil)
+		}
+	}
+}
+
+func NewRouter(validate *validator.Validate, pool *pgxpool.Pool, opts ...Option) *httprouter.Router {
+	options := routerOptions{
+		maxExportRows:       DefaultMaxExportRows,
+		maxConcurrentExport: DefaultMaxConcurrentExport,
+	}
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	sesiRepository := repository.NewSesiRepository(pool)
 	coordinatorRepository := repository.NewCoordinatorRepository(pool)
 	productRepository := repository.NewProductRepository(pool)
 	barcodeRepository := repository.NewBarcodeRepository(pool)
 	rackRepository := repository.NewRackRepository(pool)
 	uploadRepository := repository.NewUploadRepository(pool)
-	stockOpnameRepository := repository.NewStockOpnameRepository(pool)
+	stockOpnameRepository := repository.NewStockOpnameRepository(pool, repository.WithExportLimit(options.maxExportRows))
 	auditRepository := repository.NewAuditRepository(pool)
 
 	productService := service.NewProductService(productRepository, barcodeRepository, sesiRepository, pool, validate)
@@ -46,6 +111,10 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	reportService := service.NewReportService(sesiService, coordinatorService, uploadService, stockOpnameService)
 	reportHandler := handler.NewReportHandler(reportService)
 
+	// Report exports are rendered in memory, so they are the only routes that
+	// get a concurrency cap.
+	exports := newExportGuard(options.maxConcurrentExport)
+
 	router := httprouter.New()
 
 	// Health check for deploy verification.
@@ -66,8 +135,8 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/stockopname/coordinators", coordinatorHandler.GetCoordinators)
 	router.POST("/stockopname/coordinators", coordinatorHandler.CreateCoordinator)
 	router.GET("/stockopname/coordinators/:id", coordinatorHandler.GetCoordinatorById)
-	router.GET("/stockopname/coordinators/:id/pdf", reportHandler.CoordinatorPDF)
-	router.GET("/stockopname/coordinators/:id/uploads/pdf", reportHandler.CoordinatorUploadSummaryPDF)
+	router.GET("/stockopname/coordinators/:id/pdf", exports.wrap(reportHandler.CoordinatorPDF))
+	router.GET("/stockopname/coordinators/:id/uploads/pdf", exports.wrap(reportHandler.CoordinatorUploadSummaryPDF))
 	router.POST("/stockopname/coordinators/join-by-qr", coordinatorHandler.JoinByCoordinatorQR)
 	router.PATCH("/stockopname/coordinators/:id", coordinatorHandler.UpdateCoordinator)
 
@@ -76,9 +145,9 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 	router.GET("/stockopname/sessions/:id", sesiHandler.GetSesiById)
 	router.PATCH("/stockopname/sessions/:id/sell-factor", stockOpnameHandler.SetSellFactor)
 	router.GET("/stockopname/sessions/:id/sell-summary", stockOpnameHandler.GetSellSummary)
-	router.GET("/stockopname/sessions/:id/pdf", reportHandler.SessionPDF)
-	router.GET("/stockopname/sessions/:id/excel", reportHandler.SessionExcel)
-	router.GET("/stockopname/sessions/:id/dbf", reportHandler.SessionDBF)
+	router.GET("/stockopname/sessions/:id/pdf", exports.wrap(reportHandler.SessionPDF))
+	router.GET("/stockopname/sessions/:id/excel", exports.wrap(reportHandler.SessionExcel))
+	router.GET("/stockopname/sessions/:id/dbf", exports.wrap(reportHandler.SessionDBF))
 	router.PATCH("/stockopname/sessions/:id", sesiHandler.UpdateSesi)
 	router.DELETE("/stockopname/sessions/:id", sesiHandler.DeleteSesi)
 
@@ -88,7 +157,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool) *httprouter.Rou
 
 	router.POST("/stockopname/uploads", uploadHandler.CreateUpload)
 	router.GET("/stockopname/uploads", uploadHandler.GetUploads)
-	router.GET("/stockopname/uploads/:id/pdf", reportHandler.UploadPDF)
+	router.GET("/stockopname/uploads/:id/pdf", exports.wrap(reportHandler.UploadPDF))
 
 	router.GET("/stockopname/results", stockOpnameHandler.GetAllStockOpname)
 	router.GET("/stockopname/results/:id", stockOpnameHandler.GetStockOpnameById)

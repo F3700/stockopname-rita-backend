@@ -17,6 +17,9 @@ type ProductRepository interface {
 	FindById(ctx context.Context, tx pgx.Tx, id int) (*model.Product, error)
 	FindByPLU(ctx context.Context, tx pgx.Tx, sesiId int, plu string) (*model.Product, error)
 	FindByBarcode(ctx context.Context, tx pgx.Tx, sesiId int, code string) (*model.Product, error)
+	// FindByBarcodesOrPLUs loads only the products referenced by one upload
+	// batch, with barcodes attached. One query instead of one per item.
+	FindByBarcodesOrPLUs(ctx context.Context, tx pgx.Tx, sesiId int, codes []string, plus []string) ([]*model.Product, error)
 	// FindAllForImport loads every product of one session with its barcodes.
 	FindAllForImport(ctx context.Context, tx pgx.Tx, sesiId int) ([]*model.Product, error)
 	FindAllInPageSearch(ctx context.Context, sesiId int, limit int, offset int, search string) ([]*model.Product, int, error)

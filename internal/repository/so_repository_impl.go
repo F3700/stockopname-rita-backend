@@ -12,13 +12,34 @@ import (
 )
 
 type StockOpnameRepositoryImpl struct {
-	Pool DBPool
+	Pool        DBPool
+	exportLimit int
 }
 
-func NewStockOpnameRepository(pool DBPool) StockOpnameRepository {
-	return &StockOpnameRepositoryImpl{
-		Pool: pool,
+// DefaultExportLimit bounds how many rows a single export may load. Exports are
+// rendered fully in memory, so an unbounded result set is an OOM waiting for a
+// large enough session.
+const DefaultExportLimit = 20000
+
+type StockOpnameRepositoryOption func(*StockOpnameRepositoryImpl)
+
+// WithExportLimit overrides the row limit used by FindAllForExport. A
+// non-positive limit disables the check.
+func WithExportLimit(limit int) StockOpnameRepositoryOption {
+	return func(r *StockOpnameRepositoryImpl) {
+		r.exportLimit = limit
 	}
+}
+
+func NewStockOpnameRepository(pool DBPool, opts ...StockOpnameRepositoryOption) StockOpnameRepository {
+	repo := &StockOpnameRepositoryImpl{
+		Pool:        pool,
+		exportLimit: DefaultExportLimit,
+	}
+	for _, opt := range opts {
+		opt(repo)
+	}
+	return repo
 }
 
 // Delete implements [StockOpnameRepository].
@@ -161,14 +182,20 @@ func (s *StockOpnameRepositoryImpl) Create(ctx context.Context, tx pgx.Tx, stock
 	return nil
 }
 
-// Save implements [StockOpnameRepository].
-// It is an idempotent upsert on (rak_id, product_plu): correcting an item
-// from the web refreshes the snapshot instead of failing with a
-// unique-constraint conflict.
-func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
+// SaveMany implements [StockOpnameRepository]. It is an idempotent upsert on
+// (rak_id, product_plu) for a whole upload batch in one round trip: pointers are
+// unpacked into arrays and handed to a single INSERT ... SELECT FROM unnest.
+func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, stockOpnames []*model.StockOpname) error {
+	if len(stockOpnames) == 0 {
+		return nil
+	}
+
 	const SQL = `
 		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_sell_factor)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+		SELECT * FROM unnest(
+			$1::numeric[], $2::int[], $3::text[], $4::text[], $5::text[],
+			$6::text[], $7::numeric[], $8::numeric[], $9::smallint[]
+		)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
 		SET stock_opname_quantity = EXCLUDED.stock_opname_quantity,
 		    so_barcode = EXCLUDED.so_barcode,
@@ -177,9 +204,31 @@ func (s *StockOpnameRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, stockOp
 		    so_buyprice = EXCLUDED.so_buyprice,
 		    so_sellprice = EXCLUDED.so_sellprice,
 		    stock_opname_updatedat = NOW()
-		RETURNING stock_opname_id
 	`
-	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice).Scan(&stockOpname.StockOpnameID)
+
+	quantities := make([]float64, len(stockOpnames))
+	rakIDs := make([]int32, len(stockOpnames))
+	plus := make([]string, len(stockOpnames))
+	names := make([]string, len(stockOpnames))
+	depts := make([]string, len(stockOpnames))
+	barcodes := make([]string, len(stockOpnames))
+	buyPrices := make([]float64, len(stockOpnames))
+	sellPrices := make([]float64, len(stockOpnames))
+	factors := make([]int16, len(stockOpnames))
+
+	for i, stockOpname := range stockOpnames {
+		quantities[i] = stockOpname.StockOpnameQuantity
+		rakIDs[i] = int32(stockOpname.StockOpnameRakID)
+		plus[i] = stockOpname.SoProductPLU
+		names[i] = stockOpname.SoProductName
+		depts[i] = stockOpname.SoProductDept
+		barcodes[i] = stockOpname.SoBarcode
+		buyPrices[i] = stockOpname.SoBuyPrice
+		sellPrices[i] = stockOpname.SoSellPrice
+		factors[i] = int16(stockOpname.SoSellFactor)
+	}
+
+	_, err := tx.Exec(ctx, SQL, quantities, rakIDs, plus, names, depts, barcodes, buyPrices, sellPrices, factors)
 	if err != nil {
 		return model.MapPgError("Stock Opname", err)
 	}
@@ -235,10 +284,19 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 			regexp_replace(r.rak_name, '[0-9]+$', ''),
 			(substring(r.rak_name from '[0-9]+$'))::int,
 			r.rak_name,
-			so.so_product_name;
+			so.so_product_name
 	`
 
-	rows, err := s.Pool.Query(ctx, SQL, sesiId, coorId)
+	query := SQL
+	args := []any{sesiId, coorId}
+	if s.exportLimit > 0 {
+		// Fetch one row past the limit so an oversized result set is detectable
+		// without a second COUNT query.
+		query += ` LIMIT $3`
+		args = append(args, s.exportLimit+1)
+	}
+
+	rows, err := s.Pool.Query(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +305,10 @@ func (s *StockOpnameRepositoryImpl) FindAllForExport(ctx context.Context, sesiId
 	exports, err := pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.StockOpnameExport])
 	if err != nil {
 		return nil, err
+	}
+
+	if s.exportLimit > 0 && len(exports) > s.exportLimit {
+		return nil, &model.TooLargeError{Resource: "Laporan stock opname", Limit: s.exportLimit}
 	}
 
 	return exports, nil

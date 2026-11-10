@@ -59,6 +59,16 @@ func mapServiceError(err error) (int, string) {
 		return http.StatusBadRequest, validation.Error()
 	}
 
+	var tooLarge *model.TooLargeError
+	if errors.As(err, &tooLarge) {
+		return http.StatusRequestEntityTooLarge, tooLarge.Error()
+	}
+
+	var busy *model.BusyError
+	if errors.As(err, &busy) {
+		return http.StatusServiceUnavailable, busy.Error()
+	}
+
 	var fieldErrors validator.ValidationErrors
 	if errors.As(err, &fieldErrors) {
 		return http.StatusBadRequest, validationErrorMessage(fieldErrors)

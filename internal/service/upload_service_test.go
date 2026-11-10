@@ -53,22 +53,28 @@ func TestUploadCreateBatch(t *testing.T) {
 	mock.ExpectQuery("FROM coordinator").WithArgs(7).WillReturnRows(coordinatorRows(7, 1))
 	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
 	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("JOIN barcode").WithArgs(1, "8991001010016").WillReturnRows(soResolveProductRows())
-	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("JOIN barcode").WithArgs(1, "8991001010016").WillReturnRows(soResolveProductRows())
+	// One batch query for both racks instead of one query per item.
+	mock.ExpectQuery("FROM product p").WithArgs(1, []string{}, []string{"8991001010016", "8991001010016"}).
+		WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
 	mock.ExpectQuery("INSERT INTO upload").WithArgs(7).WillReturnRows(
 		pgxmock.NewRows([]string{"upload_id", "upload_createdat"}).AddRow(3, createdAt),
 	)
 	mock.ExpectExec("UPDATE rak").WithArgs(3, []int32{31, 32}, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
 	mock.ExpectExec("UPDATE rak").WithArgs(31, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectQuery("ON CONFLICT").WithArgs(10.0, 31, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).WillReturnRows(
-		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(1),
-	)
 	mock.ExpectExec("UPDATE rak").WithArgs(32, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
-	mock.ExpectQuery("ON CONFLICT").WithArgs(11.0, 32, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0).WillReturnRows(
-		pgxmock.NewRows([]string{"stock_opname_id"}).AddRow(2),
-	)
+	// And one upsert statement for both rows instead of one per item.
+	mock.ExpectExec("INSERT INTO stock_opname").WithArgs(
+		[]float64{10, 11},
+		[]int32{31, 32},
+		[]string{"100251", "100251"},
+		[]string{"Sari Roti", "Sari Roti"},
+		[]string{"1138", "1138"},
+		[]string{"8991001010016", "8991001010016"},
+		[]float64{14500, 14500},
+		[]float64{17200, 17200},
+		[]int16{1, 1},
+	).WillReturnResult(pgxmock.NewResult("INSERT", 2))
 	mock.ExpectCommit()
 
 	svc := newUploadServiceWithMock(mock, t)
@@ -96,9 +102,8 @@ func TestUploadCreateAlreadyUploaded(t *testing.T) {
 	mock.ExpectQuery("FROM coordinator").WithArgs(7).WillReturnRows(coordinatorRows(7, 1))
 	mock.ExpectQuery("FOR SHARE").WithArgs(1).WillReturnRows(sesiStatusRow(1, "IN_PROGRESS"))
 	mock.ExpectQuery("COUNT").WithArgs(1).WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(1))
-	mock.ExpectQuery("JOIN barcode").WithArgs(1, "8991001010016").WillReturnRows(soResolveProductRows())
-	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
-	mock.ExpectQuery("JOIN barcode").WithArgs(1, "8991001010016").WillReturnRows(soResolveProductRows())
+	mock.ExpectQuery("FROM product p").WithArgs(1, []string{}, []string{"8991001010016", "8991001010016"}).
+		WillReturnRows(soResolveProductRows())
 	mock.ExpectQuery("FROM barcode").WithArgs(pgxmock.AnyArg()).WillReturnRows(soResolveBarcodeRows())
 	mock.ExpectQuery("INSERT INTO upload").WithArgs(7).WillReturnRows(
 		pgxmock.NewRows([]string{"upload_id", "upload_createdat"}).AddRow(3, time.Now()),
