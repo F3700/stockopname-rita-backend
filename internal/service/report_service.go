@@ -616,7 +616,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 		formatMoneyID(totalSell),
 	}
 	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Harga Jual"}
-	widths := []float64{24, 18, 66, 18, 20, 40}
+	widths := []float64{24, 18, 71, 13, 20, 40}
 	if includeCarton {
 		cartonTotal := "-"
 		if hasCarton {
@@ -632,7 +632,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 			formatMoneyID(totalSell),
 		}
 		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Karton", "Harga Jual"}
-		widths = []float64{24, 18, 54, 18, 20, 14, 38}
+		widths = []float64{24, 18, 59, 13, 20, 14, 38}
 	}
 	uploadTable(pdf, headers, rows, total, widths)
 	pdf.Ln(1)
@@ -795,7 +795,7 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 			formatMoneyID(group.TotalSell),
 		}
 		headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}
-		widths := []float64{24, 18, 72, 18, 14, 40}
+		widths := []float64{24, 18, 77, 13, 14, 40}
 		if includeCarton {
 			cartonTotal := "-"
 			if hasCarton {
@@ -811,7 +811,7 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				formatMoneyID(group.TotalSell),
 			}
 			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Jual"}
-			widths = []float64{24, 18, 62, 18, 14, 14, 36}
+			widths = []float64{24, 18, 67, 13, 14, 14, 36}
 		}
 		uploadTable(pdf, headers, rows, total, widths)
 		pdf.Ln(1)
