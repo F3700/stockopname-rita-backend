@@ -21,10 +21,6 @@
       "description": "Endpoint untuk pengelolaan data produk"
     },
     {
-      "name": "Deleted Products",
-      "description": "Endpoint untuk pengelolaan data produk yang telah dihapus"
-    },
-    {
       "name": "Stock Opname Session",
       "description": "Endpoint untuk pengelolaan sesi stock opname"
     },
@@ -42,7 +38,11 @@
     },
     {
       "name": "Stock Opname Upload",
-      "description": "Endpoint riwayat upload dan PDF upload"
+      "description": "Endpoint daftar upload dan PDF upload"
+    },
+    {
+      "name": "Stock Opname Audit",
+      "description": "Endpoint riwayat perubahan hasil stock opname"
     },
     {
       "name": "Health",
@@ -1857,7 +1857,7 @@
           "Stock Opname Coordinator"
         ],
         "summary": "Join a coordinator by scanning its QR code",
-        "description": "Validates the coordinator and returns its racks with upload history and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at only marks upload history and does not indicate whether the rack still has items. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
+        "description": "Validates the coordinator and returns its racks with upload status and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at marks the upload the rack currently belongs to; it is cleared when the rack becomes empty and its upload is reopened, so an empty rack is normally available for upload again. Only legacy data may still show uploaded_at on an empty rack. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1905,7 +1905,8 @@
         "tags": [
           "Stock Opname Upload"
         ],
-        "summary": "Get upload history for a coordinator",
+        "summary": "List uploads that still own a rack",
+        "description": "Returns every upload of the coordinator that still has at least one rack attached. rack_count and item_count are live counts from the current stock_opname rows. Uploads that lost all their racks are kept in the database but are not listed here. upload_number is computed over all uploads of the coordinator, so the numbers may have gaps.",
         "parameters": [
           {
             "name": "coordinatorId",
@@ -2676,6 +2677,10 @@
             "minimum": 0,
             "multipleOf": 0.01,
             "example": 10.5
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional correction note stored in the audit log."
           }
         }
       },
@@ -2753,6 +2758,10 @@
             "type": "string",
             "example": "100251",
             "description": "Product PLU. Either barcode or plu is required."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional correction note stored in the audit log."
           }
         }
       },
@@ -2876,7 +2885,7 @@
                 "uploaded_at": {
                   "type": "string",
                   "example": "2026-10-26T09:14:03+07:00",
-                  "description": "Upload-history marker. May be set even when the rack is now empty."
+                  "description": "Upload the rack currently belongs to. Cleared when the rack becomes empty and its upload is reopened; legacy rows may still show it while empty."
                 },
                 "item_count": {
                   "type": "integer",
@@ -2890,7 +2899,7 @@
                 }
               }
             },
-            "description": "Racks owned by the coordinator. item_count and is_empty are live values for mobile; uploaded_at is the upload-history marker."
+            "description": "Racks owned by the coordinator. item_count and is_empty are live values for mobile; uploaded_at marks the upload the rack currently belongs to."
           }
         }
       },
@@ -2903,7 +2912,7 @@
           },
           "upload_number": {
             "type": "integer",
-            "description": "Urutan upload per koordinator. 1 = upload pertama.",
+            "description": "Urutan upload per koordinator. 1 = upload pertama. Nomor dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.",
             "example": 3
           },
           "rack_count": {
