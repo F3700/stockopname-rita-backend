@@ -24,7 +24,7 @@ type ReportService interface {
 	SessionPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	CoordinatorPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error)
-	UploadPDF(ctx context.Context, id int) ([]byte, string, error)
+	UploadPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	SessionExcel(ctx context.Context, id int) ([]byte, string, error)
 	SessionDBF(ctx context.Context, id int) ([]byte, string, error)
 }
@@ -81,7 +81,6 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int, includeCarto
 		rackDetails(pdf, groups, true, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL SESI")
 	}
-	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", session.Code), err
@@ -116,7 +115,6 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int, includeC
 		rackDetails(pdf, groups, false, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL KOORDINATOR")
 	}
-	reportNote(pdf, "Data terkini; histori submit tersedia di laporan upload.")
 	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
@@ -146,9 +144,13 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 	tableRows := make([][]string, 0, len(rows))
 	var totalQty, totalSell float64
 	for _, row := range rows {
+		uploadNumber := "-"
+		if row.UploadID != 0 {
+			uploadNumber = strconv.Itoa(row.UploadNumber)
+		}
 		tableRows = append(tableRows, []string{
 			row.CoordinatorCode,
-			strconv.Itoa(row.UploadNumber),
+			uploadNumber,
 			formatQty(row.Qty),
 			formatMoneyID(row.TotalSell),
 		})
@@ -161,8 +163,8 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
-	reportNote(pdf, "Histori submit asli; tidak berubah oleh koreksi admin.")
+	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty Efektif", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
+	reportNote(pdf, "Nomor upload dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.")
 	footer(pdf)
 
 	data, err := pdfBytes(pdf)
@@ -173,8 +175,8 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 	return data, filename, nil
 }
 
-// UploadPDF renders the immutable snapshot taken when the batch was uploaded.
-func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
+// UploadPDF renders the current results for the racks still assigned to the upload.
+func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 	detail, err := r.UploadService.FindDetail(ctx, id)
 	if err != nil {
 		return nil, "", err
@@ -183,9 +185,11 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int) ([]byte, stri
 	pdf := newUploadPDF("Upload Report")
 	uploadInfo(pdf, detail)
 	for _, rack := range detail.Racks {
-		uploadRackSection(pdf, rack)
+		uploadRackSection(pdf, rack, includeCarton)
 	}
-	reportNote(pdf, "Histori submit asli; tidak berubah oleh koreksi admin.")
+	if len(detail.Racks) == 0 {
+		reportNote(pdf, "Tidak ada rak aktif untuk upload ini.")
+	}
 	footer(pdf)
 
 	data, err := pdfBytes(pdf)
@@ -221,7 +225,7 @@ func (r *ReportServiceImpl) SessionExcel(ctx context.Context, id int) ([]byte, s
 		return nil, "", err
 	}
 	for i, export := range exports {
-		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.EffectiveSellPrice, export.Quantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt, export.PLU, export.DepartmentCode}
+		row := []interface{}{export.Barcode, export.Name, export.BuyPrice, export.SellPrice, export.EffectiveQuantity, export.RackName, export.CoordinatorCode, session.Code, export.UpdatedAt, export.PLU, export.DepartmentCode}
 		cell, err := excelize.CoordinatesToCellName(1, i+2)
 		if err != nil {
 			return nil, "", err
@@ -344,8 +348,8 @@ func (r *ReportServiceImpl) SessionDBF(ctx context.Context, id int) ([]byte, str
 			Barcode:   export.Barcode,
 			Product:   export.Name,
 			BuyPrice:  export.BuyPrice,
-			SellPrice: export.EffectiveSellPrice,
-			Quantity:  export.Quantity,
+			SellPrice: export.SellPrice,
+			Quantity:  export.EffectiveQuantity,
 			Rak:       export.RackName,
 			CoorCode:  export.CoordinatorCode,
 			SesiCode:  session.Code,
@@ -567,22 +571,39 @@ func uploadInfo(pdf *gofpdf.Fpdf, detail dto.UploadDetailResponse) {
 	pdf.Ln(5)
 }
 
-func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse) {
+func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, includeCarton bool) {
 	pdf.SetFont("Arial", "B", 9)
 	pdf.CellFormat(0, 5, rack.RakName, "B", 1, "L", false, 0, "")
 	pdf.Ln(1)
 
 	rows := make([][]string, 0, len(rack.Items))
-	var totalQty, totalSell float64
+	var totalQty, totalSell, totalCarton float64
+	hasCarton := false
 	for _, item := range rack.Items {
-		rows = append(rows, []string{
+		row := []string{
 			item.Barcode,
 			item.PLU,
 			item.Name,
 			formatDepartment(item.Dept),
 			formatQty(item.Qty),
 			formatMoneyID(item.SellPrice),
-		})
+		}
+		if includeCarton {
+			row = []string{
+				item.Barcode,
+				item.PLU,
+				item.Name,
+				formatDepartment(item.Dept),
+				formatQty(item.Qty),
+				formatCarton(item.Qty, item.PerCarton),
+				formatMoneyID(item.SellPrice),
+			}
+			if carton, ok := cartonQuantity(item.Qty, item.PerCarton); ok {
+				totalCarton += carton
+				hasCarton = true
+			}
+		}
+		rows = append(rows, row)
 		totalQty += item.Qty
 		totalSell += item.Qty * item.SellPrice
 	}
@@ -594,7 +615,26 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse) {
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}, rows, total, []float64{24, 18, 72, 18, 14, 40})
+	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Harga Jual"}
+	widths := []float64{24, 18, 66, 18, 20, 40}
+	if includeCarton {
+		cartonTotal := "-"
+		if hasCarton {
+			cartonTotal = formatQty(totalCarton)
+		}
+		total = []string{
+			"TOTAL",
+			"",
+			fmt.Sprintf("%d item", len(rack.Items)),
+			"",
+			formatQty(totalQty),
+			cartonTotal,
+			formatMoneyID(totalSell),
+		}
+		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Karton", "Harga Jual"}
+		widths = []float64{24, 18, 54, 18, 20, 14, 38}
+	}
+	uploadTable(pdf, headers, rows, total, widths)
 	pdf.Ln(1)
 }
 
@@ -675,9 +715,9 @@ func groupByRack(rows []dto.StockOpnameExportResponse) []rackReportGroup {
 		group := &groups[position]
 		group.Items = append(group.Items, row)
 		group.ItemCount++
-		group.TotalQty += row.Quantity
-		group.TotalBuy += row.Quantity * row.BuyPrice
-		group.TotalSell += row.Quantity * row.EffectiveSellPrice
+		group.TotalQty += row.EffectiveQuantity
+		group.TotalBuy += row.EffectiveQuantity * row.BuyPrice
+		group.TotalSell += row.EffectiveQuantity * row.SellPrice
 	}
 	return groups
 }
@@ -726,8 +766,8 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				item.PLU,
 				item.Name,
 				formatDepartment(item.DepartmentCode),
-				formatQty(item.Quantity),
-				formatMoneyID(item.EffectiveSellPrice),
+				formatQty(item.EffectiveQuantity),
+				formatMoneyID(item.SellPrice),
 			}
 			if includeCarton {
 				row = []string{
@@ -735,11 +775,11 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 					item.PLU,
 					item.Name,
 					formatDepartment(item.DepartmentCode),
-					formatQty(item.Quantity),
-					formatCarton(item.Quantity, item.PerCarton),
-					formatMoneyID(item.EffectiveSellPrice),
+					formatQty(item.EffectiveQuantity),
+					formatCarton(item.EffectiveQuantity, item.PerCarton),
+					formatMoneyID(item.SellPrice),
 				}
-				if carton, ok := cartonQuantity(item.Quantity, item.PerCarton); ok {
+				if carton, ok := cartonQuantity(item.EffectiveQuantity, item.PerCarton); ok {
 					totalCarton += carton
 					hasCarton = true
 				}

@@ -83,3 +83,51 @@ func (a *AuditServiceImpl) FindBatches(ctx context.Context, filter repository.Au
 
 	return responses, nil
 }
+
+func (a *AuditServiceImpl) FindTimeline(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditTimelineItemResponse, error) {
+	filter.Limit = pagination.Limit
+	filter.Offset = (pagination.Page - 1) * pagination.Limit
+
+	items, total, err := a.AuditRepository.FindTimeline(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	responses := make([]dto.AuditTimelineItemResponse, 0, len(items))
+	for _, item := range items {
+		response := dto.AuditTimelineItemResponse{
+			Kind:      item.Kind,
+			BatchID:   item.BatchID,
+			Action:    item.Action,
+			Actor:     item.Actor,
+			Note:      item.Note,
+			CreatedAt: item.CreatedAt.Format(time.RFC3339),
+		}
+		if item.Kind == "batch" {
+			response.ItemCount = item.ItemCount
+			response.FactorBefore = item.FactorBefore
+			response.FactorAfter = item.FactorAfter
+			response.SourceRakName = item.SourceRakName
+			response.TargetRakName = item.TargetRakName
+			response.MergedCount = item.MergedCount
+		} else {
+			response.ID = item.AuditID
+			before := json.RawMessage(item.BeforeData)
+			if len(before) == 0 {
+				before = json.RawMessage("null")
+			}
+			after := json.RawMessage(item.AfterData)
+			if len(after) == 0 {
+				after = json.RawMessage("null")
+			}
+			response.Before = before
+			response.After = after
+		}
+		responses = append(responses, response)
+	}
+
+	pagination.TotalItems = total
+	pagination.TotalPages = int(math.Ceil(float64(total) / float64(pagination.Limit)))
+
+	return responses, nil
+}

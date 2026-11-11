@@ -21,16 +21,16 @@ func newTestStockOpname() *model.StockOpname {
 		SoBarcode:           "8991001010016",
 		SoBuyPrice:          14500,
 		SoSellPrice:         17200,
-		SoSellFactor:        1,
+		SoQtyFactor:         1,
 	}
 }
 
-var soSummaryColumns = []string{"id", "barcode", "productPLU", "name", "quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "sell_factor", "updatedAt"}
+var soSummaryColumns = []string{"id", "barcode", "productPLU", "name", "quantity", "effective_quantity", "rackId", "rackName", "coordinatorId", "coordinatorCode", "qty_factor", "updatedAt"}
 
 func soTestSummaryRow() *pgxmock.Rows {
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	return pgxmock.NewRows(soSummaryColumns).
-		AddRow(7, "8991001010016", "100251", "Sari Roti", 10, 2, "R1", 4, "KOR-01", 1, updatedAt)
+		AddRow(7, "8991001010016", "100251", "Sari Roti", 10, 10, 2, "R1", 4, "KOR-01", 1, updatedAt)
 }
 
 func TestStockOpnameFindAll(t *testing.T) {
@@ -44,8 +44,34 @@ func TestStockOpnameFindAll(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if total != 1 || len(results) != 1 || results[0].Barcode != "8991001010016" || results[0].Name != "Sari Roti" {
+	if total != 1 || len(results) != 1 || results[0].Barcode != "8991001010016" || results[0].Name != "Sari Roti" || results[0].EffectiveQuantity != 10 {
 		t.Errorf("unexpected results %+v total %d", results, total)
+	}
+}
+
+func TestScanAuditDataEffectiveQuantity(t *testing.T) {
+	mock := mustMockPool(t)
+	mock.ExpectQuery("audit").WillReturnRows(pgxmock.NewRows([]string{
+		"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode",
+		"buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code",
+		"coor_status", "rak_upload_id", "upload_createdat",
+	}).AddRow(4, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, -1, 2, "R1", 4, "KOR-01", "IN_PROGRESS", nil, nil))
+
+	rows, err := mock.Query(context.Background(), "audit")
+	if err != nil {
+		t.Fatalf("unexpected query error: %v", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		t.Fatal("expected one row")
+	}
+
+	data, err := scanAuditData(rows)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if data.QtyFactor != -1 || data.EffectiveQuantity != -10 {
+		t.Errorf("unexpected effective quantity: factor=%d effective=%v", data.QtyFactor, data.EffectiveQuantity)
 	}
 }
 
@@ -101,13 +127,43 @@ func TestStockOpnameSaveManyEmpty(t *testing.T) {
 	}
 }
 
+func TestStockOpnameReopenUploadIfEmpty(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(2))
+
+	repo := NewStockOpnameRepository(mock)
+	reopened, err := repo.ReopenUploadIfEmpty(context.Background(), tx, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !reopened {
+		t.Error("expected uploaded empty rack to reopen")
+	}
+}
+
+func TestStockOpnameReopenUploadIfEmptyNoop(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}))
+
+	repo := NewStockOpnameRepository(mock)
+	reopened, err := repo.ReopenUploadIfEmpty(context.Background(), tx, 2)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if reopened {
+		t.Error("expected non-empty or unuploaded rack to stay closed")
+	}
+}
+
 func TestStockOpnameFindAllForExport(t *testing.T) {
 	mock := mustMockPool(t)
 	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil), 11).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
-			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt),
+		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "qty_factor", "per_carton", "quantity", "effective_quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, 10, "R1", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock, WithExportLimit(10))
@@ -115,7 +171,7 @@ func TestStockOpnameFindAllForExport(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if len(exports) != 1 || exports[0].BuyPrice != 14500 || exports[0].SellPrice != 17200 || exports[0].ProductPLU != "100251" || exports[0].PerCarton != 12 {
+	if len(exports) != 1 || exports[0].BuyPrice != 14500 || exports[0].SellPrice != 17200 || exports[0].ProductPLU != "100251" || exports[0].PerCarton != 12 || exports[0].EffectiveQuantity != 10 {
 		t.Errorf("unexpected exports %+v", exports)
 	}
 }
@@ -126,9 +182,9 @@ func TestStockOpnameFindAllForExportRejectsOversizedResult(t *testing.T) {
 	mock := mustMockPool(t)
 	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
-	rows := pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"})
+	rows := pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "qty_factor", "per_carton", "quantity", "effective_quantity", "rackName", "coordinatorCode", "updatedAt"})
 	for i := 0; i < 3; i++ {
-		rows.AddRow(i+1, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt)
+		rows.AddRow(i+1, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, 10, "R1", "KOR-01", updatedAt)
 	}
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil), 3).WillReturnRows(rows)
 
@@ -151,8 +207,8 @@ func TestStockOpnameFindAllForExportWithoutLimit(t *testing.T) {
 	sesiId := 3
 	updatedAt := time.Date(2026, 9, 10, 8, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("FROM stock_opname so").WithArgs(&sesiId, (*int)(nil)).WillReturnRows(
-		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "sell_factor", "per_carton", "quantity", "rackName", "coordinatorCode", "updatedAt"}).
-			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, "R1", "KOR-01", updatedAt),
+		pgxmock.NewRows([]string{"id", "barcode", "ProductPLU", "name", "departmentCode", "buyPrice", "sellPrice", "qty_factor", "per_carton", "quantity", "effective_quantity", "rackName", "coordinatorCode", "updatedAt"}).
+			AddRow(7, "8991001010016", "100251", "Sari Roti", "1138", 14500.0, 17200.0, 1, 12, 10, 10, "R1", "KOR-01", updatedAt),
 	)
 
 	repo := NewStockOpnameRepository(mock, WithExportLimit(0))

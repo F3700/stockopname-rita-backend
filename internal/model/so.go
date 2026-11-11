@@ -16,11 +16,11 @@ type StockOpname struct {
 	SoBarcode     string  `json:"barcode"`
 	SoBuyPrice    float64 `json:"buy_price"`
 	SoSellPrice   float64 `json:"sell_price"`
-	SoSellFactor  int     `json:"sell_factor"`
+	SoQtyFactor   int     `json:"qty_factor"`
 }
 
-// SellFactorFilter selects result rows for a filtered bulk factor update.
-type SellFactorFilter struct {
+// QtyFactorFilter selects result rows for a filtered bulk factor update.
+type QtyFactorFilter struct {
 	Search        string
 	CoordinatorID *int
 	RakID         *int
@@ -37,34 +37,34 @@ type SellSummaryGroup struct {
 }
 
 type StockOpnameSummary struct {
-	Id              int       `json:"id"`
-	Barcode         string    `json:"barcode"`
-	ProductPLU      string    `json:"product_plu"`
-	Name            string    `json:"product_name"`
-	Quantity        float64   `json:"quantity"`
-	RackID          int       `json:"rak_id"`
-	RackName        string    `json:"rak_name"`
-	CoordinatorID   int       `json:"coordinator_id"`
-	CoordinatorCode string    `json:"coor_code"`
-	SellFactor      int       `json:"sell_factor"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	Id                int       `json:"id"`
+	Barcode           string    `json:"barcode"`
+	ProductPLU        string    `json:"product_plu"`
+	Name              string    `json:"product_name"`
+	Quantity          float64   `json:"quantity"`
+	EffectiveQuantity float64   `json:"effective_quantity"`
+	RackID            int       `json:"rak_id"`
+	RackName          string    `json:"rak_name"`
+	CoordinatorID     int       `json:"coordinator_id"`
+	CoordinatorCode   string    `json:"coor_code"`
+	QtyFactor         int       `json:"qty_factor"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 // StockOpnameExport is the denormalized row used for session exports.
-// It intentionally mirrors FindAll plus product prices and is separate from
-// StockOpnameSummary so the JSON API responses stay unchanged.
 type StockOpnameExport struct {
-	Id              int       `json:"id"`
-	Barcode         string    `json:"barcode"`
-	ProductPLU      string    `json:"product_plu"`
-	Name            string    `json:"product_name"`
-	DepartmentCode  string    `json:"department_code"`
-	BuyPrice        float64   `json:"buy_price"`
-	SellPrice       float64   `json:"sell_price"`
-	SellFactor      int       `json:"sell_factor"`
-	PerCarton       int       `json:"per_carton"`
-	Quantity        float64   `json:"quantity"`
-	RackName        string    `json:"rak_name"`
-	CoordinatorCode string    `json:"coor_code"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	Id                int       `json:"id"`
+	Barcode           string    `json:"barcode"`
+	ProductPLU        string    `json:"product_plu"`
+	Name              string    `json:"product_name"`
+	DepartmentCode    string    `json:"department_code"`
+	BuyPrice          float64   `json:"buy_price"`
+	SellPrice         float64   `json:"sell_price"`
+	QtyFactor         int       `json:"qty_factor"`
+	PerCarton         int       `json:"per_carton"`
+	Quantity          float64   `json:"quantity"`
+	EffectiveQuantity float64   `json:"effective_quantity"`
+	RackName          string    `json:"rak_name"`
+	CoordinatorCode   string    `json:"coor_code"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }

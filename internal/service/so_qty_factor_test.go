@@ -14,11 +14,11 @@ import (
 func factorPtr(value int) *int { return &value }
 
 func soAuditDataRowsWithFactor(id, rakID, coorID int, factor int) *pgxmock.Rows {
-	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "sell_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat"}).
+	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat"}).
 		AddRow(id, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, factor, rakID, "R1", coorID, "KOR-01", "IN_PROGRESS", nil, nil)
 }
 
-func TestSetSellFactorItemsTx(t *testing.T) {
+func TestSetQtyFactorItemsTx(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -42,10 +42,10 @@ func TestSetSellFactorItemsTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	result, err := svc.SetSellFactor(context.Background(), 3, dto.SetSellFactorRequest{
+	result, err := svc.SetQtyFactor(context.Background(), 3, dto.SetQtyFactorRequest{
 		Scope:     "items",
 		ResultIDs: []int{4},
-		Factor:    factorPtr(-1),
+		QtyFactor: factorPtr(-1),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -55,7 +55,7 @@ func TestSetSellFactorItemsTx(t *testing.T) {
 	}
 }
 
-func TestSetSellFactorNoOp(t *testing.T) {
+func TestSetQtyFactorNoOp(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -73,10 +73,10 @@ func TestSetSellFactorNoOp(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	result, err := svc.SetSellFactor(context.Background(), 3, dto.SetSellFactorRequest{
+	result, err := svc.SetQtyFactor(context.Background(), 3, dto.SetQtyFactorRequest{
 		Scope:     "items",
 		ResultIDs: []int{4},
-		Factor:    factorPtr(1),
+		QtyFactor: factorPtr(1),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -86,7 +86,7 @@ func TestSetSellFactorNoOp(t *testing.T) {
 	}
 }
 
-func TestSetSellFactorFilterTx(t *testing.T) {
+func TestSetQtyFactorFilterTx(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -111,10 +111,10 @@ func TestSetSellFactorFilterTx(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	result, err := svc.SetSellFactor(context.Background(), 3, dto.SetSellFactorRequest{
-		Scope:  "filter",
-		Filter: &dto.SellFactorFilterRequest{Search: "roti"},
-		Factor: factorPtr(0),
+	result, err := svc.SetQtyFactor(context.Background(), 3, dto.SetQtyFactorRequest{
+		Scope:     "filter",
+		Filter:    &dto.QtyFactorFilterRequest{Search: "roti"},
+		QtyFactor: factorPtr(0),
 	})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -124,7 +124,7 @@ func TestSetSellFactorFilterTx(t *testing.T) {
 	}
 }
 
-func TestSetSellFactorRejectsScopeTooLarge(t *testing.T) {
+func TestSetQtyFactorRejectsScopeTooLarge(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -141,9 +141,9 @@ func TestSetSellFactorRejectsScopeTooLarge(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.SetSellFactor(context.Background(), 3, dto.SetSellFactorRequest{
-		Scope:  "session",
-		Factor: factorPtr(-1),
+	_, err = svc.SetQtyFactor(context.Background(), 3, dto.SetQtyFactorRequest{
+		Scope:     "session",
+		QtyFactor: factorPtr(-1),
 	})
 	if err == nil {
 		t.Fatal("expected conflict, got nil")
@@ -154,7 +154,7 @@ func TestSetSellFactorRejectsScopeTooLarge(t *testing.T) {
 	}
 }
 
-func TestSetSellFactorItemsStrict(t *testing.T) {
+func TestSetQtyFactorItemsStrict(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -171,10 +171,10 @@ func TestSetSellFactorItemsStrict(t *testing.T) {
 	mock.ExpectRollback()
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.SetSellFactor(context.Background(), 3, dto.SetSellFactorRequest{
+	_, err = svc.SetQtyFactor(context.Background(), 3, dto.SetQtyFactorRequest{
 		Scope:     "items",
 		ResultIDs: []int{4, 5},
-		Factor:    factorPtr(-1),
+		QtyFactor: factorPtr(-1),
 	})
 	if err == nil {
 		t.Fatal("expected not found, got nil")
@@ -185,7 +185,7 @@ func TestSetSellFactorItemsStrict(t *testing.T) {
 	}
 }
 
-func TestSetSellFactorRejectsEmptyFilter(t *testing.T) {
+func TestSetQtyFactorRejectsEmptyFilter(t *testing.T) {
 	mock, err := pgxmock.NewPool()
 	if err != nil {
 		t.Fatalf("failed to create mock: %v", err)
@@ -197,10 +197,10 @@ func TestSetSellFactorRejectsEmptyFilter(t *testing.T) {
 	})
 
 	svc := newStockOpnameServiceWithMock(mock, t)
-	_, err = svc.SetSellFactor(context.Background(), 3, dto.SetSellFactorRequest{
-		Scope:  "filter",
-		Filter: &dto.SellFactorFilterRequest{},
-		Factor: factorPtr(-1),
+	_, err = svc.SetQtyFactor(context.Background(), 3, dto.SetQtyFactorRequest{
+		Scope:     "filter",
+		Filter:    &dto.QtyFactorFilterRequest{},
+		QtyFactor: factorPtr(-1),
 	})
 	if err == nil {
 		t.Fatal("expected validation error, got nil")

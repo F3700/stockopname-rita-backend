@@ -157,3 +157,52 @@ func TestCoordinatorPDFServiceError(t *testing.T) {
 		t.Fatalf("expected status %d, got %d", http.StatusInternalServerError, rec.Code)
 	}
 }
+
+func TestUploadPDFIncludeCarton(t *testing.T) {
+	h := NewReportHandler(&fakeReportService{
+		uploadPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+			if id != 12 {
+				t.Errorf("expected id 12, got %d", id)
+			}
+			if !includeCarton {
+				t.Error("expected includeCarton true")
+			}
+			return []byte("%PDF-fake"), "SESI-01_KOR-01_upload-12.pdf", nil
+		},
+	})
+
+	req := newJSONRequest(t, http.MethodGet, "/uploads/12/pdf?include_carton=true", "")
+	rec := httptest.NewRecorder()
+	h.UploadPDF(rec, req, paramsWithID("12"))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, rec.Code)
+	}
+	if got := rec.Header().Get("Content-Type"); got != "application/pdf" {
+		t.Errorf("expected Content-Type application/pdf, got %q", got)
+	}
+	if rec.Body.String() != "%PDF-fake" {
+		t.Errorf("unexpected body %q", rec.Body.String())
+	}
+}
+
+func TestUploadPDFInvalidIncludeCarton(t *testing.T) {
+	called := false
+	h := NewReportHandler(&fakeReportService{
+		uploadPDFFunc: func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
+			called = true
+			return nil, "", nil
+		},
+	})
+
+	req := newJSONRequest(t, http.MethodGet, "/uploads/12/pdf?include_carton=notabool", "")
+	rec := httptest.NewRecorder()
+	h.UploadPDF(rec, req, paramsWithID("12"))
+
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, rec.Code)
+	}
+	if called {
+		t.Error("service must not be called for invalid include_carton")
+	}
+}

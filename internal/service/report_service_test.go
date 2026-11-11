@@ -41,7 +41,7 @@ func TestSessionPDF(t *testing.T) {
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, PerCarton: 12, RackName: "R1", CoordinatorCode: "KOR-01"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", Name: "Indomie", DepartmentCode: "1138", Quantity: 48, BuyPrice: 2500, SellPrice: 3500, QtyFactor: 1, EffectiveQuantity: 48, PerCarton: 12, RackName: "R1", CoordinatorCode: "KOR-01"},
 				}, nil
 			},
 		},
@@ -69,7 +69,7 @@ func TestSessionPDF(t *testing.T) {
 			t.Errorf("expected session PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Karton"} {
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Karton", "Data terkini"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("session PDF must not contain %q", unwanted)
 		}
@@ -87,6 +87,26 @@ func TestSessionPDF(t *testing.T) {
 		if !strings.Contains(cartonText, want) {
 			t.Errorf("expected carton PDF to contain %q", want)
 		}
+	}
+}
+
+func TestGroupByRackUsesEffectiveQuantity(t *testing.T) {
+	groups := groupByRack([]dto.StockOpnameExportResponse{
+		{
+			CoordinatorCode:   "KOR-01",
+			RackName:          "R1",
+			Quantity:          10,
+			QtyFactor:         -1,
+			EffectiveQuantity: -10,
+			BuyPrice:          1000,
+			SellPrice:         1500,
+		},
+	})
+	if len(groups) != 1 {
+		t.Fatalf("expected one group, got %d", len(groups))
+	}
+	if groups[0].TotalQty != -10 || groups[0].TotalSell != -15000 || groups[0].TotalBuy != -10000 {
+		t.Errorf("expected effective totals, got %+v", groups[0])
 	}
 }
 
@@ -189,6 +209,9 @@ func TestCoordinatorPDF(t *testing.T) {
 	if bytes.Contains(data, []byte("/Subtype /Image")) {
 		t.Error("coordinator PDF must not contain a logo image")
 	}
+	if strings.Contains(text, "Data terkini") {
+		t.Error("coordinator PDF must not contain the live-data note")
+	}
 }
 
 func TestCoordinatorPDFCoordinatorError(t *testing.T) {
@@ -215,9 +238,9 @@ func TestCoordinatorPDFCoordinatorError(t *testing.T) {
 
 func TestGroupByRack(t *testing.T) {
 	rows := []dto.StockOpnameExportResponse{
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500, SellFactor: 1, EffectiveSellPrice: 1500},
-		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750, SellFactor: 1, EffectiveSellPrice: 750},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 2.5, BuyPrice: 1000, SellPrice: 1500, QtyFactor: 1, EffectiveQuantity: 2.5},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 1", Quantity: 1, BuyPrice: 1000, SellPrice: 1500, QtyFactor: 1, EffectiveQuantity: 1},
+		{CoordinatorCode: "KOR-01", RackName: "Rak 2", Quantity: 4, BuyPrice: 500, SellPrice: 750, QtyFactor: 1, EffectiveQuantity: 4},
 	}
 	groups := groupByRack(rows)
 	if len(groups) != 2 {
@@ -352,12 +375,12 @@ func TestCoordinatorUploadSummaryPDF(t *testing.T) {
 		t.Errorf("unexpected filename %q", filename)
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Qty Efektif", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL", "Nomor upload dapat memiliki gap"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected summary PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Total HB", "Rp 4.500,00"} {
+	for _, unwanted := range []string{"Total HB", "Rp 4.500,00", "Data terkini"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("summary PDF must not contain %q", unwanted)
 		}
@@ -393,7 +416,7 @@ func TestUploadPDF(t *testing.T) {
 		&fakeStockOpnameService{},
 	)
 
-	data, filename, err := svc.UploadPDF(context.Background(), 12)
+	data, filename, err := svc.UploadPDF(context.Background(), 12, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -404,17 +427,52 @@ func TestUploadPDF(t *testing.T) {
 		t.Error("expected PDF magic header")
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Harga Jual", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty Efektif", "Harga Jual", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected upload PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli"} {
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Data terkini"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("upload PDF must not contain %q", unwanted)
 		}
 	}
 	if strings.Contains(text, "STOCK OPNAME UPLOAD") {
 		t.Error("upload PDF must not print the old title")
+	}
+}
+
+func TestUploadPDFWithCarton(t *testing.T) {
+	svc := NewReportService(
+		&fakeSesiService{},
+		&fakeCoordinatorService{},
+		&fakeUploadService{
+			findDetailFunc: func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error) {
+				return dto.UploadDetailResponse{
+					UploadResponse:  dto.UploadResponse{UploadID: 12, RackCount: 1, ItemCount: 2, CreatedAt: "2026-10-26T10:14:00+07:00"},
+					CoordinatorCode: "KOR-01",
+					SessionCode:     "SESI-01",
+					SessionLocation: "Gudang A",
+					Racks: []dto.UploadDetailRackResponse{
+						{RakID: 1, RakName: "Rak 1", ItemCount: 2, Items: []dto.UploadItemResponse{
+							{PLU: "1001", Barcode: "111", Name: "Indomie", Dept: "1138", Qty: 18, BuyPrice: 2500, SellPrice: 3500, PerCarton: 12},
+							{PLU: "1002", Barcode: "222", Name: "Soto", Dept: "1139", Qty: 3, BuyPrice: 2000, SellPrice: 3000, PerCarton: 0},
+						}},
+					},
+				}, nil
+			},
+		},
+		&fakeStockOpnameService{},
+	)
+
+	data, _, err := svc.UploadPDF(context.Background(), 12, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := compressedPDFText(t, data)
+	for _, want := range []string{"Karton", "1,50"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected upload PDF to contain %q", want)
+		}
 	}
 }

@@ -70,10 +70,15 @@ func (h *ReportHandler) CoordinatorUploadSummaryPDF(writer http.ResponseWriter, 
 func (h *ReportHandler) UploadPDF(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	id, err := helper.ParseIntParam(params, "id")
 	if err != nil {
-		helper.WriteError(writer, http.StatusBadRequest, "Invalid rack ID", err)
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid upload ID", err)
 		return
 	}
-	data, filename, err := h.Service.UploadPDF(req.Context(), id)
+	includeCarton, err := parseIncludeCarton(req)
+	if err != nil {
+		helper.WriteError(writer, http.StatusBadRequest, "Invalid include_carton parameter", err)
+		return
+	}
+	data, filename, err := h.Service.UploadPDF(req.Context(), id, includeCarton)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return

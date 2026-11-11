@@ -235,29 +235,29 @@ func (s *StockOpnameHandlerImpl) MoveStockOpname(writer http.ResponseWriter, req
 	}
 }
 
-// SetSellFactor implements PATCH /stockopname/sessions/:id/sell-factor.
-func (s *StockOpnameHandlerImpl) SetSellFactor(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
+// SetQtyFactor implements PATCH /stockopname/sessions/:id/qty-factor.
+func (s *StockOpnameHandlerImpl) SetQtyFactor(writer http.ResponseWriter, req *http.Request, params httprouter.Params) {
 	id, err := helper.ParseIntParam(params, "id")
 	if err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid session ID", err)
 		return
 	}
 
-	var setRequest dto.SetSellFactorRequest
+	var setRequest dto.SetQtyFactorRequest
 	if err := helper.ReadFromRequestBody(req, &setRequest); err != nil {
 		helper.WriteError(writer, http.StatusBadRequest, "Invalid request body", err)
 		return
 	}
 	setRequest.Actor = helper.ActorFromRequest(req)
 
-	result, err := s.StockOpnameService.SetSellFactor(req.Context(), id, setRequest)
+	result, err := s.StockOpnameService.SetQtyFactor(req.Context(), id, setRequest)
 	if err != nil {
 		helper.WriteServiceError(writer, err)
 		return
 	}
 
 	if err := helper.ResponseJson(writer, http.StatusOK, dto.Response{
-		Message: "Sell factor updated successfully",
+		Message: "Qty factor updated successfully",
 		Data:    result,
 	}); err != nil {
 		helper.WriteError(writer, http.StatusInternalServerError, "Failed to respond with JSON", err)

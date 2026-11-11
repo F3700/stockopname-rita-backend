@@ -200,7 +200,7 @@ type fakeStockOpnameService struct {
 	findByIdFn           func(ctx context.Context, id int) (dto.StockOpnameResponse, error)
 	findAllFunc          func(ctx context.Context, pagination *dto.Pagination, search string, coorId *int, sesiId *int, rakId *int) ([]dto.StockOpnameResponse, error)
 	findAllForExportFunc func(ctx context.Context, sesiId *int, coorId *int) ([]dto.StockOpnameExportResponse, error)
-	setSellFactorFunc    func(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error)
+	setQtyFactorFunc     func(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error)
 	findSellSummaryFunc  func(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error)
 }
 
@@ -235,11 +235,11 @@ func (f *fakeStockOpnameService) FindAll(ctx context.Context, pagination *dto.Pa
 	return f.findAllFunc(ctx, pagination, search, coorId, sesiId, rakId)
 }
 
-func (f *fakeStockOpnameService) SetSellFactor(ctx context.Context, sessionID int, req dto.SetSellFactorRequest) (dto.SetSellFactorResponse, error) {
-	if f.setSellFactorFunc == nil {
-		return dto.SetSellFactorResponse{}, nil
+func (f *fakeStockOpnameService) SetQtyFactor(ctx context.Context, sessionID int, req dto.SetQtyFactorRequest) (dto.SetQtyFactorResponse, error) {
+	if f.setQtyFactorFunc == nil {
+		return dto.SetQtyFactorResponse{}, nil
 	}
-	return f.setSellFactorFunc(ctx, sessionID, req)
+	return f.setQtyFactorFunc(ctx, sessionID, req)
 }
 
 func (f *fakeStockOpnameService) FindSellSummary(ctx context.Context, sessionID int, groupBy string) (dto.SellSummaryResponse, error) {
@@ -253,7 +253,7 @@ type fakeReportService struct {
 	sessionPDFFunc            func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	coordinatorPDFFunc        func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	coordinatorSummaryPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
-	uploadPDFFunc             func(ctx context.Context, id int) ([]byte, string, error)
+	uploadPDFFunc             func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	sessionExcelFunc          func(ctx context.Context, id int) ([]byte, string, error)
 	sessionDBFFunc            func(ctx context.Context, id int) ([]byte, string, error)
 }
@@ -266,11 +266,11 @@ func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int, includeC
 	return f.coordinatorPDFFunc(ctx, id, includeCarton)
 }
 
-func (f *fakeReportService) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
+func (f *fakeReportService) UploadPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 	if f.uploadPDFFunc == nil {
 		return nil, "", nil
 	}
-	return f.uploadPDFFunc(ctx, id)
+	return f.uploadPDFFunc(ctx, id, includeCarton)
 }
 
 func (f *fakeReportService) CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error) {
@@ -289,8 +289,9 @@ func (f *fakeReportService) SessionDBF(ctx context.Context, id int) ([]byte, str
 }
 
 type fakeAuditService struct {
-	findAllFunc     func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
-	findBatchesFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
+	findAllFunc      func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+	findBatchesFunc  func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
+	findTimelineFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditTimelineItemResponse, error)
 }
 
 func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error) {
@@ -305,6 +306,13 @@ func (f *fakeAuditService) FindBatches(ctx context.Context, filter repository.Au
 		return nil, nil
 	}
 	return f.findBatchesFunc(ctx, filter, pagination)
+}
+
+func (f *fakeAuditService) FindTimeline(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditTimelineItemResponse, error) {
+	if f.findTimelineFunc == nil {
+		return nil, nil
+	}
+	return f.findTimelineFunc(ctx, filter, pagination)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

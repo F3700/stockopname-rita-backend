@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Rita Stock Opname API",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "description": "REST API untuk mendukung proses stock opname, pengelolaan produk, dan pemantauan hasil stock opname."
   },
   "servers": [
@@ -19,10 +19,6 @@
     {
       "name": "Products",
       "description": "Endpoint untuk pengelolaan data produk"
-    },
-    {
-      "name": "Deleted Products",
-      "description": "Endpoint untuk pengelolaan data produk yang telah dihapus"
     },
     {
       "name": "Stock Opname Session",
@@ -42,7 +38,11 @@
     },
     {
       "name": "Stock Opname Upload",
-      "description": "Endpoint riwayat upload dan PDF upload"
+      "description": "Endpoint daftar upload dan PDF upload"
+    },
+    {
+      "name": "Stock Opname Audit",
+      "description": "Endpoint riwayat perubahan hasil stock opname"
     },
     {
       "name": "Health",
@@ -608,13 +608,13 @@
         }
       }
     },
-    "/stockopname/sessions/{id}/sell-factor": {
+    "/stockopname/sessions/{id}/qty-factor": {
       "patch": {
         "tags": [
           "Stock Opname Session"
         ],
-        "summary": "Set sell factor for stock opname results",
-        "description": "Applies a -1, 0, or 1 sell factor to one item, selected items, filtered results, a rack, a coordinator, or a session. Status final does not block this operation.",
+        "summary": "Set qty factor for stock opname results",
+        "description": "Applies a -1, 0, or 1 qty factor to one item, selected items, filtered results, a rack, a coordinator, or a session. Effective quantity is quantity × qty_factor. Status final does not block this operation.",
         "parameters": [
           {
             "name": "id",
@@ -633,7 +633,7 @@
                 "type": "object",
                 "required": [
                   "scope",
-                  "factor"
+                  "qty_factor"
                 ],
                 "properties": {
                   "scope": {
@@ -675,7 +675,7 @@
                       }
                     }
                   },
-                  "factor": {
+                  "qty_factor": {
                     "type": "integer",
                     "enum": [
                       -1,
@@ -693,7 +693,7 @@
         },
         "responses": {
           "200": {
-            "description": "Sell factor updated",
+            "description": "Qty factor updated",
             "content": {
               "application/json": {
                 "schema": {
@@ -794,13 +794,16 @@
                                 "type": "integer"
                               },
                               "total_qty": {
-                                "type": "number"
+                                "type": "number",
+                                "description": "Effective quantity (quantity × qty_factor)."
                               },
                               "total_sell_original": {
-                                "type": "number"
+                                "type": "number",
+                                "description": "Raw quantity × sell price."
                               },
                               "total_sell_effective": {
-                                "type": "number"
+                                "type": "number",
+                                "description": "Effective quantity × sell price."
                               }
                             }
                           }
@@ -1101,7 +1104,7 @@
           "Stock Opname Coordinator"
         ],
         "summary": "Generate a coordinator upload summary PDF",
-        "description": "Generate an inline PDF with one row per upload: coordinator code, upload number, total quantity, total buy value, and total sell value.",
+        "description": "Generate an inline live PDF with one row per upload that still has an active rack, plus a row for results in racks without an upload (Belum upload). Columns: coordinator code, upload number, effective quantity, and total sell value. Upload numbers may have gaps because uploads without active racks are hidden.",
         "parameters": [
           {
             "name": "id",
@@ -1854,7 +1857,7 @@
           "Stock Opname Coordinator"
         ],
         "summary": "Join a coordinator by scanning its QR code",
-        "description": "Validates the coordinator and returns its racks with upload history and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at only marks upload history and does not indicate whether the rack still has items. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
+        "description": "Validates the coordinator and returns its racks with upload status and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at marks the upload the rack currently belongs to; it is cleared when the rack becomes empty and its upload is reopened, so an empty rack is normally available for upload again. Only legacy data may still show uploaded_at on an empty rack. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1902,7 +1905,8 @@
         "tags": [
           "Stock Opname Upload"
         ],
-        "summary": "Get upload history for a coordinator",
+        "summary": "List uploads that still own a rack",
+        "description": "Returns every upload of the coordinator that still has at least one rack attached. rack_count and item_count are live counts from the current stock_opname rows. Uploads that lost all their racks are kept in the database but are not listed here. upload_number is computed over all uploads of the coordinator, so the numbers may have gaps.",
         "parameters": [
           {
             "name": "coordinatorId",
@@ -2001,8 +2005,8 @@
         "tags": [
           "Stock Opname Upload"
         ],
-        "summary": "Download the upload PDF for a rack",
-        "description": "Rendered from the immutable snapshots of every rack in the upload, grouped per rack.",
+        "summary": "Download the upload PDF for an upload batch",
+        "description": "Rendered from current stock opname results for the racks still assigned to the upload, grouped per rack. Quantities use effective quantity (quantity x qty_factor). Set include_carton=true to add a Karton column (effective quantity divided by the product carton size).",
         "parameters": [
           {
             "name": "id",
@@ -2012,6 +2016,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "include_carton",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {
@@ -2268,6 +2281,197 @@
                           "created_at": {
                             "type": "string",
                             "format": "date-time"
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
+    },
+    "/stockopname/audits/timeline": {
+      "get": {
+        "tags": [
+          "Stock Opname Audit"
+        ],
+        "summary": "List audit entries as one timeline",
+        "description": "Returns batches and single changes in one chronological list. A batch that only contains one row is returned as kind=single, so one-item work is never shown as a bulk action. Use GET /stockopname/audits?batchId=<uuid> to load the items of a batch.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "resultId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "description": "Filter by action. Repeat the parameter or use comma separated values (UPDATE,MOVE).",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "CREATE",
+                  "UPDATE",
+                  "DELETE",
+                  "MOVE"
+                ]
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit timeline retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "single",
+                              "batch"
+                            ]
+                          },
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "description": "Set for kind=single, including a batch that collapsed into one row."
+                          },
+                          "batch_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "CREATE",
+                              "UPDATE",
+                              "DELETE",
+                              "MOVE"
+                            ]
+                          },
+                          "actor": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "item_count": {
+                            "type": "integer",
+                            "description": "Set for kind=batch only."
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "before": {
+                            "type": "object",
+                            "nullable": true,
+                            "description": "Set for kind=single only."
+                          },
+                          "after": {
+                            "type": "object",
+                            "nullable": true,
+                            "description": "Set for kind=single only."
+                          },
+                          "factor_before": {
+                            "type": "integer",
+                            "nullable": true,
+                            "enum": [
+                              -1,
+                              0,
+                              1
+                            ],
+                            "description": "Set for kind=batch when every row shared the same previous factor."
+                          },
+                          "factor_after": {
+                            "type": "integer",
+                            "nullable": true,
+                            "enum": [
+                              -1,
+                              0,
+                              1
+                            ],
+                            "description": "Set for kind=batch."
+                          },
+                          "source_rak_name": {
+                            "type": "string",
+                            "description": "Set for kind=batch with action MOVE."
+                          },
+                          "target_rak_name": {
+                            "type": "string",
+                            "description": "Set for kind=batch with action MOVE."
+                          },
+                          "merged_count": {
+                            "type": "integer",
+                            "description": "Number of moved rows whose quantity merged into an existing row."
                           }
                         }
                       }
@@ -2620,6 +2824,11 @@
             "multipleOf": 0.01,
             "example": 10.5
           },
+          "effective_quantity": {
+            "type": "number",
+            "format": "double",
+            "example": 10.5
+          },
           "rak_name": {
             "type": "string",
             "example": "RAK-001"
@@ -2628,7 +2837,7 @@
             "type": "string",
             "example": "COOR1"
           },
-          "sell_factor": {
+          "qty_factor": {
             "type": "integer",
             "enum": [
               -1,
@@ -2668,6 +2877,10 @@
             "minimum": 0,
             "multipleOf": 0.01,
             "example": 10.5
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional correction note stored in the audit log."
           }
         }
       },
@@ -2745,6 +2958,10 @@
             "type": "string",
             "example": "100251",
             "description": "Product PLU. Either barcode or plu is required."
+          },
+          "note": {
+            "type": "string",
+            "description": "Optional correction note stored in the audit log."
           }
         }
       },
@@ -2868,7 +3085,7 @@
                 "uploaded_at": {
                   "type": "string",
                   "example": "2026-10-26T09:14:03+07:00",
-                  "description": "Upload-history marker. May be set even when the rack is now empty."
+                  "description": "Upload the rack currently belongs to. Cleared when the rack becomes empty and its upload is reopened; legacy rows may still show it while empty."
                 },
                 "item_count": {
                   "type": "integer",
@@ -2882,7 +3099,7 @@
                 }
               }
             },
-            "description": "Racks owned by the coordinator. item_count and is_empty are live values for mobile; uploaded_at is the upload-history marker."
+            "description": "Racks owned by the coordinator. item_count and is_empty are live values for mobile; uploaded_at marks the upload the rack currently belongs to."
           }
         }
       },
@@ -2895,7 +3112,7 @@
           },
           "upload_number": {
             "type": "integer",
-            "description": "Urutan upload per koordinator. 1 = upload pertama.",
+            "description": "Urutan upload per koordinator. 1 = upload pertama. Nomor dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.",
             "example": 3
           },
           "rack_count": {
@@ -3006,6 +3223,11 @@
           },
           "merged_count": {
             "type": "integer"
+          },
+          "reopened_rack_id": {
+            "type": "integer",
+            "nullable": true,
+            "description": "Source rack whose upload was reopened because it became empty."
           }
         }
       },

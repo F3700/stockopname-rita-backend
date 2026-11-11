@@ -282,6 +282,7 @@ func (s *UploadServiceImpl) FindDetail(ctx context.Context, uploadID int) (dto.U
 				Qty:       item.Qty,
 				BuyPrice:  item.BuyPrice,
 				SellPrice: item.SellPrice,
+				PerCarton: item.PerCarton,
 			})
 		}
 		racks = append(racks, dto.UploadDetailRackResponse{

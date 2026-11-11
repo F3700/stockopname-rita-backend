@@ -143,7 +143,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool, opts ...Option)
 	router.POST("/stockopname/sessions", sesiHandler.CreateSesi)
 	router.GET("/stockopname/sessions", sesiHandler.GetAllSesi)
 	router.GET("/stockopname/sessions/:id", sesiHandler.GetSesiById)
-	router.PATCH("/stockopname/sessions/:id/sell-factor", stockOpnameHandler.SetSellFactor)
+	router.PATCH("/stockopname/sessions/:id/qty-factor", stockOpnameHandler.SetQtyFactor)
 	router.GET("/stockopname/sessions/:id/sell-summary", stockOpnameHandler.GetSellSummary)
 	router.GET("/stockopname/sessions/:id/pdf", exports.wrap(reportHandler.SessionPDF))
 	router.GET("/stockopname/sessions/:id/excel", exports.wrap(reportHandler.SessionExcel))
@@ -168,6 +168,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool, opts ...Option)
 
 	router.GET("/stockopname/audits", auditHandler.GetAudits)
 	router.GET("/stockopname/audits/batches", auditHandler.GetAuditBatches)
+	router.GET("/stockopname/audits/timeline", auditHandler.GetAuditTimeline)
 
 	return router
 }

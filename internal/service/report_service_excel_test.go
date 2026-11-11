@@ -37,8 +37,8 @@ func excelTestReportService(t *testing.T, sesiErr, exportErr error) ReportServic
 					t.Errorf("expected nil coorId, got %d", *coorId)
 				}
 				return []dto.StockOpnameExportResponse{
-					{Id: 1, Barcode: "8991234567890", PLU: "100251", DepartmentCode: "1138", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
-					{Id: 2, Barcode: "8991234567891", PLU: "100252", DepartmentCode: "1139", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, SellFactor: 1, EffectiveSellPrice: 3500, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 1, Barcode: "8991234567890", PLU: "100251", DepartmentCode: "1138", Name: "Indomie", BuyPrice: 2500, SellPrice: 3500, QtyFactor: 1, EffectiveQuantity: 48.5, Quantity: 48.5, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
+					{Id: 2, Barcode: "8991234567891", PLU: "100252", DepartmentCode: "1139", Name: "Soto", BuyPrice: 2500, SellPrice: 3500, QtyFactor: 1, EffectiveQuantity: 36, Quantity: 36, RackName: "R1", CoordinatorCode: "KOR-01", UpdatedAt: "2026-09-10T08:00:00Z"},
 				}, nil
 			},
 		},

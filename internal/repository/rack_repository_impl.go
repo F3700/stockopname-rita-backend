@@ -105,15 +105,22 @@ func (r *RackRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, rack *model.Ra
 }
 
 // ClaimForUpload attaches every rack of one batch to the upload. Returns how
-// many rows were claimed; a smaller count means a rack was already uploaded,
-// belonged to another coordinator, or does not exist.
+// many rows were claimed; a smaller count means a rack is non-empty or already
+// uploaded, belonged to another coordinator, or does not exist. Uploaded racks
+// with no current results may be claimed again (e.g. after admin corrections).
 func (r *RackRepositoryImpl) ClaimForUpload(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32, coorID int) (int64, error) {
 	const SQL = `
 		UPDATE rak
 		SET rak_upload_id = $1
 		WHERE rak_id = ANY($2)
 		  AND rak_coor_id = $3
-		  AND rak_upload_id IS NULL
+		  AND (
+		      rak_upload_id IS NULL
+		      OR NOT EXISTS (
+		          SELECT 1 FROM stock_opname so
+		          WHERE so.stock_opname_rak_id = rak.rak_id
+		      )
+		  )
 	`
 	res, err := tx.Exec(ctx, SQL, uploadID, rakIDs, coorID)
 	if err != nil {
@@ -122,7 +129,8 @@ func (r *RackRepositoryImpl) ClaimForUpload(ctx context.Context, tx pgx.Tx, uplo
 	return res.RowsAffected(), nil
 }
 
-// SetSnapshot stores the immutable item snapshot for a claimed rack.
+// SetSnapshot stores the item snapshot for a claimed rack. Upload reports do
+// not read it; it is kept as an archive and replaced by the next upload.
 func (r *RackRepositoryImpl) SetSnapshot(ctx context.Context, tx pgx.Tx, rakID int, snapshot string) error {
 	const SQL = `UPDATE rak SET rak_upload_snapshot = $2 WHERE rak_id = $1`
 	_, err := tx.Exec(ctx, SQL, rakID, snapshot)

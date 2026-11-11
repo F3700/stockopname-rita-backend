@@ -21,7 +21,7 @@ func TestNewRouterRegisters(t *testing.T) {
 		{"POST", "/products/import"},
 		{"POST", "/products/clear"},
 		{"DELETE", "/stockopname/sessions/:id"},
-		{"PATCH", "/stockopname/sessions/:id/sell-factor"},
+		{"PATCH", "/stockopname/sessions/:id/qty-factor"},
 		{"GET", "/stockopname/sessions/:id/sell-summary"},
 		{"POST", "/stockopname/results"},
 		{"POST", "/stockopname/results/move"},
