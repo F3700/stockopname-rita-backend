@@ -166,12 +166,12 @@ func (s *StockOpnameRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, id 
 // (rack, plu) pair must not exist yet. Web correction uses PATCH instead.
 func (s *StockOpnameRepositoryImpl) Create(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) error {
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::smallint)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor, so_upload_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::smallint, $10)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO NOTHING
 		RETURNING stock_opname_id
 	`
-	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice, stockOpname.SoQtyFactor).Scan(&stockOpname.StockOpnameID)
+	err := tx.QueryRow(ctx, SQL, stockOpname.StockOpnameQuantity, stockOpname.StockOpnameRakID, stockOpname.SoProductPLU, stockOpname.SoProductName, stockOpname.SoProductDept, stockOpname.SoBarcode, stockOpname.SoBuyPrice, stockOpname.SoSellPrice, stockOpname.SoQtyFactor, stockOpname.SoUploadID).Scan(&stockOpname.StockOpnameID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return &model.ConflictError{
 			Resource: "Stock Opname",
@@ -193,10 +193,10 @@ func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, sto
 	}
 
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor, so_upload_id)
 		SELECT * FROM unnest(
 			$1::numeric[], $2::int[], $3::text[], $4::text[], $5::text[],
-			$6::text[], $7::numeric[], $8::numeric[], $9::smallint[]
+			$6::text[], $7::numeric[], $8::numeric[], $9::smallint[], $10::int[]
 		)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
 		SET stock_opname_quantity = EXCLUDED.stock_opname_quantity,
@@ -205,6 +205,7 @@ func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, sto
 		    so_product_dept = EXCLUDED.so_product_dept,
 		    so_buyprice = EXCLUDED.so_buyprice,
 		    so_sellprice = EXCLUDED.so_sellprice,
+		    so_upload_id = EXCLUDED.so_upload_id,
 		    stock_opname_updatedat = NOW()
 	`
 
@@ -217,6 +218,7 @@ func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, sto
 	buyPrices := make([]float64, len(stockOpnames))
 	sellPrices := make([]float64, len(stockOpnames))
 	factors := make([]int16, len(stockOpnames))
+	uploadIDs := make([]int32, len(stockOpnames))
 
 	for i, stockOpname := range stockOpnames {
 		quantities[i] = stockOpname.StockOpnameQuantity
@@ -228,9 +230,13 @@ func (s *StockOpnameRepositoryImpl) SaveMany(ctx context.Context, tx pgx.Tx, sto
 		buyPrices[i] = stockOpname.SoBuyPrice
 		sellPrices[i] = stockOpname.SoSellPrice
 		factors[i] = int16(stockOpname.SoQtyFactor)
+		if stockOpname.SoUploadID == nil {
+			return fmt.Errorf("save upload rows: PLU %s has no owning upload", stockOpname.SoProductPLU)
+		}
+		uploadIDs[i] = int32(*stockOpname.SoUploadID)
 	}
 
-	_, err := tx.Exec(ctx, SQL, quantities, rakIDs, plus, names, depts, barcodes, buyPrices, sellPrices, factors)
+	_, err := tx.Exec(ctx, SQL, quantities, rakIDs, plus, names, depts, barcodes, buyPrices, sellPrices, factors, uploadIDs)
 	if err != nil {
 		return model.MapPgError("Stock Opname", err)
 	}
@@ -417,7 +423,8 @@ const auditDataSelect = `
 		c.coor_code,
 		c.coor_status,
 		r.rak_upload_id,
-		u.upload_createdat
+		u.upload_createdat,
+		so.so_upload_id
 	FROM stock_opname so
 	JOIN rak r ON r.rak_id = so.stock_opname_rak_id
 	JOIN coordinator c ON c.coor_id = r.rak_coor_id
@@ -432,6 +439,7 @@ func scanAuditData(row rowScanner) (*model.StockOpnameAuditData, error) {
 	var data model.StockOpnameAuditData
 	var uploadID pgtype.Int4
 	var uploadedAt pgtype.Timestamptz
+	var ownerID pgtype.Int4
 	if err := row.Scan(
 		&data.StockOpnameID,
 		&data.Quantity,
@@ -449,10 +457,12 @@ func scanAuditData(row rowScanner) (*model.StockOpnameAuditData, error) {
 		&data.CoordinatorStatus,
 		&uploadID,
 		&uploadedAt,
+		&ownerID,
 	); err != nil {
 		return nil, err
 	}
 	data.RakUploadID = int4Ptr(uploadID)
+	data.UploadID = int4Ptr(ownerID)
 	if uploadedAt.Valid {
 		value := uploadedAt.Time
 		data.RakUploadedAt = &value
@@ -522,18 +532,25 @@ func (s *StockOpnameRepositoryImpl) FindByRakAndPLUForUpdate(ctx context.Context
 }
 
 // UpsertForMove inserts the moved row or adds its quantity to the existing
-// (rack, plu) row. It returns the resulting target row fields.
+// (rack, plu) row. Two rows owned by different uploads are not merged: the
+// guarded DO UPDATE filters the conflict row out, the statement reports no row,
+// and the caller turns that into a 409. It returns the resulting target row.
 func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error) {
 	const SQL = `
-		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::smallint)
+		INSERT INTO stock_opname (stock_opname_quantity, stock_opname_rak_id, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor, so_upload_id)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::smallint, $10)
 		ON CONFLICT (stock_opname_rak_id, so_product_plu) DO UPDATE
 		SET stock_opname_quantity = stock_opname.stock_opname_quantity + EXCLUDED.stock_opname_quantity,
 		    so_product_dept = COALESCE(NULLIF(stock_opname.so_product_dept, ''), EXCLUDED.so_product_dept),
+		    so_upload_id = COALESCE(stock_opname.so_upload_id, EXCLUDED.so_upload_id),
 		    stock_opname_updatedat = NOW()
-		RETURNING stock_opname_id, stock_opname_quantity, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor
+		WHERE stock_opname.so_upload_id IS NOT DISTINCT FROM EXCLUDED.so_upload_id
+		   OR stock_opname.so_upload_id IS NULL
+		   OR EXCLUDED.so_upload_id IS NULL
+		RETURNING stock_opname_id, stock_opname_quantity, so_product_plu, so_product_name, so_product_dept, so_barcode, so_buyprice, so_sellprice, so_qty_factor, so_upload_id
 	`
 	var data model.StockOpnameAuditData
+	var ownerID pgtype.Int4
 	err := tx.QueryRow(ctx, SQL,
 		stockOpname.StockOpnameQuantity,
 		stockOpname.StockOpnameRakID,
@@ -544,6 +561,7 @@ func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx
 		stockOpname.SoBuyPrice,
 		stockOpname.SoSellPrice,
 		stockOpname.SoQtyFactor,
+		stockOpname.SoUploadID,
 	).Scan(
 		&data.StockOpnameID,
 		&data.Quantity,
@@ -554,10 +572,18 @@ func (s *StockOpnameRepositoryImpl) UpsertForMove(ctx context.Context, tx pgx.Tx
 		&data.BuyPrice,
 		&data.SellPrice,
 		&data.QtyFactor,
+		&ownerID,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, &model.ConflictError{
+			Resource: "Stock Opname",
+			Detail:   fmt.Sprintf("PLU %s di rak tujuan sudah dimiliki upload lain; pindahkan ke rak berbeda", stockOpname.SoProductPLU),
+		}
+	}
 	if err != nil {
 		return nil, model.MapPgError("Stock Opname", err)
 	}
+	data.UploadID = int4Ptr(ownerID)
 	data.EffectiveQuantity = data.Quantity * float64(data.QtyFactor)
 	return &data, nil
 }
@@ -587,10 +613,65 @@ func (s *StockOpnameRepositoryImpl) CountByRak(ctx context.Context, tx pgx.Tx, r
 	return total, nil
 }
 
-// ReopenUploadIfEmpty clears the current upload pointer only when the rack is
-// uploaded and has no results. The snapshot is intentionally left untouched:
-// upload reports read current results, and the next upload overwrites it.
-func (s *StockOpnameRepositoryImpl) ReopenUploadIfEmpty(ctx context.Context, tx pgx.Tx, rakID int) (bool, error) {
+// AdoptUnownedRows gives every row without an owner in the freshly claimed
+// racks to one upload, including rows the batch does not scan. Upload reports
+// read ownership, not rack contents, so this is what makes an upload whole.
+func (s *StockOpnameRepositoryImpl) AdoptUnownedRows(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32) (int64, error) {
+	const SQL = `
+		UPDATE stock_opname
+		SET so_upload_id = $1
+		WHERE stock_opname_rak_id = ANY($2)
+		  AND so_upload_id IS NULL
+	`
+	res, err := tx.Exec(ctx, SQL, uploadID, rakIDs)
+	if err != nil {
+		return 0, model.MapPgError("Stock Opname", err)
+	}
+	return res.RowsAffected(), nil
+}
+
+// HasOwnedRows reports whether the upload still owns at least one row in the
+// rack. Create uses it before inheriting the rack host.
+func (s *StockOpnameRepositoryImpl) HasOwnedRows(ctx context.Context, tx pgx.Tx, rakID int, uploadID int) (bool, error) {
+	const SQL = `
+		SELECT EXISTS (
+			SELECT 1 FROM stock_opname
+			WHERE stock_opname_rak_id = $1
+			  AND so_upload_id = $2
+		)
+	`
+	var exists bool
+	if err := tx.QueryRow(ctx, SQL, rakID, uploadID).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
+// CountByUpload returns the item and rack counts of one upload. Both come from
+// ownership, so the upload response matches the list and the PDF.
+func (s *StockOpnameRepositoryImpl) CountByUpload(ctx context.Context, tx pgx.Tx, uploadID int) (int, int, error) {
+	const SQL = `
+		SELECT COUNT(*), COUNT(DISTINCT stock_opname_rak_id)
+		FROM stock_opname
+		WHERE so_upload_id = $1
+	`
+	var items, racks int
+	if err := tx.QueryRow(ctx, SQL, uploadID).Scan(&items, &racks); err != nil {
+		return 0, 0, err
+	}
+	return items, racks, nil
+}
+
+// ClearUploadPointerIfNoOwnedRows releases the host of a rack once the upload
+// no longer owns any row there. The snapshot is intentionally left untouched:
+// upload reports read ownership, and the next upload overwrites it.
+//
+// Lock order: Delete calls this after removing the stock_opname row, so it
+// takes stock_opname -> rak, the reverse of Move (rak -> stock_opname). That is
+// only safe because Delete holds the session FOR UPDATE while Move takes FOR
+// SHARE. Do not change the session lock in Delete without locking the rack
+// first.
+func (s *StockOpnameRepositoryImpl) ClearUploadPointerIfNoOwnedRows(ctx context.Context, tx pgx.Tx, rakID int) (bool, error) {
 	const SQL = `
 		UPDATE rak
 		SET rak_upload_id = NULL
@@ -599,6 +680,7 @@ func (s *StockOpnameRepositoryImpl) ReopenUploadIfEmpty(ctx context.Context, tx 
 		  AND NOT EXISTS (
 		      SELECT 1 FROM stock_opname so
 		      WHERE so.stock_opname_rak_id = rak.rak_id
+		        AND so.so_upload_id = rak.rak_upload_id
 		  )
 		RETURNING rak_id
 	`

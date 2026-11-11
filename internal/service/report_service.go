@@ -188,7 +188,7 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int, includeCarton
 		uploadRackSection(pdf, rack, includeCarton)
 	}
 	if len(detail.Racks) == 0 {
-		reportNote(pdf, "Tidak ada rak aktif untuk upload ini.")
+		reportNote(pdf, "Tidak ada item milik upload ini.")
 	}
 	footer(pdf)
 

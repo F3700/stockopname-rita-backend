@@ -30,6 +30,7 @@ type StockOpnameAuditData struct {
 	CoordinatorStatus string     `json:"coordinator_status,omitempty"`
 	RakUploadID       *int       `json:"rak_upload_id,omitempty"`
 	RakUploadedAt     *time.Time `json:"rak_uploaded_at,omitempty"`
+	UploadID          *int       `json:"upload_id,omitempty"`
 	PLU               string     `json:"plu"`
 	Barcode           string     `json:"barcode"`
 	Name              string     `json:"name"`

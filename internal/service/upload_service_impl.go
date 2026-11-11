@@ -214,15 +214,32 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 		return dto.UploadResponse{}, &model.ConflictError{Resource: "Rack", Detail: "One or more racks are already uploaded or invalid"}
 	}
 
+	// Rows already sitting in the claimed racks join this upload before the
+	// batch is written, so a rack submitted with a partial count stays whole.
+	if _, err := s.StockOpnameRepository.AdoptUnownedRows(ctx, tx, upload.UploadID, rakIDs); err != nil {
+		return dto.UploadResponse{}, err
+	}
+
+	ownerID := upload.UploadID
 	allResults := make([]*model.StockOpname, 0, totalItems)
 	for _, payload := range payloads {
 		if err := s.RackRepository.SetSnapshot(ctx, tx, payload.rakID, payload.snapshot); err != nil {
 			return dto.UploadResponse{}, err
 		}
+		for _, result := range payload.results {
+			result.SoUploadID = &ownerID
+		}
 		allResults = append(allResults, payload.results...)
 	}
 	// One statement for the whole batch instead of one upsert per item.
 	if err := s.StockOpnameRepository.SaveMany(ctx, tx, allResults); err != nil {
+		return dto.UploadResponse{}, err
+	}
+
+	// Counts come from ownership, so adoption and take-over are included even
+	// though this request never scanned those rows.
+	itemCount, rackCount, err := s.StockOpnameRepository.CountByUpload(ctx, tx, upload.UploadID)
+	if err != nil {
 		return dto.UploadResponse{}, err
 	}
 
@@ -232,8 +249,8 @@ func (s *UploadServiceImpl) Create(ctx context.Context, req dto.CreateUploadRequ
 
 	return dto.UploadResponse{
 		UploadID:  upload.UploadID,
-		RackCount: len(payloads),
-		ItemCount: totalItems,
+		RackCount: rackCount,
+		ItemCount: itemCount,
 		CreatedAt: upload.CreatedAt.Format(time.RFC3339),
 	}, nil
 }

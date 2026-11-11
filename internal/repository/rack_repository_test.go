@@ -16,9 +16,9 @@ func TestRackFindAll(t *testing.T) {
 	coordinatorId, sessionId := 2, 3
 	uploaded := time.Now()
 	mock.ExpectQuery("FROM rak").WithArgs(pgxmock.AnyArg(), pgxmock.AnyArg()).WillReturnRows(
-		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt", "ItemCount"}).
-			AddRow(1, "R1", 2, nil, 0).
-			AddRow(2, "R2", 2, uploaded, 3),
+		pgxmock.NewRows([]string{"RakID", "RakName", "CoorID", "UploadedAt", "ItemCount", "UnownedCount", "CanUpload"}).
+			AddRow(1, "R1", 2, nil, 0, 0, true).
+			AddRow(2, "R2", 2, uploaded, 3, 1, false),
 	)
 
 	repo := NewRackRepository(mock)
@@ -34,6 +34,12 @@ func TestRackFindAll(t *testing.T) {
 	}
 	if !results[1].UploadedAt.Valid {
 		t.Error("expected rack 2 to be uploaded")
+	}
+	if !results[0].CanUpload || results[1].CanUpload {
+		t.Errorf("unexpected can_upload: %+v", results)
+	}
+	if results[1].UnownedCount != 1 {
+		t.Errorf("expected 1 unowned row, got %d", results[1].UnownedCount)
 	}
 	if results[1].ItemCount != 3 {
 		t.Errorf("expected 3 items, got %d", results[1].ItemCount)
@@ -108,10 +114,15 @@ func TestRackSaveConflict(t *testing.T) {
 	}
 }
 
+// Claiming locks the racks in id order first, so concurrent batches and moves
+// cannot deadlock, then updates only the racks nobody has claimed.
 func TestRackClaimForUpload(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectExec("NOT EXISTS").WithArgs(7, []int32{1, 2}, 3).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+	mock.ExpectQuery("ORDER BY rak_id").WithArgs([]int32{1, 2}, 3).WillReturnRows(
+		pgxmock.NewRows([]string{"rak_id"}).AddRow(1).AddRow(2),
+	)
+	mock.ExpectExec("AND rak_upload_id IS NULL").WithArgs(7, []int32{1, 2}, 3).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
 
 	repo := NewRackRepository(mock)
 	claimed, err := repo.ClaimForUpload(context.Background(), tx, 7, []int32{1, 2}, 3)

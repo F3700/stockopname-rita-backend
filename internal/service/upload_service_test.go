@@ -60,7 +60,12 @@ func TestUploadCreateBatch(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO upload").WithArgs(7).WillReturnRows(
 		pgxmock.NewRows([]string{"upload_id", "upload_createdat"}).AddRow(3, createdAt),
 	)
-	mock.ExpectExec("UPDATE rak").WithArgs(3, []int32{31, 32}, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+	mock.ExpectQuery("ORDER BY rak_id").WithArgs([]int32{31, 32}, 7).WillReturnRows(
+		pgxmock.NewRows([]string{"rak_id"}).AddRow(31).AddRow(32),
+	)
+	mock.ExpectExec("AND rak_upload_id IS NULL").WithArgs(3, []int32{31, 32}, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 2))
+	// Unowned rows already in the claimed racks join this upload first.
+	mock.ExpectExec("AND so_upload_id IS NULL").WithArgs(3, []int32{31, 32}).WillReturnResult(pgxmock.NewResult("UPDATE", 0))
 	mock.ExpectExec("UPDATE rak").WithArgs(31, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectExec("UPDATE rak").WithArgs(32, pgxmock.AnyArg()).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	// And one upsert statement for both rows instead of one per item.
@@ -74,7 +79,11 @@ func TestUploadCreateBatch(t *testing.T) {
 		[]float64{14500, 14500},
 		[]float64{17200, 17200},
 		[]int16{1, 1},
+		[]int32{3, 3},
 	).WillReturnResult(pgxmock.NewResult("INSERT", 2))
+	mock.ExpectQuery("DISTINCT stock_opname_rak_id").WithArgs(3).WillReturnRows(
+		pgxmock.NewRows([]string{"items", "racks"}).AddRow(2, 2),
+	)
 	mock.ExpectCommit()
 
 	svc := newUploadServiceWithMock(mock, t)
@@ -108,7 +117,10 @@ func TestUploadCreateAlreadyUploaded(t *testing.T) {
 	mock.ExpectQuery("INSERT INTO upload").WithArgs(7).WillReturnRows(
 		pgxmock.NewRows([]string{"upload_id", "upload_createdat"}).AddRow(3, time.Now()),
 	)
-	mock.ExpectExec("UPDATE rak").WithArgs(3, []int32{31, 32}, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
+	mock.ExpectQuery("ORDER BY rak_id").WithArgs([]int32{31, 32}, 7).WillReturnRows(
+		pgxmock.NewRows([]string{"rak_id"}).AddRow(31).AddRow(32),
+	)
+	mock.ExpectExec("AND rak_upload_id IS NULL").WithArgs(3, []int32{31, 32}, 7).WillReturnResult(pgxmock.NewResult("UPDATE", 1))
 	mock.ExpectRollback()
 
 	svc := newUploadServiceWithMock(mock, t)

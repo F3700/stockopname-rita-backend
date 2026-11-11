@@ -21,8 +21,8 @@ func moveAuditDataRows(id, rakID, coorID int, quantity float64) *pgxmock.Rows {
 }
 
 func moveAuditDataRowsWithFactor(id, rakID, coorID int, quantity float64, factor int) *pgxmock.Rows {
-	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat"}).
-		AddRow(id, quantity, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, factor, rakID, "Rak", coorID, "KOR-01", "IN_PROGRESS", nil, nil)
+	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat", "so_upload_id"}).
+		AddRow(id, quantity, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, factor, rakID, "Rak", coorID, "KOR-01", "IN_PROGRESS", nil, nil, nil)
 }
 
 func TestStockOpnameMoveMergesAndAudits(t *testing.T) {
@@ -43,9 +43,9 @@ func TestStockOpnameMoveMergesAndAudits(t *testing.T) {
 	mock.ExpectQuery("FOR UPDATE OF r").WithArgs(5).WillReturnRows(moveRackContextRows(5, 4))
 	mock.ExpectQuery("FOR UPDATE OF so").WithArgs(2, pgxmock.AnyArg()).WillReturnRows(moveAuditDataRows(4, 2, 4, 5))
 	mock.ExpectQuery("FOR UPDATE OF so").WithArgs(5, "100251").WillReturnRows(moveAuditDataRows(8, 5, 4, 2))
-	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").WithArgs(5.0, 5, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1).
-		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id", "stock_opname_quantity", "so_product_plu", "so_product_name", "so_product_dept", "so_barcode", "so_buyprice", "so_sellprice", "so_qty_factor"}).
-			AddRow(8, 7.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1))
+	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").WithArgs(5.0, 5, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1, pgxmock.AnyArg()).
+		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id", "stock_opname_quantity", "so_product_plu", "so_product_name", "so_product_dept", "so_barcode", "so_buyprice", "so_sellprice", "so_qty_factor", "so_upload_id"}).
+			AddRow(8, 7.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1, nil))
 	mock.ExpectExec("DELETE FROM stock_opname").WithArgs(4).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 	mock.ExpectExec("INSERT INTO stock_opname_audit").WithArgs(
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),
@@ -86,9 +86,9 @@ func TestStockOpnameMoveWholeRackCrossCoordinator(t *testing.T) {
 	mock.ExpectQuery("FOR UPDATE OF r").WithArgs(5).WillReturnRows(moveRackContextRows(5, 6))
 	mock.ExpectQuery("FOR UPDATE OF so").WithArgs(2).WillReturnRows(moveAuditDataRows(4, 2, 4, 5))
 	mock.ExpectQuery("FOR UPDATE OF so").WithArgs(5, "100251").WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id"}))
-	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").WithArgs(5.0, 5, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1).
-		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id", "stock_opname_quantity", "so_product_plu", "so_product_name", "so_product_dept", "so_barcode", "so_buyprice", "so_sellprice", "so_qty_factor"}).
-			AddRow(9, 5.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1))
+	mock.ExpectQuery("ON CONFLICT \\(stock_opname_rak_id, so_product_plu\\) DO UPDATE").WithArgs(5.0, 5, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1, pgxmock.AnyArg()).
+		WillReturnRows(pgxmock.NewRows([]string{"stock_opname_id", "stock_opname_quantity", "so_product_plu", "so_product_name", "so_product_dept", "so_barcode", "so_buyprice", "so_sellprice", "so_qty_factor", "so_upload_id"}).
+			AddRow(9, 5.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1, nil))
 	mock.ExpectExec("DELETE FROM stock_opname").WithArgs(4).WillReturnResult(pgxmock.NewResult("DELETE", 1))
 	mock.ExpectExec("INSERT INTO stock_opname_audit").WithArgs(
 		pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(), pgxmock.AnyArg(),

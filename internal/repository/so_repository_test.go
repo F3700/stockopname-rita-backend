@@ -12,6 +12,7 @@ import (
 )
 
 func newTestStockOpname() *model.StockOpname {
+	uploadID := 5
 	return &model.StockOpname{
 		StockOpnameQuantity: 10,
 		StockOpnameRakID:    2,
@@ -22,6 +23,7 @@ func newTestStockOpname() *model.StockOpname {
 		SoBuyPrice:          14500,
 		SoSellPrice:         17200,
 		SoQtyFactor:         1,
+		SoUploadID:          &uploadID,
 	}
 }
 
@@ -54,8 +56,8 @@ func TestScanAuditDataEffectiveQuantity(t *testing.T) {
 	mock.ExpectQuery("audit").WillReturnRows(pgxmock.NewRows([]string{
 		"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode",
 		"buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code",
-		"coor_status", "rak_upload_id", "upload_createdat",
-	}).AddRow(4, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, -1, 2, "R1", 4, "KOR-01", "IN_PROGRESS", nil, nil))
+		"coor_status", "rak_upload_id", "upload_createdat", "so_upload_id",
+	}).AddRow(4, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, -1, 2, "R1", 4, "KOR-01", "IN_PROGRESS", nil, nil, int64(9)))
 
 	rows, err := mock.Query(context.Background(), "audit")
 	if err != nil {
@@ -72,6 +74,9 @@ func TestScanAuditDataEffectiveQuantity(t *testing.T) {
 	}
 	if data.QtyFactor != -1 || data.EffectiveQuantity != -10 {
 		t.Errorf("unexpected effective quantity: factor=%d effective=%v", data.QtyFactor, data.EffectiveQuantity)
+	}
+	if data.UploadID == nil || *data.UploadID != 9 {
+		t.Errorf("expected the row owner to be scanned, got %v", data.UploadID)
 	}
 }
 
@@ -104,6 +109,7 @@ func TestStockOpnameSaveMany(t *testing.T) {
 			[]float64{14500, 14500},
 			[]float64{17200, 17200},
 			[]int16{1, 1},
+			[]int32{5, 5},
 		).
 		WillReturnResult(pgxmock.NewResult("INSERT", 2))
 
@@ -127,33 +133,105 @@ func TestStockOpnameSaveManyEmpty(t *testing.T) {
 	}
 }
 
-func TestStockOpnameReopenUploadIfEmpty(t *testing.T) {
+func TestStockOpnameClearUploadPointerIfNoOwnedRows(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(2))
+	mock.ExpectQuery("so.so_upload_id = rak.rak_upload_id").WithArgs(2).
+		WillReturnRows(pgxmock.NewRows([]string{"rak_id"}).AddRow(2))
 
 	repo := NewStockOpnameRepository(mock)
-	reopened, err := repo.ReopenUploadIfEmpty(context.Background(), tx, 2)
+	cleared, err := repo.ClearUploadPointerIfNoOwnedRows(context.Background(), tx, 2)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if !reopened {
-		t.Error("expected uploaded empty rack to reopen")
+	if !cleared {
+		t.Error("expected the host to be released")
 	}
 }
 
-func TestStockOpnameReopenUploadIfEmptyNoop(t *testing.T) {
+func TestStockOpnameClearUploadPointerIfNoOwnedRowsNoop(t *testing.T) {
 	mock := mustMockPool(t)
 	tx := mustBeginTx(t, mock)
-	mock.ExpectQuery("UPDATE rak").WithArgs(2).WillReturnRows(pgxmock.NewRows([]string{"rak_id"}))
+	mock.ExpectQuery("so.so_upload_id = rak.rak_upload_id").WithArgs(2).
+		WillReturnRows(pgxmock.NewRows([]string{"rak_id"}))
 
 	repo := NewStockOpnameRepository(mock)
-	reopened, err := repo.ReopenUploadIfEmpty(context.Background(), tx, 2)
+	cleared, err := repo.ClearUploadPointerIfNoOwnedRows(context.Background(), tx, 2)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if reopened {
-		t.Error("expected non-empty or unuploaded rack to stay closed")
+	if cleared {
+		t.Error("expected the host to stay while it still owns rows")
+	}
+}
+
+func TestStockOpnameAdoptUnownedRows(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectExec("AND so_upload_id IS NULL").WithArgs(9, []int32{2, 3}).
+		WillReturnResult(pgxmock.NewResult("UPDATE", 4))
+
+	repo := NewStockOpnameRepository(mock)
+	adopted, err := repo.AdoptUnownedRows(context.Background(), tx, 9, []int32{2, 3})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if adopted != 4 {
+		t.Errorf("expected 4 adopted rows, got %d", adopted)
+	}
+}
+
+func TestStockOpnameHasOwnedRows(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("EXISTS").WithArgs(2, 9).
+		WillReturnRows(pgxmock.NewRows([]string{"exists"}).AddRow(true))
+
+	repo := NewStockOpnameRepository(mock)
+	owns, err := repo.HasOwnedRows(context.Background(), tx, 2, 9)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !owns {
+		t.Error("expected the host to own a row")
+	}
+}
+
+func TestStockOpnameCountByUpload(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("DISTINCT stock_opname_rak_id").WithArgs(9).
+		WillReturnRows(pgxmock.NewRows([]string{"items", "racks"}).AddRow(7, 3))
+
+	repo := NewStockOpnameRepository(mock)
+	items, racks, err := repo.CountByUpload(context.Background(), tx, 9)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if items != 7 || racks != 3 {
+		t.Errorf("unexpected counts items=%d racks=%d", items, racks)
+	}
+}
+
+// Merging rows owned by two different uploads must never happen: the guarded
+// upsert reports no row and the caller sees a conflict instead of a silent
+// take-over.
+func TestStockOpnameUpsertForMoveRejectsDifferentOwner(t *testing.T) {
+	mock := mustMockPool(t)
+	tx := mustBeginTx(t, mock)
+	mock.ExpectQuery("DO UPDATE").
+		WithArgs(10.0, 2, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, 1, pgxmock.AnyArg()).
+		WillReturnRows(pgxmock.NewRows([]string{
+			"stock_opname_id", "quantity", "plu", "name", "department_code",
+			"barcode", "buy", "sell", "qty_factor", "so_upload_id",
+		}))
+
+	repo := NewStockOpnameRepository(mock)
+	_, err := repo.UpsertForMove(context.Background(), tx, newTestStockOpname())
+
+	var conflict *model.ConflictError
+	if !errors.As(err, &conflict) {
+		t.Fatalf("expected ConflictError, got %v", err)
 	}
 }
 

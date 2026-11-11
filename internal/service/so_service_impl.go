@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"stockopname-rita-backend/internal/dto"
 	"stockopname-rita-backend/internal/helper"
@@ -119,6 +120,7 @@ func auditDataForRack(rack *model.StockOpnameRackContext, so *model.StockOpname)
 		CoordinatorStatus: rack.CoorStatus,
 		RakUploadID:       rack.UploadID,
 		RakUploadedAt:     rack.UploadedAt,
+		UploadID:          so.SoUploadID,
 		PLU:               so.SoProductPLU,
 		Barcode:           so.SoBarcode,
 		Name:              so.SoProductName,
@@ -229,6 +231,18 @@ func (s *StockOpnameServiceImpl) Create(ctx context.Context, req dto.CreateStock
 
 	modelSO := snapshot(*req.Quantity, req.RakID, product, req.Barcode)
 
+	// A new row joins the rack host only while that host still owns a row here.
+	// Otherwise it stays unowned and the next upload of the rack adopts it.
+	if rack.UploadID != nil {
+		owns, err := s.StockOpnameRepository.HasOwnedRows(ctx, tx, rack.RakID, *rack.UploadID)
+		if err != nil {
+			return dto.StockOpnameResponse{}, err
+		}
+		if owns {
+			modelSO.SoUploadID = rack.UploadID
+		}
+	}
+
 	if err := s.StockOpnameRepository.Create(ctx, tx, modelSO); err != nil {
 		return dto.StockOpnameResponse{}, err
 	}
@@ -295,7 +309,7 @@ func (s *StockOpnameServiceImpl) Delete(ctx context.Context, id int, actor strin
 	if err := s.StockOpnameRepository.Delete(ctx, tx, id); err != nil {
 		return err
 	}
-	if _, err := s.StockOpnameRepository.ReopenUploadIfEmpty(ctx, tx, before.RakID); err != nil {
+	if _, err := s.StockOpnameRepository.ClearUploadPointerIfNoOwnedRows(ctx, tx, before.RakID); err != nil {
 		return err
 	}
 
@@ -517,12 +531,30 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 	mergedCount := 0
 	var reopenedRackID *int
 
+	// Moving inside one coordinator keeps the owner. Crossing coordinators
+	// always re-owns the row: to the target rack host, or to nobody when that
+	// rack has no host yet.
+	sameCoordinator := sourceCtx.CoorID == targetCtx.CoorID
+
 	for _, source := range sources {
+		owner := source.UploadID
+		if !sameCoordinator {
+			owner = targetCtx.UploadID
+		}
+
 		existing, err := s.StockOpnameRepository.FindByRakAndPLUForUpdate(ctx, tx, targetCtx.RakID, source.PLU)
 		if err != nil {
 			return dto.MoveStockOpnameResponse{}, err
 		}
 		if existing != nil {
+			// Ownership is checked before the factor: merging two different
+			// owners is never allowed, whatever their factors are.
+			if existing.UploadID != nil && owner != nil && *existing.UploadID != *owner {
+				return dto.MoveStockOpnameResponse{}, &model.ConflictError{
+					Resource: "Stock Opname",
+					Detail:   fmt.Sprintf("PLU %s di rak tujuan sudah dimiliki upload lain; pindahkan ke rak berbeda", source.PLU),
+				}
+			}
 			if existing.QtyFactor != source.QtyFactor {
 				return dto.MoveStockOpnameResponse{}, &model.ConflictError{
 					Resource: "Stock Opname",
@@ -542,6 +574,7 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 			SoBuyPrice:          source.BuyPrice,
 			SoSellPrice:         source.SellPrice,
 			SoQtyFactor:         source.QtyFactor,
+			SoUploadID:          owner,
 		}
 		target, err := s.StockOpnameRepository.UpsertForMove(ctx, tx, moved)
 		if err != nil {
@@ -573,7 +606,7 @@ func (s *StockOpnameServiceImpl) Move(ctx context.Context, req dto.MoveStockOpna
 		movedCount++
 	}
 
-	reopened, err := s.StockOpnameRepository.ReopenUploadIfEmpty(ctx, tx, sourceCtx.RakID)
+	reopened, err := s.StockOpnameRepository.ClearUploadPointerIfNoOwnedRows(ctx, tx, sourceCtx.RakID)
 	if err != nil {
 		return dto.MoveStockOpnameResponse{}, err
 	}

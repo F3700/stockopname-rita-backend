@@ -26,9 +26,10 @@ func (r *UploadRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, upload *mode
 	return tx.QueryRow(ctx, SQL, upload.CoorID).Scan(&upload.UploadID, &upload.CreatedAt)
 }
 
-// FindAllSummary implements [UploadRepository]. Counts are live: item counts
-// come from stock_opname, not the upload snapshot. Uploads without an active
-// rack are hidden, but their row is kept for stable upload numbers.
+// FindAllSummary implements [UploadRepository]. Counts come from row
+// ownership, not from the racks the upload once claimed, so an item moved to
+// another rack still counts here. Uploads without any owned row are hidden, but
+// their row is kept for stable upload numbers.
 func (r *UploadRepositoryImpl) FindAllSummary(ctx context.Context, coordinatorId int) ([]*model.UploadSummary, error) {
 	const SQL = `
 		WITH numbered AS (
@@ -42,14 +43,12 @@ func (r *UploadRepositoryImpl) FindAllSummary(ctx context.Context, coordinatorId
 		),
 		stats AS (
 			SELECT
-				u.upload_id,
-				COUNT(DISTINCT r.rak_id) AS rack_count,
-				COUNT(so.stock_opname_id) AS item_count
-			FROM upload u
-			LEFT JOIN rak r ON r.rak_upload_id = u.upload_id
-			LEFT JOIN stock_opname so ON so.stock_opname_rak_id = r.rak_id
-			WHERE u.upload_coor_id = $1
-			GROUP BY u.upload_id
+				so.so_upload_id AS upload_id,
+				COUNT(DISTINCT so.stock_opname_rak_id) AS rack_count,
+				COUNT(*) AS item_count
+			FROM stock_opname so
+			WHERE so.so_upload_id IN (SELECT upload_id FROM numbered)
+			GROUP BY so.so_upload_id
 		)
 		SELECT
 			n.upload_id AS UploadID,
@@ -59,8 +58,7 @@ func (r *UploadRepositoryImpl) FindAllSummary(ctx context.Context, coordinatorId
 			s.item_count AS ItemCount,
 			n.upload_createdat AS CreatedAt
 		FROM numbered n
-		JOIN stats s USING (upload_id)
-		WHERE s.rack_count > 0
+		JOIN stats s ON s.upload_id = n.upload_id
 		ORDER BY n.upload_createdat DESC, n.upload_id DESC;
 	`
 	rows, err := r.Pool.Query(ctx, SQL, coordinatorId)
@@ -76,9 +74,9 @@ func (r *UploadRepositoryImpl) FindAllSummary(ctx context.Context, coordinatorId
 	return uploads, nil
 }
 
-// FindSummaryByCoordinator returns one row per upload with totals from current
-// stock opname rows. Rows in racks without an upload are grouped under
-// UploadID 0 ("Belum upload").
+// FindSummaryByCoordinator returns one row per upload with totals from row
+// ownership. Rows without an owner are grouped under UploadID 0 ("Belum
+// upload"), so the coordinator total always reconciles.
 func (r *UploadRepositoryImpl) FindSummaryByCoordinator(ctx context.Context, coordinatorId int) ([]*model.UploadReportRow, error) {
 	const SQL = `
 		WITH numbered AS (
@@ -90,31 +88,21 @@ func (r *UploadRepositoryImpl) FindSummaryByCoordinator(ctx context.Context, coo
 				) AS upload_number
 			FROM upload u
 			WHERE u.upload_coor_id = $1
-		),
-		current_rows AS (
-			SELECT
-				c.coor_code,
-				COALESCE(r.rak_upload_id, 0) AS upload_id,
-				COALESCE(n.upload_number, 0) AS upload_number,
-				so.stock_opname_quantity * so.so_qty_factor AS qty,
-				so.so_buyprice AS buy_price,
-				so.so_sellprice AS sell_price
-			FROM stock_opname so
-			JOIN rak r ON r.rak_id = so.stock_opname_rak_id
-			JOIN coordinator c ON c.coor_id = r.rak_coor_id
-			LEFT JOIN numbered n ON n.upload_id = r.rak_upload_id
-			WHERE c.coor_id = $1
 		)
 		SELECT
-			coor_code AS CoordinatorCode,
-			upload_id AS UploadID,
-			upload_number AS UploadNumber,
-			COALESCE(SUM(qty), 0) AS Qty,
-			COALESCE(SUM(qty * buy_price), 0) AS TotalBuy,
-			COALESCE(SUM(qty * sell_price), 0) AS TotalSell
-		FROM current_rows
-		GROUP BY coor_code, upload_id, upload_number
-		ORDER BY (upload_id = 0), upload_id;
+			c.coor_code AS CoordinatorCode,
+			COALESCE(so.so_upload_id, 0) AS UploadID,
+			COALESCE(n.upload_number, 0) AS UploadNumber,
+			COALESCE(SUM(so.stock_opname_quantity * so.so_qty_factor), 0) AS Qty,
+			COALESCE(SUM(so.stock_opname_quantity * so.so_qty_factor * so.so_buyprice), 0) AS TotalBuy,
+			COALESCE(SUM(so.stock_opname_quantity * so.so_qty_factor * so.so_sellprice), 0) AS TotalSell
+		FROM stock_opname so
+		JOIN rak r ON r.rak_id = so.stock_opname_rak_id
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
+		LEFT JOIN numbered n ON n.upload_id = so.so_upload_id
+		WHERE c.coor_id = $1
+		GROUP BY c.coor_code, COALESCE(so.so_upload_id, 0), COALESCE(n.upload_number, 0)
+		ORDER BY (COALESCE(so.so_upload_id, 0) = 0), COALESCE(so.so_upload_id, 0);
 	`
 	rows, err := r.Pool.Query(ctx, SQL, coordinatorId)
 	if err != nil {
@@ -125,8 +113,9 @@ func (r *UploadRepositoryImpl) FindSummaryByCoordinator(ctx context.Context, coo
 	return pgx.CollectRows(rows, pgx.RowToAddrOfStructByName[model.UploadReportRow])
 }
 
-// FindDetail implements [UploadRepository]. Rack items are read from current
-// stock_opname rows, so admin corrections are reflected in the upload report.
+// FindDetail implements [UploadRepository]. Items are grouped by the rack they
+// currently sit in, and racks with no item of this upload simply do not appear.
+// An item moved to another rack still shows up here, under its new rack.
 func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*model.UploadDetail, error) {
 	const headerSQL = `
 		SELECT
@@ -161,22 +150,21 @@ func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*m
 		SELECT
 			r.rak_id,
 			r.rak_name,
-			COALESCE(so.so_barcode, '') AS barcode,
-			COALESCE(so.so_product_plu, '') AS plu,
-			COALESCE(so.so_product_name, '') AS name,
-			COALESCE(so.so_product_dept, '') AS dept,
-			COALESCE(so.stock_opname_quantity * so.so_qty_factor, 0) AS qty,
-			COALESCE(so.so_buyprice, 0) AS buy_price,
-			COALESCE(so.so_sellprice, 0) AS sell_price,
-			COALESCE(p.product_per_carton, 0) AS per_carton,
-			(so.stock_opname_id IS NOT NULL) AS has_item
-		FROM rak r
+			so.so_barcode AS barcode,
+			so.so_product_plu AS plu,
+			so.so_product_name AS name,
+			so.so_product_dept AS dept,
+			so.stock_opname_quantity * so.so_qty_factor AS qty,
+			so.so_buyprice AS buy_price,
+			so.so_sellprice AS sell_price,
+			COALESCE(p.product_per_carton, 0) AS per_carton
+		FROM stock_opname so
+		JOIN rak r ON r.rak_id = so.stock_opname_rak_id
 		JOIN coordinator c ON c.coor_id = r.rak_coor_id
-		LEFT JOIN stock_opname so ON so.stock_opname_rak_id = r.rak_id
 		LEFT JOIN product p
 			ON p.product_sesi_id = c.coor_sesi_id
 			AND p.product_plu = so.so_product_plu
-		WHERE r.rak_upload_id = $1
+		WHERE so.so_upload_id = $1
 		ORDER BY r.rak_name, so.so_product_name;
 	`
 	rows, err := r.Pool.Query(ctx, racksSQL, uploadID)
@@ -201,7 +189,6 @@ func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*m
 		var rakID int
 		var rakName string
 		var item model.UploadItem
-		var hasItem bool
 		if err := rows.Scan(
 			&rakID,
 			&rakName,
@@ -213,7 +200,6 @@ func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*m
 			&item.BuyPrice,
 			&item.SellPrice,
 			&item.PerCarton,
-			&hasItem,
 		); err != nil {
 			return nil, err
 		}
@@ -225,9 +211,7 @@ func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*m
 				Items:   make([]model.UploadItem, 0),
 			}
 		}
-		if hasItem {
-			current.Items = append(current.Items, item)
-		}
+		current.Items = append(current.Items, item)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err

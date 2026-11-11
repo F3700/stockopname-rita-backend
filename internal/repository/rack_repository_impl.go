@@ -26,10 +26,18 @@ func (r *RackRepositoryImpl) FindAll(ctx context.Context, coordinatorId *int, se
 			r.rak_name AS RakName,
 			r.rak_coor_id AS CoorID,
 			u.upload_createdat AS UploadedAt,
-			(SELECT COUNT(*) FROM stock_opname so WHERE so.stock_opname_rak_id = r.rak_id) AS ItemCount
+			st.item_count AS ItemCount,
+			st.unowned_count AS UnownedCount,
+			(r.rak_upload_id IS NULL) AS CanUpload
 		FROM rak r
 		JOIN coordinator c ON c.coor_id = r.rak_coor_id
 		LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
+		LEFT JOIN LATERAL (
+			SELECT COUNT(*) AS item_count,
+			       COUNT(*) FILTER (WHERE so.so_upload_id IS NULL) AS unowned_count
+			FROM stock_opname so
+			WHERE so.stock_opname_rak_id = r.rak_id
+		) st ON true
 		WHERE ($1::int IS NULL OR c.coor_id = $1::int)
 		AND ($2::int IS NULL OR c.coor_sesi_id = $2::int)
 		ORDER BY regexp_replace(r.rak_name, '[0-9]+$', ''),
@@ -105,22 +113,39 @@ func (r *RackRepositoryImpl) Save(ctx context.Context, tx pgx.Tx, rack *model.Ra
 }
 
 // ClaimForUpload attaches every rack of one batch to the upload. Returns how
-// many rows were claimed; a smaller count means a rack is non-empty or already
-// uploaded, belonged to another coordinator, or does not exist. Uploaded racks
-// with no current results may be claimed again (e.g. after admin corrections).
+// many rows were claimed; a smaller count means a rack was already claimed,
+// belonged to another coordinator, or does not exist.
+//
+// A rack may be claimed while it still holds results from other uploads: those
+// rows keep their owner, and the new upload only adopts the unowned ones.
 func (r *RackRepositoryImpl) ClaimForUpload(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32, coorID int) (int64, error) {
+	// Lock the racks in a deterministic order before updating. Ordering the
+	// input array is not enough: Postgres locks rows in plan order, not array
+	// order, so two batches with overlapping racks could still deadlock with a
+	// concurrent Move (which locks two racks by ascending id).
+	const lockSQL = `
+		SELECT rak_id
+		FROM rak
+		WHERE rak_id = ANY($1)
+		  AND rak_coor_id = $2
+		ORDER BY rak_id
+		FOR UPDATE
+	`
+	locked, err := tx.Query(ctx, lockSQL, rakIDs, coorID)
+	if err != nil {
+		return 0, err
+	}
+	locked.Close()
+	if err := locked.Err(); err != nil {
+		return 0, err
+	}
+
 	const SQL = `
 		UPDATE rak
 		SET rak_upload_id = $1
 		WHERE rak_id = ANY($2)
 		  AND rak_coor_id = $3
-		  AND (
-		      rak_upload_id IS NULL
-		      OR NOT EXISTS (
-		          SELECT 1 FROM stock_opname so
-		          WHERE so.stock_opname_rak_id = rak.rak_id
-		      )
-		  )
+		  AND rak_upload_id IS NULL
 	`
 	res, err := tx.Exec(ctx, SQL, uploadID, rakIDs, coorID)
 	if err != nil {
@@ -143,9 +168,17 @@ const selectRackState = `
 		r.rak_name AS RakName,
 		r.rak_coor_id AS CoorID,
 		u.upload_createdat AS UploadedAt,
-		(SELECT COUNT(*) FROM stock_opname so WHERE so.stock_opname_rak_id = r.rak_id) AS ItemCount
+		st.item_count AS ItemCount,
+		st.unowned_count AS UnownedCount,
+		(r.rak_upload_id IS NULL) AS CanUpload
 	FROM rak r
 	LEFT JOIN upload u ON u.upload_id = r.rak_upload_id
+	LEFT JOIN LATERAL (
+		SELECT COUNT(*) AS item_count,
+		       COUNT(*) FILTER (WHERE so.so_upload_id IS NULL) AS unowned_count
+		FROM stock_opname so
+		WHERE so.stock_opname_rak_id = r.rak_id
+	) st ON true
 	WHERE r.rak_id = $1
 `
 
@@ -153,7 +186,7 @@ const selectRackState = `
 func (r *RackRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
 	var state model.RackState
 	err := tx.QueryRow(ctx, selectRackState, rakID).
-		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt, &state.ItemCount)
+		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt, &state.ItemCount, &state.UnownedCount, &state.CanUpload)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
 	}
@@ -167,7 +200,7 @@ func (r *RackRepositoryImpl) FindById(ctx context.Context, tx pgx.Tx, rakID int)
 func (r *RackRepositoryImpl) FindByIdForUpdate(ctx context.Context, tx pgx.Tx, rakID int) (*model.RackState, error) {
 	var state model.RackState
 	err := tx.QueryRow(ctx, selectRackState+" FOR UPDATE OF r", rakID).
-		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt, &state.ItemCount)
+		Scan(&state.RakID, &state.RakName, &state.CoorID, &state.UploadedAt, &state.ItemCount, &state.UnownedCount, &state.CanUpload)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, &model.NotFoundError{Resource: "Rack", ID: rakID}
 	}
