@@ -2440,6 +2440,38 @@
                             "type": "object",
                             "nullable": true,
                             "description": "Set for kind=single only."
+                          },
+                          "factor_before": {
+                            "type": "integer",
+                            "nullable": true,
+                            "enum": [
+                              -1,
+                              0,
+                              1
+                            ],
+                            "description": "Set for kind=batch when every row shared the same previous factor."
+                          },
+                          "factor_after": {
+                            "type": "integer",
+                            "nullable": true,
+                            "enum": [
+                              -1,
+                              0,
+                              1
+                            ],
+                            "description": "Set for kind=batch."
+                          },
+                          "source_rak_name": {
+                            "type": "string",
+                            "description": "Set for kind=batch with action MOVE."
+                          },
+                          "target_rak_name": {
+                            "type": "string",
+                            "description": "Set for kind=batch with action MOVE."
+                          },
+                          "merged_count": {
+                            "type": "integer",
+                            "description": "Number of moved rows whose quantity merged into an existing row."
                           }
                         }
                       }

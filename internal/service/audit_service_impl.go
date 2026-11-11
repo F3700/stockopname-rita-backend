@@ -105,6 +105,11 @@ func (a *AuditServiceImpl) FindTimeline(ctx context.Context, filter repository.A
 		}
 		if item.Kind == "batch" {
 			response.ItemCount = item.ItemCount
+			response.FactorBefore = item.FactorBefore
+			response.FactorAfter = item.FactorAfter
+			response.SourceRakName = item.SourceRakName
+			response.TargetRakName = item.TargetRakName
+			response.MergedCount = item.MergedCount
 		} else {
 			response.ID = item.AuditID
 			before := json.RawMessage(item.BeforeData)

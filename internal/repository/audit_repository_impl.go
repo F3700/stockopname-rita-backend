@@ -248,7 +248,12 @@ func (r *AuditRepositoryImpl) FindTimeline(ctx context.Context, filter AuditFilt
 				a.created_at,
 				1 AS item_count,
 				a.before_data,
-				a.after_data
+				a.after_data,
+				NULL::int AS factor_before,
+				NULL::int AS factor_after,
+				NULL::text AS source_rak_name,
+				NULL::text AS target_rak_name,
+				0 AS merged_count
 			FROM filtered a
 			WHERE a.batch_id IS NULL
 			AND ($4::text[] IS NULL OR a.action = ANY($4::text[]))
@@ -264,7 +269,17 @@ func (r *AuditRepositoryImpl) FindTimeline(ctx context.Context, filter AuditFilt
 				MIN(a.created_at) AS created_at,
 				COUNT(*)::int AS item_count,
 				CASE WHEN COUNT(*) = 1 THEN (array_agg(a.before_data))[1] ELSE NULL END AS before_data,
-				CASE WHEN COUNT(*) = 1 THEN (array_agg(a.after_data))[1] ELSE NULL END AS after_data
+				CASE WHEN COUNT(*) = 1 THEN (array_agg(a.after_data))[1] ELSE NULL END AS after_data,
+				CASE WHEN COUNT(DISTINCT COALESCE(a.before_data->>'qty_factor', a.before_data->>'sell_factor')) = 1
+					THEN MIN(COALESCE(a.before_data->>'qty_factor', a.before_data->>'sell_factor'))::int
+				END AS factor_before,
+				MIN(COALESCE(a.after_data->>'qty_factor', a.after_data->>'sell_factor'))::int AS factor_after,
+				MIN(a.before_data->>'rak_name') AS source_rak_name,
+				MIN(a.after_data->>'rak_name') AS target_rak_name,
+				COUNT(*) FILTER (
+					WHERE a.action = 'MOVE'
+					AND COALESCE((a.after_data->>'quantity')::numeric <> (a.before_data->>'quantity')::numeric, false)
+				)::int AS merged_count
 			FROM filtered a
 			WHERE a.batch_id IS NOT NULL
 			GROUP BY a.batch_id
@@ -280,7 +295,12 @@ func (r *AuditRepositoryImpl) FindTimeline(ctx context.Context, filter AuditFilt
 			t.created_at,
 			t.item_count,
 			COALESCE(t.before_data, 'null'::jsonb) AS before_data,
-			COALESCE(t.after_data, 'null'::jsonb) AS after_data
+			COALESCE(t.after_data, 'null'::jsonb) AS after_data,
+			t.factor_before,
+			t.factor_after,
+			COALESCE(t.source_rak_name, '') AS source_rak_name,
+			COALESCE(t.target_rak_name, '') AS target_rak_name,
+			t.merged_count
 		FROM (SELECT * FROM singles UNION ALL SELECT * FROM batched) t
 		ORDER BY t.created_at DESC, COALESCE(t.audit_id, 0) DESC, t.batch_id DESC
 		LIMIT $5 OFFSET $6
@@ -296,6 +316,7 @@ func (r *AuditRepositoryImpl) FindTimeline(ctx context.Context, filter AuditFilt
 		var item model.AuditTimelineItem
 		var auditID int64
 		var before, after json.RawMessage
+		var factorBefore, factorAfter pgtype.Int4
 		if err := rows.Scan(
 			&item.Kind,
 			&auditID,
@@ -307,9 +328,16 @@ func (r *AuditRepositoryImpl) FindTimeline(ctx context.Context, filter AuditFilt
 			&item.ItemCount,
 			&before,
 			&after,
+			&factorBefore,
+			&factorAfter,
+			&item.SourceRakName,
+			&item.TargetRakName,
+			&item.MergedCount,
 		); err != nil {
 			return nil, 0, err
 		}
+		item.FactorBefore = int4Ptr(factorBefore)
+		item.FactorAfter = int4Ptr(factorAfter)
 		if item.Kind == "single" {
 			id := auditID
 			item.AuditID = &id

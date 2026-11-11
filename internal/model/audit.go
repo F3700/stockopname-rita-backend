@@ -55,16 +55,21 @@ type StockOpnameAuditBatch struct {
 // change or a batch summary. AuditID is nil for a batch; BatchID is set for
 // both, including a batch that collapsed into a single row.
 type AuditTimelineItem struct {
-	Kind       string
-	AuditID    *int64
-	BatchID    string
-	Action     string
-	Actor      string
-	Note       string
-	CreatedAt  time.Time
-	ItemCount  int
-	BeforeData []byte
-	AfterData  []byte
+	Kind          string
+	AuditID       *int64
+	BatchID       string
+	Action        string
+	Actor         string
+	Note          string
+	CreatedAt     time.Time
+	ItemCount     int
+	BeforeData    []byte
+	AfterData     []byte
+	FactorBefore  *int
+	FactorAfter   *int
+	SourceRakName string
+	TargetRakName string
+	MergedCount   int
 }
 
 // StockOpnameRackContext describes the rack and coordinator that own a result.

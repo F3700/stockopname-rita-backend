@@ -31,14 +31,19 @@ type AuditBatchSummaryResponse struct {
 // kind is "single" for one change and "batch" for a grouped change. A batch
 // that contains a single row is returned as "single".
 type AuditTimelineItemResponse struct {
-	Kind      string          `json:"kind"`
-	ID        *int64          `json:"id,omitempty"`
-	BatchID   string          `json:"batch_id,omitempty"`
-	Action    string          `json:"action"`
-	Actor     string          `json:"actor"`
-	Note      string          `json:"note"`
-	ItemCount int             `json:"item_count,omitempty"`
-	CreatedAt string          `json:"created_at"`
-	Before    json.RawMessage `json:"before,omitempty"`
-	After     json.RawMessage `json:"after,omitempty"`
+	Kind          string          `json:"kind"`
+	ID            *int64          `json:"id,omitempty"`
+	BatchID       string          `json:"batch_id,omitempty"`
+	Action        string          `json:"action"`
+	Actor         string          `json:"actor"`
+	Note          string          `json:"note"`
+	ItemCount     int             `json:"item_count,omitempty"`
+	CreatedAt     string          `json:"created_at"`
+	Before        json.RawMessage `json:"before,omitempty"`
+	After         json.RawMessage `json:"after,omitempty"`
+	FactorBefore  *int            `json:"factor_before,omitempty"`
+	FactorAfter   *int            `json:"factor_after,omitempty"`
+	SourceRakName string          `json:"source_rak_name,omitempty"`
+	TargetRakName string          `json:"target_rak_name,omitempty"`
+	MergedCount   int             `json:"merged_count,omitempty"`
 }
