@@ -49,3 +49,34 @@ func TestAuditFindBatches(t *testing.T) {
 		t.Errorf("unexpected batches %+v total %d", batches, total)
 	}
 }
+
+func TestAuditFindTimeline(t *testing.T) {
+	mock := mustMockPool(t)
+	createdAt := time.Date(2026, 11, 5, 8, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("FROM \\(SELECT \\* FROM singles").WithArgs(
+		(*int)(nil), (*int)(nil), (*int)(nil), []string{"UPDATE"}, 10, 0,
+	).WillReturnRows(pgxmock.NewRows([]string{
+		"kind", "audit_id", "batch_id", "action", "actor", "note",
+		"created_at", "item_count", "before_data", "after_data",
+	}).
+		AddRow("single", int64(11), "11111111-1111-4111-8111-111111111111", "UPDATE", "Niko", "koreksi", createdAt, 1, []byte(`{"quantity":3}`), []byte(`{"quantity":3}`)).
+		AddRow("batch", int64(0), "22222222-2222-4222-8222-222222222222", "UPDATE", "Niko", "massal", createdAt, 4, []byte("null"), []byte("null")))
+	mock.ExpectQuery("HAVING \\(\\$4::text\\[\\] IS NULL OR MIN\\(a.action\\)").
+		WithArgs((*int)(nil), (*int)(nil), (*int)(nil), []string{"UPDATE"}).
+		WillReturnRows(pgxmock.NewRows([]string{"count"}).AddRow(2))
+
+	repo := NewAuditRepository(mock)
+	items, total, err := repo.FindTimeline(context.Background(), AuditFilter{Actions: []string{"UPDATE"}, Limit: 10, Offset: 0})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if total != 2 || len(items) != 2 {
+		t.Fatalf("unexpected timeline %+v total %d", items, total)
+	}
+	if items[0].Kind != "single" || items[0].AuditID == nil || *items[0].AuditID != 11 || items[0].BatchID == "" {
+		t.Errorf("expected collapsed single with id and batch, got %+v", items[0])
+	}
+	if items[1].Kind != "batch" || items[1].AuditID != nil || items[1].ItemCount != 4 {
+		t.Errorf("expected batch without audit id, got %+v", items[1])
+	}
+}

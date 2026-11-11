@@ -224,3 +224,130 @@ func (r *AuditRepositoryImpl) FindBatches(ctx context.Context, filter AuditFilte
 
 	return batches, total, nil
 }
+
+// FindTimeline implements [AuditRepository]. It returns batches and single
+// changes in one chronological list. A batch that holds a single row is
+// returned as a single entry, so one-item work is never shown as a bulk action.
+func (r *AuditRepositoryImpl) FindTimeline(ctx context.Context, filter AuditFilter) ([]*model.AuditTimelineItem, int, error) {
+	const SQL = `
+		WITH filtered AS (
+			SELECT a.*
+			FROM stock_opname_audit a
+			WHERE ($1::int IS NULL OR a.sesi_id = $1::int)
+			AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
+			AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
+		),
+		singles AS (
+			SELECT
+				'single'::text AS kind,
+				a.audit_id,
+				NULL::uuid AS batch_id,
+				a.action,
+				a.actor,
+				COALESCE(a.note, '') AS note,
+				a.created_at,
+				1 AS item_count,
+				a.before_data,
+				a.after_data
+			FROM filtered a
+			WHERE a.batch_id IS NULL
+			AND ($4::text[] IS NULL OR a.action = ANY($4::text[]))
+		),
+		batched AS (
+			SELECT
+				CASE WHEN COUNT(*) = 1 THEN 'single' ELSE 'batch' END AS kind,
+				CASE WHEN COUNT(*) = 1 THEN MIN(a.audit_id) ELSE NULL END AS audit_id,
+				a.batch_id,
+				MIN(a.action) AS action,
+				MIN(a.actor) AS actor,
+				COALESCE(MIN(a.note), '') AS note,
+				MIN(a.created_at) AS created_at,
+				COUNT(*)::int AS item_count,
+				CASE WHEN COUNT(*) = 1 THEN (array_agg(a.before_data))[1] ELSE NULL END AS before_data,
+				CASE WHEN COUNT(*) = 1 THEN (array_agg(a.after_data))[1] ELSE NULL END AS after_data
+			FROM filtered a
+			WHERE a.batch_id IS NOT NULL
+			GROUP BY a.batch_id
+			HAVING ($4::text[] IS NULL OR MIN(a.action) = ANY($4::text[]))
+		)
+		SELECT
+			t.kind,
+			COALESCE(t.audit_id, 0) AS audit_id,
+			COALESCE(t.batch_id::text, '') AS batch_id,
+			t.action,
+			t.actor,
+			t.note,
+			t.created_at,
+			t.item_count,
+			COALESCE(t.before_data, 'null'::jsonb) AS before_data,
+			COALESCE(t.after_data, 'null'::jsonb) AS after_data
+		FROM (SELECT * FROM singles UNION ALL SELECT * FROM batched) t
+		ORDER BY t.created_at DESC, COALESCE(t.audit_id, 0) DESC, t.batch_id DESC
+		LIMIT $5 OFFSET $6
+	`
+	rows, err := r.Pool.Query(ctx, SQL, filter.SesiID, filter.CoordinatorID, filter.ResultID, filter.Actions, filter.Limit, filter.Offset)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	items := make([]*model.AuditTimelineItem, 0)
+	for rows.Next() {
+		var item model.AuditTimelineItem
+		var auditID int64
+		var before, after json.RawMessage
+		if err := rows.Scan(
+			&item.Kind,
+			&auditID,
+			&item.BatchID,
+			&item.Action,
+			&item.Actor,
+			&item.Note,
+			&item.CreatedAt,
+			&item.ItemCount,
+			&before,
+			&after,
+		); err != nil {
+			return nil, 0, err
+		}
+		if item.Kind == "single" {
+			id := auditID
+			item.AuditID = &id
+		}
+		item.BeforeData = []byte(before)
+		item.AfterData = []byte(after)
+		items = append(items, &item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+
+	const countSQL = `
+		SELECT
+			(SELECT COUNT(*)
+				FROM stock_opname_audit a
+				WHERE a.batch_id IS NULL
+				AND ($1::int IS NULL OR a.sesi_id = $1::int)
+				AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
+				AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
+				AND ($4::text[] IS NULL OR a.action = ANY($4::text[])))
+			+
+			(SELECT COUNT(*)
+				FROM (
+					SELECT 1
+					FROM stock_opname_audit a
+					WHERE a.batch_id IS NOT NULL
+					AND ($1::int IS NULL OR a.sesi_id = $1::int)
+					AND ($2::int IS NULL OR a.source_coor_id = $2::int OR a.target_coor_id = $2::int)
+					AND ($3::int IS NULL OR a.stock_opname_id = $3::int)
+					GROUP BY a.batch_id
+					HAVING ($4::text[] IS NULL OR MIN(a.action) = ANY($4::text[]))
+				) b)
+	`
+	var total int
+	if err := r.Pool.QueryRow(ctx, countSQL, filter.SesiID, filter.CoordinatorID, filter.ResultID, filter.Actions).Scan(&total); err != nil {
+		return nil, 0, err
+	}
+
+	return items, total, nil
+}

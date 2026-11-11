@@ -9,4 +9,5 @@ import (
 type AuditService interface {
 	FindAll(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
 	FindBatches(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
+	FindTimeline(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditTimelineItemResponse, error)
 }

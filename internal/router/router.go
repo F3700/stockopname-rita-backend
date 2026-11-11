@@ -168,6 +168,7 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool, opts ...Option)
 
 	router.GET("/stockopname/audits", auditHandler.GetAudits)
 	router.GET("/stockopname/audits/batches", auditHandler.GetAuditBatches)
+	router.GET("/stockopname/audits/timeline", auditHandler.GetAuditTimeline)
 
 	return router
 }

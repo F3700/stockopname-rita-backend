@@ -26,3 +26,19 @@ type AuditBatchSummaryResponse struct {
 	ItemCount int    `json:"item_count"`
 	CreatedAt string `json:"created_at"`
 }
+
+// AuditTimelineItemResponse is one row of GET /stockopname/audits/timeline.
+// kind is "single" for one change and "batch" for a grouped change. A batch
+// that contains a single row is returned as "single".
+type AuditTimelineItemResponse struct {
+	Kind      string          `json:"kind"`
+	ID        *int64          `json:"id,omitempty"`
+	BatchID   string          `json:"batch_id,omitempty"`
+	Action    string          `json:"action"`
+	Actor     string          `json:"actor"`
+	Note      string          `json:"note"`
+	ItemCount int             `json:"item_count,omitempty"`
+	CreatedAt string          `json:"created_at"`
+	Before    json.RawMessage `json:"before,omitempty"`
+	After     json.RawMessage `json:"after,omitempty"`
+}

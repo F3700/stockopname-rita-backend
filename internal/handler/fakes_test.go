@@ -289,8 +289,9 @@ func (f *fakeReportService) SessionDBF(ctx context.Context, id int) ([]byte, str
 }
 
 type fakeAuditService struct {
-	findAllFunc     func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
-	findBatchesFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
+	findAllFunc      func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error)
+	findBatchesFunc  func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditBatchSummaryResponse, error)
+	findTimelineFunc func(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditTimelineItemResponse, error)
 }
 
 func (f *fakeAuditService) FindAll(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditResponse, error) {
@@ -305,6 +306,13 @@ func (f *fakeAuditService) FindBatches(ctx context.Context, filter repository.Au
 		return nil, nil
 	}
 	return f.findBatchesFunc(ctx, filter, pagination)
+}
+
+func (f *fakeAuditService) FindTimeline(ctx context.Context, filter repository.AuditFilter, pagination *dto.Pagination) ([]dto.AuditTimelineItemResponse, error) {
+	if f.findTimelineFunc == nil {
+		return nil, nil
+	}
+	return f.findTimelineFunc(ctx, filter, pagination)
 }
 
 func newJSONRequest(t *testing.T, method, target, body string) *http.Request {

@@ -298,9 +298,10 @@ func (f *fakeUploadRepository) FindSummaryByCoordinator(ctx context.Context, coo
 }
 
 type fakeAuditRepository struct {
-	saveFunc        func(ctx context.Context, tx pgx.Tx, audit *model.StockOpnameAudit) error
-	findAllFunc     func(ctx context.Context, filter repository.AuditFilter) ([]*model.StockOpnameAudit, int, error)
-	findBatchesFunc func(ctx context.Context, filter repository.AuditFilter) ([]*model.StockOpnameAuditBatch, int, error)
+	saveFunc         func(ctx context.Context, tx pgx.Tx, audit *model.StockOpnameAudit) error
+	findAllFunc      func(ctx context.Context, filter repository.AuditFilter) ([]*model.StockOpnameAudit, int, error)
+	findBatchesFunc  func(ctx context.Context, filter repository.AuditFilter) ([]*model.StockOpnameAuditBatch, int, error)
+	findTimelineFunc func(ctx context.Context, filter repository.AuditFilter) ([]*model.AuditTimelineItem, int, error)
 }
 
 func (f *fakeAuditRepository) Save(ctx context.Context, tx pgx.Tx, audit *model.StockOpnameAudit) error {
@@ -322,6 +323,13 @@ func (f *fakeAuditRepository) FindBatches(ctx context.Context, filter repository
 		return nil, 0, nil
 	}
 	return f.findBatchesFunc(ctx, filter)
+}
+
+func (f *fakeAuditRepository) FindTimeline(ctx context.Context, filter repository.AuditFilter) ([]*model.AuditTimelineItem, int, error) {
+	if f.findTimelineFunc == nil {
+		return nil, 0, nil
+	}
+	return f.findTimelineFunc(ctx, filter)
 }
 
 type fakeSesiRepository struct {

@@ -2301,6 +2301,165 @@
           }
         }
       }
+    },
+    "/stockopname/audits/timeline": {
+      "get": {
+        "tags": [
+          "Stock Opname Audit"
+        ],
+        "summary": "List audit entries as one timeline",
+        "description": "Returns batches and single changes in one chronological list. A batch that only contains one row is returned as kind=single, so one-item work is never shown as a bulk action. Use GET /stockopname/audits?batchId=<uuid> to load the items of a batch.",
+        "parameters": [
+          {
+            "name": "sessionId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "coordinatorId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "resultId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "description": "Filter by action. Repeat the parameter or use comma separated values (UPDATE,MOVE).",
+            "style": "form",
+            "explode": false,
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "CREATE",
+                  "UPDATE",
+                  "DELETE",
+                  "MOVE"
+                ]
+              }
+            }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Audit timeline retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "kind": {
+                            "type": "string",
+                            "enum": [
+                              "single",
+                              "batch"
+                            ]
+                          },
+                          "id": {
+                            "type": "integer",
+                            "format": "int64",
+                            "nullable": true,
+                            "description": "Set for kind=single, including a batch that collapsed into one row."
+                          },
+                          "batch_id": {
+                            "type": "string",
+                            "format": "uuid",
+                            "nullable": true
+                          },
+                          "action": {
+                            "type": "string",
+                            "enum": [
+                              "CREATE",
+                              "UPDATE",
+                              "DELETE",
+                              "MOVE"
+                            ]
+                          },
+                          "actor": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "item_count": {
+                            "type": "integer",
+                            "description": "Set for kind=batch only."
+                          },
+                          "created_at": {
+                            "type": "string",
+                            "format": "date-time"
+                          },
+                          "before": {
+                            "type": "object",
+                            "nullable": true,
+                            "description": "Set for kind=single only."
+                          },
+                          "after": {
+                            "type": "object",
+                            "nullable": true,
+                            "description": "Set for kind=single only."
+                          }
+                        }
+                      }
+                    },
+                    "pagination": {
+                      "$ref": "#/components/schemas/Pagination"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalServerError"
+          }
+        }
+      }
     }
   },
   "components": {

@@ -51,6 +51,22 @@ type StockOpnameAuditBatch struct {
 	CreatedAt time.Time
 }
 
+// AuditTimelineItem is one entry of the unified audit timeline: either a single
+// change or a batch summary. AuditID is nil for a batch; BatchID is set for
+// both, including a batch that collapsed into a single row.
+type AuditTimelineItem struct {
+	Kind       string
+	AuditID    *int64
+	BatchID    string
+	Action     string
+	Actor      string
+	Note       string
+	CreatedAt  time.Time
+	ItemCount  int
+	BeforeData []byte
+	AfterData  []byte
+}
+
 // StockOpnameRackContext describes the rack and coordinator that own a result.
 type StockOpnameRackContext struct {
 	RakID      int
