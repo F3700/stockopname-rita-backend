@@ -6,6 +6,8 @@ type RackResponse struct {
 	CoordinatorID int    `json:"coordinator_id"`
 	UploadedAt    string `json:"uploaded_at"`
 	ItemCount     int    `json:"item_count"`
+	UnownedCount  int    `json:"unowned_count"`
+	CanUpload     bool   `json:"can_upload"`
 	IsEmpty       bool   `json:"is_empty"`
 }
 

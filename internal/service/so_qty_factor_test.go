@@ -14,8 +14,8 @@ import (
 func factorPtr(value int) *int { return &value }
 
 func soAuditDataRowsWithFactor(id, rakID, coorID int, factor int) *pgxmock.Rows {
-	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat"}).
-		AddRow(id, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, factor, rakID, "R1", coorID, "KOR-01", "IN_PROGRESS", nil, nil)
+	return pgxmock.NewRows([]string{"stock_opname_id", "quantity", "plu", "name", "department_code", "barcode", "buy", "sell", "qty_factor", "rak_id", "rak_name", "coor_id", "coor_code", "coor_status", "rak_upload_id", "upload_createdat", "so_upload_id"}).
+		AddRow(id, 10.0, "100251", "Sari Roti", "1138", "8991001010016", 14500.0, 17200.0, factor, rakID, "R1", coorID, "KOR-01", "IN_PROGRESS", nil, nil, nil)
 }
 
 func TestSetQtyFactorItemsTx(t *testing.T) {

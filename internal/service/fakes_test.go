@@ -393,7 +393,10 @@ type fakeStockOpnameRepository struct {
 	upsertForMoveFunc           func(ctx context.Context, tx pgx.Tx, stockOpname *model.StockOpname) (*model.StockOpnameAuditData, error)
 	countBySesiFunc             func(ctx context.Context, tx pgx.Tx, sesiId int) (int, error)
 	countByRakFunc              func(ctx context.Context, tx pgx.Tx, rakID int) (int, error)
-	reopenUploadIfEmptyFunc     func(ctx context.Context, tx pgx.Tx, rakID int) (bool, error)
+	adoptUnownedRowsFunc        func(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32) (int64, error)
+	hasOwnedRowsFunc            func(ctx context.Context, tx pgx.Tx, rakID int, uploadID int) (bool, error)
+	countByUploadFunc           func(ctx context.Context, tx pgx.Tx, uploadID int) (int, int, error)
+	clearUploadPointerFunc      func(ctx context.Context, tx pgx.Tx, rakID int) (bool, error)
 	countForQtyFactorFunc       func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error)
 	findForQtyFactorFunc        func(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) ([]*model.StockOpnameAuditData, error)
 	updateQtyFactorFunc         func(ctx context.Context, tx pgx.Tx, id int, factor int) error
@@ -508,11 +511,32 @@ func (f *fakeStockOpnameRepository) CountByRak(ctx context.Context, tx pgx.Tx, r
 	return f.countByRakFunc(ctx, tx, rakID)
 }
 
-func (f *fakeStockOpnameRepository) ReopenUploadIfEmpty(ctx context.Context, tx pgx.Tx, rakID int) (bool, error) {
-	if f.reopenUploadIfEmptyFunc == nil {
+func (f *fakeStockOpnameRepository) AdoptUnownedRows(ctx context.Context, tx pgx.Tx, uploadID int, rakIDs []int32) (int64, error) {
+	if f.adoptUnownedRowsFunc == nil {
+		return 0, nil
+	}
+	return f.adoptUnownedRowsFunc(ctx, tx, uploadID, rakIDs)
+}
+
+func (f *fakeStockOpnameRepository) HasOwnedRows(ctx context.Context, tx pgx.Tx, rakID int, uploadID int) (bool, error) {
+	if f.hasOwnedRowsFunc == nil {
 		return false, nil
 	}
-	return f.reopenUploadIfEmptyFunc(ctx, tx, rakID)
+	return f.hasOwnedRowsFunc(ctx, tx, rakID, uploadID)
+}
+
+func (f *fakeStockOpnameRepository) CountByUpload(ctx context.Context, tx pgx.Tx, uploadID int) (int, int, error) {
+	if f.countByUploadFunc == nil {
+		return 0, 0, nil
+	}
+	return f.countByUploadFunc(ctx, tx, uploadID)
+}
+
+func (f *fakeStockOpnameRepository) ClearUploadPointerIfNoOwnedRows(ctx context.Context, tx pgx.Tx, rakID int) (bool, error) {
+	if f.clearUploadPointerFunc == nil {
+		return false, nil
+	}
+	return f.clearUploadPointerFunc(ctx, tx, rakID)
 }
 
 func (f *fakeStockOpnameRepository) CountForQtyFactorUpdate(ctx context.Context, tx pgx.Tx, sessionID int, scope string, scopeID *int, resultIDs []int, filter *model.QtyFactorFilter) (int, error) {

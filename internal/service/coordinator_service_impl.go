@@ -183,11 +183,13 @@ func (c *CoordinatorServiceImpl) JoinByCoordinatorQR(ctx context.Context, req dt
 			uploadedAt = rack.UploadedAt.Time.Format(time.RFC3339)
 		}
 		joinRacks = append(joinRacks, dto.JoinRackResponse{
-			ID:         rack.RakID,
-			Name:       rack.RakName,
-			UploadedAt: uploadedAt,
-			ItemCount:  rack.ItemCount,
-			IsEmpty:    rack.ItemCount == 0,
+			ID:           rack.RakID,
+			Name:         rack.RakName,
+			UploadedAt:   uploadedAt,
+			ItemCount:    rack.ItemCount,
+			UnownedCount: rack.UnownedCount,
+			CanUpload:    rack.CanUpload,
+			IsEmpty:      rack.ItemCount == 0,
 		})
 	}
 

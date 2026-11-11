@@ -17,6 +17,10 @@ type StockOpname struct {
 	SoBuyPrice    float64 `json:"buy_price"`
 	SoSellPrice   float64 `json:"sell_price"`
 	SoQtyFactor   int     `json:"qty_factor"`
+
+	// SoUploadID is the upload that owns this row. Nil means the row has no
+	// owner yet and will be adopted by the next upload of its rack.
+	SoUploadID *int `json:"upload_id,omitempty"`
 }
 
 // QtyFactorFilter selects result rows for a filtered bulk factor update.

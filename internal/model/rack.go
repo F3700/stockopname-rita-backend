@@ -9,13 +9,18 @@ type Rack struct {
 }
 
 // RackState is the row shape used by FindAll/FindById. Upload fields come from
-// a LEFT JOIN so unuploaded and uploaded racks share one struct.
+// a LEFT JOIN so unuploaded and uploaded racks share one struct. UploadedAt is
+// the host upload: the upload that last claimed the rack. CanUpload mirrors the
+// claim guard (rak_upload_id IS NULL); ItemCount counts every row in the rack
+// while UnownedCount counts only rows without an owner.
 type RackState struct {
-	RakID      int
-	RakName    string
-	CoorID     int
-	UploadedAt pgtype.Timestamptz
-	ItemCount  int
+	RakID        int
+	RakName      string
+	CoorID       int
+	UploadedAt   pgtype.Timestamptz
+	ItemCount    int
+	UnownedCount int
+	CanUpload    bool
 }
 
 // UploadItem is the item shape written to rak_upload_snapshot at submit time.

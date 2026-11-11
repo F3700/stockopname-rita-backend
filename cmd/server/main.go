@@ -59,11 +59,15 @@ func main() {
 		),
 	)
 
-	// Order matters: Recovery stays outermost so a panic anywhere is caught,
-	// and CORS sits outside LimitBody so a 413 still carries CORS headers.
-	m := middleware.Recovery(
-		middleware.CORS(
-			middleware.LimitBody(r, envInt64("HTTP_MAX_BODY_BYTES", defaultMaxBodyBytes)),
+	// Order matters: AccessLog stays outermost so a recovered panic is logged as
+	// the 500 Recovery wrote, Recovery keeps a panic anywhere from killing the
+	// process, and CORS sits outside LimitBody so a 413 still carries CORS
+	// headers.
+	m := middleware.AccessLog(
+		middleware.Recovery(
+			middleware.CORS(
+				middleware.LimitBody(r, envInt64("HTTP_MAX_BODY_BYTES", defaultMaxBodyBytes)),
+			),
 		),
 	)
 

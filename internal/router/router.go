@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"time"
 
 	apidocs "stockopname-rita-backend/docs"
 	"stockopname-rita-backend/internal/handler"
@@ -20,6 +21,9 @@ const (
 	// DefaultMaxConcurrentExport keeps several large reports from being built
 	// at the same time; each one is rendered fully in memory.
 	DefaultMaxConcurrentExport = 2
+	// defaultHealthTimeout bounds the readiness ping: a probe must answer
+	// quickly even when the database is hanging.
+	defaultHealthTimeout = 2 * time.Second
 )
 
 type routerOptions struct {
@@ -117,10 +121,11 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool, opts ...Option)
 
 	router := httprouter.New()
 
-	// Health check for deploy verification.
-	router.GET("/health", func(w http.ResponseWriter, r *http.Request, _ httprouter.Params) {
-		w.WriteHeader(http.StatusOK)
-	})
+	// Liveness answers as long as the process runs; readiness also checks the
+	// database, so a deploy can tell "container up" from "able to serve".
+	healthHandler := handler.NewHealthHandler(pool, defaultHealthTimeout)
+	router.GET("/health", healthHandler.Live)
+	router.GET("/health/ready", healthHandler.Ready)
 
 	// API docs.
 	apidocs.RegisterRoutes(router)

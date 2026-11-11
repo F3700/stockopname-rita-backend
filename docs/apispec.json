@@ -55,11 +55,71 @@
         "tags": [
           "Health"
         ],
-        "summary": "Health check",
-        "description": "Mengembalikan 200 selama service berjalan. Dipakai untuk verifikasi deploy.",
+        "summary": "Liveness probe",
+        "description": "Mengembalikan 200 selama proses berjalan; database tidak diperiksa. Dipakai untuk memastikan container hidup, bukan untuk memastikan API bisa melayani. Request ke endpoint ini tidak ditulis ke access log.",
         "responses": {
           "200": {
-            "description": "Service is healthy"
+            "description": "Service is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness probe",
+        "description": "Melakukan ping ke database dengan timeout 2 detik. 200 bila database menjawab, 503 bila tidak. Dipakai untuk memastikan instance siap menerima trafik setelah deploy.",
+        "responses": {
+          "200": {
+            "description": "Database reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ready"
+                    },
+                    "db": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Database is not reachable"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -1246,7 +1306,7 @@
           "Stock Opname Racks"
         ],
         "summary": "Get all racks for a session or coordinator",
-        "description": "Retrieve all racks. Use this list to delete unused racks.",
+        "description": "Retrieve all racks. Use this list to delete unused racks. uploaded_at is the upload that last claimed the rack (the host); can_upload is true while the rack has no host and mirrors the upload guard, so clients should gate the upload button on can_upload instead of is_empty. item_count counts every result row in the rack and unowned_count counts only the rows that have no owning upload yet.",
         "parameters": [
           {
             "name": "sessionId",
@@ -1857,7 +1917,7 @@
           "Stock Opname Coordinator"
         ],
         "summary": "Join a coordinator by scanning its QR code",
-        "description": "Validates the coordinator and returns its racks with upload status and live contents. Mobile clients should use item_count and is_empty to display the current rack contents; these values come from live stock_opname data, not from the upload snapshot. uploaded_at marks the upload the rack currently belongs to; it is cleared when the rack becomes empty and its upload is reopened, so an empty rack is normally available for upload again. Only legacy data may still show uploaded_at on an empty rack. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
+        "description": "Validates the coordinator and returns its racks with upload status and live contents. item_count and is_empty describe the live rack contents; can_upload mirrors the upload guard (rak_upload_id IS NULL) and is what clients should use to enable the upload button. unowned_count tells the scanner how many rows the next upload of that rack will adopt. uploaded_at is the host upload: the one that last claimed the rack, cleared once it owns nothing there. There is no push notification: call this endpoint again to refresh. Join is only allowed while the coordinator status is IN_PROGRESS.",
         "requestBody": {
           "required": true,
           "content": {
@@ -1905,8 +1965,8 @@
         "tags": [
           "Stock Opname Upload"
         ],
-        "summary": "List uploads that still own a rack",
-        "description": "Returns every upload of the coordinator that still has at least one rack attached. rack_count and item_count are live counts from the current stock_opname rows. Uploads that lost all their racks are kept in the database but are not listed here. upload_number is computed over all uploads of the coordinator, so the numbers may have gaps.",
+        "summary": "List uploads that still own a result row",
+        "description": "Returns every upload of the coordinator that still owns at least one result row. rack_count and item_count are counted from row ownership, so an item moved to another rack still counts for the upload that owns it. Uploads without any owned row are kept in the database but are not listed here. upload_number is computed over all uploads of the coordinator, so the numbers may have gaps.",
         "parameters": [
           {
             "name": "coordinatorId",
@@ -1954,7 +2014,7 @@
           "Stock Opname Upload"
         ],
         "summary": "Submit a batch of racks as one upload",
-        "description": "Creates one upload row grouping every rack in the batch. A rack can only belong to one upload; when any rack was already uploaded the whole batch is rejected with 409.",
+        "description": "Creates one upload row grouping every rack in the batch. A rack can be claimed only while it has no host upload; when any rack already has one the whole batch is rejected with 409. Result rows that have no owner yet in the claimed racks are adopted by the new upload before the batch is written. Scanning a PLU that another upload owns in the same rack transfers that row to this upload and overwrites its quantity, because the rack is being re-counted. rack_count and item_count in the response are counted from ownership.",
         "requestBody": {
           "required": true,
           "content": {
@@ -2006,7 +2066,7 @@
           "Stock Opname Upload"
         ],
         "summary": "Download the upload PDF for an upload batch",
-        "description": "Rendered from current stock opname results for the racks still assigned to the upload, grouped per rack. Quantities use effective quantity (quantity x qty_factor). Set include_carton=true to add a Karton column (effective quantity divided by the product carton size).",
+        "description": "Rendered from the result rows owned by the upload, grouped by the rack each row currently sits in. An item moved to another rack is printed under its new rack, and racks without any owned item are omitted. Quantities use effective quantity (quantity x qty_factor). Set include_carton=true to add a Karton column (effective quantity divided by the product carton size).",
         "parameters": [
           {
             "name": "id",
@@ -2919,11 +2979,23 @@
           },
           "uploaded_at": {
             "type": "string",
-            "example": "2026-10-26T10:14:00+07:00"
+            "example": "2026-10-26T10:14:00+07:00",
+            "description": "Upload that last claimed this rack (the host). Null when the rack has never been uploaded or its host was released."
           },
           "item_count": {
             "type": "integer",
-            "example": 5
+            "example": 5,
+            "description": "Live number of result rows in the rack, whatever upload owns them."
+          },
+          "unowned_count": {
+            "type": "integer",
+            "example": 2,
+            "description": "Result rows in the rack that no upload owns yet; the next upload of the rack adopts them."
+          },
+          "can_upload": {
+            "type": "boolean",
+            "example": true,
+            "description": "True while the rack has no host. Same rule the upload endpoint enforces."
           },
           "is_empty": {
             "type": "boolean",
@@ -3085,12 +3157,22 @@
                 "uploaded_at": {
                   "type": "string",
                   "example": "2026-10-26T09:14:03+07:00",
-                  "description": "Upload the rack currently belongs to. Cleared when the rack becomes empty and its upload is reopened; legacy rows may still show it while empty."
+                  "description": "Upload that last claimed the rack (the host). Cleared once that upload no longer owns any row in the rack."
                 },
                 "item_count": {
                   "type": "integer",
                   "example": 5,
                   "description": "Live number of result rows currently in the rack."
+                },
+                "unowned_count": {
+                  "type": "integer",
+                  "example": 2,
+                  "description": "Rows in the rack that no upload owns yet; the next upload of the rack adopts them."
+                },
+                "can_upload": {
+                  "type": "boolean",
+                  "example": true,
+                  "description": "True while the rack has no host; use this to enable the upload button."
                 },
                 "is_empty": {
                   "type": "boolean",
@@ -3117,7 +3199,8 @@
           },
           "rack_count": {
             "type": "integer",
-            "example": 3
+            "example": 3,
+            "description": "Number of distinct racks that currently hold a row owned by this upload."
           },
           "item_count": {
             "type": "integer",
