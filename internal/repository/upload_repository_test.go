@@ -58,10 +58,10 @@ func TestUploadFindDetailUsesCurrentResults(t *testing.T) {
 			AddRow(12, 7, createdAt, "QA-C1", "SESI-01", "Gudang A"),
 	)
 	mock.ExpectQuery("LEFT JOIN stock_opname").WithArgs(12).WillReturnRows(
-		pgxmock.NewRows([]string{"rak_id", "rak_name", "barcode", "plu", "name", "dept", "qty", "buy_price", "sell_price", "has_item"}).
-			AddRow(1, "Rak 1", "899", "1001", "Produk A", "1138", 10.0, 2500.0, 3500.0, true).
-			AddRow(1, "Rak 1", "898", "1002", "Produk B", "1138", -2.0, 2000.0, 3000.0, true).
-			AddRow(2, "Rak 2", "", "", "", "", 0.0, 0.0, 0.0, false),
+		pgxmock.NewRows([]string{"rak_id", "rak_name", "barcode", "plu", "name", "dept", "qty", "buy_price", "sell_price", "per_carton", "has_item"}).
+			AddRow(1, "Rak 1", "899", "1001", "Produk A", "1138", 10.0, 2500.0, 3500.0, 12, true).
+			AddRow(1, "Rak 1", "898", "1002", "Produk B", "1138", -2.0, 2000.0, 3000.0, 6, true).
+			AddRow(2, "Rak 2", "", "", "", "", 0.0, 0.0, 0.0, 0, false),
 	)
 
 	repo := NewUploadRepository(mock)
@@ -77,6 +77,9 @@ func TestUploadFindDetailUsesCurrentResults(t *testing.T) {
 	}
 	if detail.Racks[0].Items[0].Qty != 10 || detail.Racks[0].Items[1].Qty != -2 {
 		t.Errorf("expected effective quantities, got %+v", detail.Racks[0].Items)
+	}
+	if detail.Racks[0].Items[0].PerCarton != 12 || detail.Racks[0].Items[1].PerCarton != 6 {
+		t.Errorf("expected per carton values, got %+v", detail.Racks[0].Items)
 	}
 	if detail.Racks[1].ItemCount != 0 {
 		t.Errorf("expected empty rack, got %+v", detail.Racks[1])

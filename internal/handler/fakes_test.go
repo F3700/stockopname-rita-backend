@@ -253,7 +253,7 @@ type fakeReportService struct {
 	sessionPDFFunc            func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	coordinatorPDFFunc        func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	coordinatorSummaryPDFFunc func(ctx context.Context, id int) ([]byte, string, error)
-	uploadPDFFunc             func(ctx context.Context, id int) ([]byte, string, error)
+	uploadPDFFunc             func(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	sessionExcelFunc          func(ctx context.Context, id int) ([]byte, string, error)
 	sessionDBFFunc            func(ctx context.Context, id int) ([]byte, string, error)
 }
@@ -266,11 +266,11 @@ func (f *fakeReportService) CoordinatorPDF(ctx context.Context, id int, includeC
 	return f.coordinatorPDFFunc(ctx, id, includeCarton)
 }
 
-func (f *fakeReportService) UploadPDF(ctx context.Context, id int) ([]byte, string, error) {
+func (f *fakeReportService) UploadPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error) {
 	if f.uploadPDFFunc == nil {
 		return nil, "", nil
 	}
-	return f.uploadPDFFunc(ctx, id)
+	return f.uploadPDFFunc(ctx, id, includeCarton)
 }
 
 func (f *fakeReportService) CoordinatorUploadSummaryPDF(ctx context.Context, id int) ([]byte, string, error) {

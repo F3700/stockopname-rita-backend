@@ -2006,7 +2006,7 @@
           "Stock Opname Upload"
         ],
         "summary": "Download the upload PDF for an upload batch",
-        "description": "Rendered from current stock opname results for the racks still assigned to the upload, grouped per rack. Quantities use effective quantity (quantity x qty_factor).",
+        "description": "Rendered from current stock opname results for the racks still assigned to the upload, grouped per rack. Quantities use effective quantity (quantity x qty_factor). Set include_carton=true to add a Karton column (effective quantity divided by the product carton size).",
         "parameters": [
           {
             "name": "id",
@@ -2016,6 +2016,15 @@
               "type": "integer"
             },
             "example": 1
+          },
+          {
+            "name": "include_carton",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
           }
         ],
         "responses": {

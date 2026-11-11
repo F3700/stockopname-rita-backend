@@ -168,9 +168,14 @@ func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*m
 			COALESCE(so.stock_opname_quantity * so.so_qty_factor, 0) AS qty,
 			COALESCE(so.so_buyprice, 0) AS buy_price,
 			COALESCE(so.so_sellprice, 0) AS sell_price,
+			COALESCE(p.product_per_carton, 0) AS per_carton,
 			(so.stock_opname_id IS NOT NULL) AS has_item
 		FROM rak r
+		JOIN coordinator c ON c.coor_id = r.rak_coor_id
 		LEFT JOIN stock_opname so ON so.stock_opname_rak_id = r.rak_id
+		LEFT JOIN product p
+			ON p.product_sesi_id = c.coor_sesi_id
+			AND p.product_plu = so.so_product_plu
 		WHERE r.rak_upload_id = $1
 		ORDER BY r.rak_name, so.so_product_name;
 	`
@@ -207,6 +212,7 @@ func (r *UploadRepositoryImpl) FindDetail(ctx context.Context, uploadID int) (*m
 			&item.Qty,
 			&item.BuyPrice,
 			&item.SellPrice,
+			&item.PerCarton,
 			&hasItem,
 		); err != nil {
 			return nil, err

@@ -69,7 +69,7 @@ func TestSessionPDF(t *testing.T) {
 			t.Errorf("expected session PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Karton"} {
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Karton", "Data terkini"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("session PDF must not contain %q", unwanted)
 		}
@@ -208,6 +208,9 @@ func TestCoordinatorPDF(t *testing.T) {
 	}
 	if bytes.Contains(data, []byte("/Subtype /Image")) {
 		t.Error("coordinator PDF must not contain a logo image")
+	}
+	if strings.Contains(text, "Data terkini") {
+		t.Error("coordinator PDF must not contain the live-data note")
 	}
 }
 
@@ -372,12 +375,12 @@ func TestCoordinatorUploadSummaryPDF(t *testing.T) {
 		t.Errorf("unexpected filename %q", filename)
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Qty Efektif", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL", "Data terkini; termasuk hasil yang belum upload.", "Nomor upload dapat memiliki gap"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Qty Efektif", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL", "Nomor upload dapat memiliki gap"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected summary PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Total HB", "Rp 4.500,00"} {
+	for _, unwanted := range []string{"Total HB", "Rp 4.500,00", "Data terkini"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("summary PDF must not contain %q", unwanted)
 		}
@@ -413,7 +416,7 @@ func TestUploadPDF(t *testing.T) {
 		&fakeStockOpnameService{},
 	)
 
-	data, filename, err := svc.UploadPDF(context.Background(), 12)
+	data, filename, err := svc.UploadPDF(context.Background(), 12, false)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -424,17 +427,52 @@ func TestUploadPDF(t *testing.T) {
 		t.Error("expected PDF magic header")
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty Efektif", "Harga Jual", "TOTAL", "1001", "Rp 3.500,00", "2 item", "Data terkini; mengikuti koreksi admin."} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty Efektif", "Harga Jual", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected upload PDF to contain %q", want)
 		}
 	}
-	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli"} {
+	for _, unwanted := range []string{"Harga Beli", "Rp 2.500,00", "Total Beli", "Data terkini"} {
 		if strings.Contains(text, unwanted) {
 			t.Errorf("upload PDF must not contain %q", unwanted)
 		}
 	}
 	if strings.Contains(text, "STOCK OPNAME UPLOAD") {
 		t.Error("upload PDF must not print the old title")
+	}
+}
+
+func TestUploadPDFWithCarton(t *testing.T) {
+	svc := NewReportService(
+		&fakeSesiService{},
+		&fakeCoordinatorService{},
+		&fakeUploadService{
+			findDetailFunc: func(ctx context.Context, uploadID int) (dto.UploadDetailResponse, error) {
+				return dto.UploadDetailResponse{
+					UploadResponse:  dto.UploadResponse{UploadID: 12, RackCount: 1, ItemCount: 2, CreatedAt: "2026-10-26T10:14:00+07:00"},
+					CoordinatorCode: "KOR-01",
+					SessionCode:     "SESI-01",
+					SessionLocation: "Gudang A",
+					Racks: []dto.UploadDetailRackResponse{
+						{RakID: 1, RakName: "Rak 1", ItemCount: 2, Items: []dto.UploadItemResponse{
+							{PLU: "1001", Barcode: "111", Name: "Indomie", Dept: "1138", Qty: 18, BuyPrice: 2500, SellPrice: 3500, PerCarton: 12},
+							{PLU: "1002", Barcode: "222", Name: "Soto", Dept: "1139", Qty: 3, BuyPrice: 2000, SellPrice: 3000, PerCarton: 0},
+						}},
+					},
+				}, nil
+			},
+		},
+		&fakeStockOpnameService{},
+	)
+
+	data, _, err := svc.UploadPDF(context.Background(), 12, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	text := compressedPDFText(t, data)
+	for _, want := range []string{"Karton", "1,50"} {
+		if !strings.Contains(text, want) {
+			t.Errorf("expected upload PDF to contain %q", want)
+		}
 	}
 }

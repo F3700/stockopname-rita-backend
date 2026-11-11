@@ -47,4 +47,5 @@ type UploadItemResponse struct {
 	Qty       float64 `json:"qty"`
 	BuyPrice  float64 `json:"buy_price"`
 	SellPrice float64 `json:"sell_price"`
+	PerCarton int     `json:"per_carton"`
 }
