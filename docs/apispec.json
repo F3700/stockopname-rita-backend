@@ -55,11 +55,71 @@
         "tags": [
           "Health"
         ],
-        "summary": "Health check",
-        "description": "Mengembalikan 200 selama service berjalan. Dipakai untuk verifikasi deploy.",
+        "summary": "Liveness probe",
+        "description": "Mengembalikan 200 selama proses berjalan; database tidak diperiksa. Dipakai untuk memastikan container hidup, bukan untuk memastikan API bisa melayani. Request ke endpoint ini tidak ditulis ke access log.",
         "responses": {
           "200": {
-            "description": "Service is healthy"
+            "description": "Service is running",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "Readiness probe",
+        "description": "Melakukan ping ke database dengan timeout 2 detik. 200 bila database menjawab, 503 bila tidak. Dipakai untuk memastikan instance siap menerima trafik setelah deploy.",
+        "responses": {
+          "200": {
+            "description": "Database reachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": {
+                      "type": "string",
+                      "example": "ready"
+                    },
+                    "db": {
+                      "type": "string",
+                      "example": "ok"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Database unreachable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Database is not reachable"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
