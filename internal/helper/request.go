@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+
+	"stockopname-rita-backend/internal/auth"
 )
 
 func ReadFromRequestBody(req *http.Request, result interface{}) error {
@@ -13,8 +15,15 @@ func ReadFromRequestBody(req *http.Request, result interface{}) error {
 	return decoder.Decode(result)
 }
 
-// ActorFromRequest returns the self-declared admin name for the audit log.
+// ActorFromRequest returns the name recorded in the audit log. The admin web
+// sends it inside the session cookie, which RequireAuth puts on the context; the
+// mobile app still self-declares it in a header, which is why the fallback stays
+// until the join token lands.
 func ActorFromRequest(req *http.Request) string {
+	if actor := auth.ActorFromContext(req.Context()); actor != "" {
+		return actor
+	}
+
 	actor := strings.TrimSpace(req.Header.Get("X-Actor"))
 	if actor == "" {
 		return "admin-web"

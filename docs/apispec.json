@@ -2,8 +2,8 @@
   "openapi": "3.0.3",
   "info": {
     "title": "Rita Stock Opname API",
-    "version": "1.1.0",
-    "description": "REST API untuk mendukung proses stock opname, pengelolaan produk, dan pemantauan hasil stock opname."
+    "version": "1.2.0",
+    "description": "REST API untuk mendukung proses stock opname, pengelolaan produk, dan pemantauan hasil stock opname.\n\n## Autentikasi\n\nSeluruh endpoint wajib memakai cookie sesi `rita_session`, kecuali yang secara eksplisit ditandai `security: []` (endpoint publik di bawah). Tanpa cookie yang sah server menjawab 401.\n\nLogin memakai satu kredensial bersama untuk semua staf gudang. Setelah login, nama operator diketik bebas dan ikut tersimpan di dalam cookie. Nama itu dipakai sebagai aktor pada audit trail, tetapi **tidak diverifikasi**: yang didapat adalah pintu masuk terkunci plus jejak kebiasaan, bukan bukti identitas per orang.\n\nEndpoint publik (dipakai aplikasi mobile dan probe):\n\n- `POST /stockopname/coordinators/join-by-qr`\n- `GET /stockopname/coordinators/{id}`\n- `GET /stockopname/sessions/{id}`\n- `GET /products`\n- `GET /stockopname/racks`\n- `POST /stockopname/uploads`\n\nKeenam endpoint itu masih menerima header `X-Actor`, yang bisa dipalsukan sampai token join dikerjakan."
   },
   "servers": [
     {
@@ -47,6 +47,10 @@
     {
       "name": "Health",
       "description": "Health check untuk monitoring dan verifikasi deploy"
+    },
+    {
+      "name": "Auth",
+      "description": "Sesi admin web: login dengan kredensial bersama, pengisian nama operator, dan status sesi"
     }
   ],
   "paths": {
@@ -74,7 +78,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/health/ready": {
@@ -121,7 +126,8 @@
               }
             }
           }
-        }
+        },
+        "security": []
       }
     },
     "/products": {
@@ -205,7 +211,8 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
-        }
+        },
+        "security": []
       },
       "post": {
         "tags": [
@@ -245,6 +252,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -316,6 +326,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -375,6 +388,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -423,6 +439,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -510,6 +529,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -557,7 +579,8 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
-        }
+        },
+        "security": []
       },
       "patch": {
         "tags": [
@@ -607,6 +630,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -655,6 +681,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -781,6 +810,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -878,6 +910,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -929,6 +964,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -968,6 +1006,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1006,6 +1047,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -1054,6 +1098,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1097,6 +1144,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1152,6 +1202,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1190,6 +1243,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -1234,6 +1290,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1290,6 +1349,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1353,7 +1415,8 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
-        }
+        },
+        "security": []
       }
     },
     "/stockopname/racks/progress": {
@@ -1416,6 +1479,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -1530,6 +1596,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1571,6 +1640,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1619,6 +1691,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -1661,6 +1736,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1716,6 +1794,9 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1801,6 +1882,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -1865,6 +1949,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -1898,6 +1985,9 @@
         "responses": {
           "200": {
             "description": "Rack deleted successfully"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -1957,7 +2047,8 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
-        }
+        },
+        "security": []
       }
     },
     "/stockopname/uploads": {
@@ -2003,6 +2094,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -2057,7 +2151,8 @@
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
-        }
+        },
+        "security": []
       }
     },
     "/stockopname/uploads/{id}/pdf": {
@@ -2099,6 +2194,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -2138,6 +2236,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -2248,6 +2349,9 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
@@ -2355,6 +2459,9 @@
           },
           "400": {
             "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
           },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
@@ -2547,13 +2654,213 @@
           "400": {
             "$ref": "#/components/responses/BadRequest"
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "500": {
             "$ref": "#/components/responses/InternalServerError"
           }
         }
       }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Tukar kredensial bersama dengan cookie sesi",
+        "description": "Membuat cookie `rita_session` berisi sesi 12 jam dengan nama operator kosong. Aplikasi web baru bisa dipakai setelah nama operator diisi lewat `POST /auth/operator`. Sepuluh percobaan gagal dalam 5 menit dari alamat yang sama dijawab 429.",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Login berhasil; cookie sesi dikirim lewat Set-Cookie",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Login berhasil"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "description": "Username atau password salah",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Username atau password salah."
+                    },
+                    "data": {
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Terlalu banyak percobaan dari alamat yang sama",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Terlalu banyak percobaan. Coba lagi beberapa menit."
+                    },
+                    "data": {
+                      "nullable": true
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/auth/operator": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Simpan nama operator yang sedang bertugas",
+        "description": "Nama diketik bebas (1-50 karakter, spasi berurutan dikecilkan, karakter kontrol ditolak) dan langsung ditulis ke cookie baru. Nama ini yang tercatat sebagai aktor audit sampai sesi berakhir.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetOperatorRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Nama tersimpan di cookie sesi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Nama operator disimpan"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/auth/logout": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Hapus cookie sesi",
+        "description": "Bisa dipanggil sebelum nama operator diisi. Cookie dikirim ulang dengan masa berlaku habis.",
+        "responses": {
+          "200": {
+            "description": "Sesi berakhir",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Sesi berakhir"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthState"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          }
+        }
+      }
+    },
+    "/auth/me": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Status sesi saat ini",
+        "description": "Dipanggil SPA saat dibuka untuk memutuskan apakah perlu login. Selalu 200: cookie yang tidak ada atau tidak sah dijawab `authenticated: false`, bukan 401.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Status sesi",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string",
+                      "example": "Status sesi"
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/AuthState"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
+  "security": [
+    {
+      "cookieAuth": []
+    }
+  ],
   "components": {
     "schemas": {
       "Product": {
@@ -3391,6 +3698,52 @@
             "example": 10
           }
         }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "admin"
+          },
+          "password": {
+            "type": "string",
+            "format": "password"
+          }
+        }
+      },
+      "SetOperatorRequest": {
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 50,
+            "example": "Niko",
+            "description": "Nama bebas, dipakai sebagai aktor audit"
+          }
+        }
+      },
+      "AuthState": {
+        "type": "object",
+        "properties": {
+          "authenticated": {
+            "type": "boolean",
+            "example": true
+          },
+          "operator": {
+            "type": "string",
+            "example": "Niko",
+            "description": "Kosong selama nama operator belum diisi"
+          }
+        }
       }
     },
     "responses": {
@@ -3453,9 +3806,35 @@
             }
           }
         }
+      },
+      "Unauthorized": {
+        "description": "Sesi tidak ada, tidak sah, sudah berakhir, atau nama operator belum diisi",
+        "content": {
+          "application/json": {
+            "schema": {
+              "type": "object",
+              "properties": {
+                "message": {
+                  "type": "string",
+                  "example": "Sesi tidak valid atau sudah berakhir. Silakan login."
+                },
+                "data": {
+                  "nullable": true
+                }
+              }
+            }
+          }
+        }
       }
     },
     "parameters": {},
-    "securitySchemes": {}
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "rita_session",
+        "description": "Cookie HttpOnly bertanda tangan HMAC-SHA256, berlaku 12 jam. Dikirim browser otomatis; tidak perlu header Authorization."
+      }
+    }
   }
 }

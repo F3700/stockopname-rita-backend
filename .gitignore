@@ -1,6 +1,8 @@
 # Environment
 .env
 .env.*
+# The template is documentation, not a secret.
+!.env.example
 
 # Build
 /bin/

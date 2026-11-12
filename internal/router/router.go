@@ -5,6 +5,7 @@ import (
 	"time"
 
 	apidocs "stockopname-rita-backend/docs"
+	"stockopname-rita-backend/internal/auth"
 	"stockopname-rita-backend/internal/handler"
 	"stockopname-rita-backend/internal/helper"
 	"stockopname-rita-backend/internal/repository"
@@ -26,13 +27,32 @@ const (
 	defaultHealthTimeout = 2 * time.Second
 )
 
+// AuthConfig carries what the four session endpoints need. The credentials come
+// from the environment; there is no user table.
+type AuthConfig struct {
+	Manager      *auth.Manager
+	Username     string
+	PasswordHash string
+	CookieSecure bool
+	CookieDomain string
+}
+
 type routerOptions struct {
 	maxExportRows       int
 	maxConcurrentExport int
+	auth                *AuthConfig
 }
 
 // Option tunes how the router assembles its handlers.
 type Option func(*routerOptions)
+
+// WithAuth registers the session endpoints. Without it the routes do not exist
+// at all, so a misconfigured binary fails obviously instead of half-working.
+func WithAuth(config AuthConfig) Option {
+	return func(o *routerOptions) {
+		o.auth = &config
+	}
+}
 
 // WithExportLimits overrides the export row cap and the concurrency limit.
 // Non-positive values disable the corresponding limit.
@@ -126,6 +146,22 @@ func NewRouter(validate *validator.Validate, pool *pgxpool.Pool, opts ...Option)
 	healthHandler := handler.NewHealthHandler(pool, defaultHealthTimeout)
 	router.GET("/health", healthHandler.Live)
 	router.GET("/health/ready", healthHandler.Ready)
+
+	// Session endpoints. Which of them needs a cookie is decided in one place,
+	// auth.IsPublic, so the policy is readable without the middleware.
+	if options.auth != nil {
+		authHandler := handler.NewAuthHandler(
+			options.auth.Manager,
+			options.auth.Username,
+			options.auth.PasswordHash,
+			handler.WithCookieAttributes(options.auth.CookieSecure, options.auth.CookieDomain),
+		)
+
+		router.POST("/auth/login", authHandler.Login)
+		router.POST("/auth/operator", authHandler.SetOperator)
+		router.POST("/auth/logout", authHandler.Logout)
+		router.GET("/auth/me", authHandler.Me)
+	}
 
 	// API docs.
 	apidocs.RegisterRoutes(router)
