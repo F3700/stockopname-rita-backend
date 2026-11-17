@@ -20,6 +20,11 @@ import (
 
 var reportLocation = mustLoadReportLocation()
 
+const (
+	reportMargin      = 12.0
+	reportBottomSpace = 18.0
+)
+
 type ReportService interface {
 	SessionPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
 	CoordinatorPDF(ctx context.Context, id int, includeCarton bool) ([]byte, string, error)
@@ -81,7 +86,6 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int, includeCarto
 		rackDetails(pdf, groups, true, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL SESI")
 	}
-	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", session.Code), err
 }
@@ -115,7 +119,6 @@ func (r *ReportServiceImpl) CoordinatorPDF(ctx context.Context, id int, includeC
 		rackDetails(pdf, groups, false, includeCarton)
 		reportGrandTotal(pdf, groups, "TOTAL KOORDINATOR")
 	}
-	footer(pdf)
 	data, err := pdfBytes(pdf)
 	return data, fmt.Sprintf("%s.pdf", coordinator.Code), err
 }
@@ -165,7 +168,6 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 	}
 	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty Efektif", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
 	reportNote(pdf, "Nomor upload dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.")
-	footer(pdf)
 
 	data, err := pdfBytes(pdf)
 	if err != nil {
@@ -190,7 +192,6 @@ func (r *ReportServiceImpl) UploadPDF(ctx context.Context, id int, includeCarton
 	if len(detail.Racks) == 0 {
 		reportNote(pdf, "Tidak ada item milik upload ini.")
 	}
-	footer(pdf)
 
 	data, err := pdfBytes(pdf)
 	if err != nil {
@@ -479,10 +480,15 @@ func (m *memReadWriteSeeker) Data() []byte {
 func newPDF(subtitle string) *gofpdf.Fpdf {
 	pdf := gofpdf.New("P", "mm", "A4", "")
 	pdf.SetTitle("Pasaraya Ritelindo - "+subtitle, false)
-	pdf.SetMargins(12, 10, 12)
-	pdf.SetAutoPageBreak(true, 12)
+	pdf.SetMargins(reportMargin, 10, reportMargin)
+	// Ruang bawah dilebihkan supaya baris tabel tidak menabrak footer.
+	pdf.SetAutoPageBreak(true, reportBottomSpace)
+	// Header dan footer digambar gofpdf pada setiap halaman, termasuk halaman
+	// lanjutan yang dibuat otomatis saat tabel panjang.
+	pdf.SetHeaderFunc(func() { reportHeader(pdf, subtitle) })
+	pdf.SetFooterFunc(func() { reportFooter(pdf) })
+	pdf.AliasNbPages("{nb}")
 	pdf.AddPage()
-	reportHeader(pdf, subtitle)
 	return pdf
 }
 
@@ -492,12 +498,40 @@ func newUploadPDF(subtitle string) *gofpdf.Fpdf {
 }
 
 func reportHeader(pdf *gofpdf.Fpdf, subtitle string) {
-	pdf.SetY(10)
-	pdf.SetFont("Arial", "B", 14)
-	pdf.CellFormat(0, 7, "Pasaraya Ritelindo", "", 1, "C", false, 0, "")
-	pdf.SetFont("Arial", "", 10)
-	pdf.CellFormat(0, 5, subtitle, "", 1, "C", false, 0, "")
-	pdf.Ln(3)
+	pdf.SetFont("Arial", "B", 13)
+	pdf.CellFormat(0, 6, "Pasaraya Ritelindo", "", 1, "C", false, 0, "")
+	pdf.SetFont("Arial", "", 9)
+	pdf.CellFormat(0, 4.5, subtitle, "", 1, "C", false, 0, "")
+
+	width, _ := pdf.GetPageSize()
+	lineY := pdf.GetY() + 1
+	pdf.SetDrawColor(170, 170, 170)
+	pdf.Line(reportMargin, lineY, width-reportMargin, lineY)
+	pdf.SetDrawColor(0, 0, 0)
+	pdf.SetY(lineY + 2)
+}
+
+// reportFooter menulis tanggal cetak dan nomor halaman di setiap halaman.
+func reportFooter(pdf *gofpdf.Fpdf) {
+	width, height := pdf.GetPageSize()
+
+	pdf.SetY(height - 14)
+	pdf.SetDrawColor(170, 170, 170)
+	pdf.Line(reportMargin, height-15, width-reportMargin, height-15)
+	pdf.SetDrawColor(0, 0, 0)
+
+	pdf.SetFont("Arial", "I", 8)
+	pdf.SetTextColor(90, 90, 90)
+	pdf.CellFormat(93, 5, "Dicetak: "+formatReportDate(time.Now().UTC().Format(time.RFC3339)), "", 0, "L", false, 0, "")
+	pdf.CellFormat(93, 5, fmt.Sprintf("Halaman %d dari {nb}", pdf.PageNo()), "", 0, "R", false, 0, "")
+	pdf.SetTextColor(0, 0, 0)
+}
+
+// pageLimit adalah batas Y sebelum sebuah baris harus pindah halaman. Dihitung
+// dari tinggi kertas supaya tidak rusak saat ukuran atau margin berubah.
+func pageLimit(pdf *gofpdf.Fpdf) float64 {
+	_, height := pdf.GetPageSize()
+	return height - reportBottomSpace
 }
 
 func section(pdf *gofpdf.Fpdf, title string) {
@@ -540,7 +574,7 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 				rowHeight = float64(lines) * 4.6
 			}
 		}
-		if pdf.GetY()+rowHeight > 282 {
+		if pdf.GetY()+rowHeight > pageLimit(pdf) {
 			pdf.AddPage()
 			drawHeader()
 			pdf.SetFont("Arial", "", 7.5)
@@ -615,8 +649,8 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Harga Jual"}
-	widths := []float64{24, 18, 71, 13, 20, 40}
+	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Harga Satuan"}
+	widths := []float64{24, 12, 83, 13, 14, 40}
 	if includeCarton {
 		cartonTotal := "-"
 		if hasCarton {
@@ -631,8 +665,8 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 			cartonTotal,
 			formatMoneyID(totalSell),
 		}
-		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Karton", "Harga Jual"}
-		widths = []float64{24, 18, 59, 13, 20, 14, 38}
+		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Karton", "Harga Satuan"}
+		widths = []float64{24, 12, 73, 13, 14, 14, 36}
 	}
 	uploadTable(pdf, headers, rows, total, widths)
 	pdf.Ln(1)
@@ -661,7 +695,7 @@ func uploadTable(pdf *gofpdf.Fpdf, headers []string, rows [][]string, total []st
 				rowHeight = height
 			}
 		}
-		if pdf.GetY()+rowHeight > 282 {
+		if pdf.GetY()+rowHeight > pageLimit(pdf) {
 			pdf.AddPage()
 			drawHeader()
 			if bold {
@@ -794,8 +828,8 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 			formatQty(group.TotalQty),
 			formatMoneyID(group.TotalSell),
 		}
-		headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Jual"}
-		widths := []float64{24, 18, 77, 13, 14, 40}
+		headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Satuan"}
+		widths := []float64{24, 12, 83, 13, 14, 40}
 		if includeCarton {
 			cartonTotal := "-"
 			if hasCarton {
@@ -810,8 +844,8 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 				cartonTotal,
 				formatMoneyID(group.TotalSell),
 			}
-			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Jual"}
-			widths = []float64{24, 18, 67, 13, 14, 14, 36}
+			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Satuan"}
+			widths = []float64{24, 12, 73, 13, 14, 14, 36}
 		}
 		uploadTable(pdf, headers, rows, total, widths)
 		pdf.Ln(1)
@@ -833,12 +867,6 @@ func reportGrandTotal(pdf *gofpdf.Fpdf, groups []rackReportGroup, title string) 
 	pdf.SetFont("Arial", "B", 9)
 	pdf.CellFormat(0, 8, fmt.Sprintf("%s: %d item, %s qty | Jual %s", title, itemCount, formatQty(totalQty), formatMoneyID(totalSell)), "T", 1, "L", false, 0, "")
 }
-func footer(pdf *gofpdf.Fpdf) {
-	pdf.Ln(4)
-	pdf.SetFont("Arial", "I", 8)
-	pdf.CellFormat(0, 6, "Generated At: "+formatReportDate(time.Now().UTC().Format(time.RFC3339)), "", 1, "L", false, 0, "")
-}
-
 func reportNote(pdf *gofpdf.Fpdf, note string) {
 	pdf.Ln(2)
 	pdf.SetFont("Arial", "I", 8)
