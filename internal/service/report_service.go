@@ -166,7 +166,7 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty Efektif", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
+	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
 	reportNote(pdf, "Nomor upload dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.")
 
 	data, err := pdfBytes(pdf)
@@ -649,7 +649,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Harga Satuan"}
+	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Satuan"}
 	widths := []float64{24, 12, 83, 13, 14, 40}
 	if includeCarton {
 		cartonTotal := "-"
@@ -665,7 +665,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 			cartonTotal,
 			formatMoneyID(totalSell),
 		}
-		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty Efektif", "Karton", "Harga Satuan"}
+		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Satuan"}
 		widths = []float64{24, 12, 73, 13, 14, 14, 36}
 	}
 	uploadTable(pdf, headers, rows, total, widths)

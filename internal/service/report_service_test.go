@@ -376,7 +376,7 @@ func TestCoordinatorUploadSummaryPDF(t *testing.T) {
 		t.Errorf("unexpected filename %q", filename)
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Qty Efektif", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL", "Nomor upload dapat memiliki gap"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Summary Report", "Upload No", "Qty", "Total HJ", "QA-C1", "3,50", "Rp 6.250,00", "TOTAL", "Nomor upload dapat memiliki gap"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected summary PDF to contain %q", want)
 		}
@@ -428,7 +428,7 @@ func TestUploadPDF(t *testing.T) {
 		t.Error("expected PDF magic header")
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty Efektif", "Harga Satuan", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty", "Harga Satuan", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected upload PDF to contain %q", want)
 		}
