@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -64,7 +65,7 @@ func TestSessionPDF(t *testing.T) {
 	if !strings.Contains(text, "Pasaraya Ritelindo") || !strings.Contains(text, "Session Report") {
 		t.Error("expected session report header")
 	}
-	for _, want := range []string{"PLU", "Dept", "1138", "Harga Jual", "TOTAL", "Rp 3.500,00"} {
+	for _, want := range []string{"PLU", "Dept", "1138", "Harga Satuan", "TOTAL", "Rp 3.500,00", "Halaman 1 dari"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected session PDF to contain %q", want)
 		}
@@ -427,7 +428,7 @@ func TestUploadPDF(t *testing.T) {
 		t.Error("expected PDF magic header")
 	}
 	text := compressedPDFText(t, data)
-	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty Efektif", "Harga Jual", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
+	for _, want := range []string{"Pasaraya Ritelindo", "Upload Report", "Dept", "1138", "Qty Efektif", "Harga Satuan", "TOTAL", "1001", "Rp 3.500,00", "2 item"} {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected upload PDF to contain %q", want)
 		}
@@ -474,5 +475,44 @@ func TestUploadPDFWithCarton(t *testing.T) {
 		if !strings.Contains(text, want) {
 			t.Errorf("expected upload PDF to contain %q", want)
 		}
+	}
+}
+
+// Header dan footer harus hadir di setiap halaman, bukan hanya halaman pertama
+// dan terakhir, dan nomor halaman harus terisi.
+func TestPDFHeaderAndFooterRepeatOnEveryPage(t *testing.T) {
+	pdf := newPDF("Test Report")
+
+	rows := make([][]string, 0, 120)
+	for i := 0; i < 120; i++ {
+		rows = append(rows, []string{
+			strconv.Itoa(i + 1),
+			"8991001010016",
+			"Nama produk yang cukup panjang untuk menguji pembungkusan baris",
+			"D01",
+			"10,00",
+			"Rp 1.000,00",
+		})
+	}
+	table(pdf, []string{"No", "Barcode", "Produk", "Dept", "Qty", "Harga Satuan"}, rows)
+
+	data, err := pdfBytes(pdf)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	text := compressedPDFText(t, data)
+	if headers := strings.Count(text, "Pasaraya Ritelindo"); headers < 2 {
+		t.Fatalf("expected the header on every page, found %d", headers)
+	}
+	if !strings.Contains(text, "Halaman 2 dari") {
+		t.Error("expected a page number on the second page")
+	}
+	// Alias {nb} harus sudah diganti jumlah halaman sebenarnya saat PDF ditutup.
+	if strings.Contains(text, "{nb}") {
+		t.Error("expected the page total alias to be replaced")
+	}
+	if !strings.Contains(text, "Dicetak:") {
+		t.Error("expected the print timestamp in the footer")
 	}
 }
