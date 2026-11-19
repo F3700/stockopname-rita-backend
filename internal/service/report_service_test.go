@@ -494,7 +494,7 @@ func TestPDFHeaderAndFooterRepeatOnEveryPage(t *testing.T) {
 			"Rp 1.000,00",
 		})
 	}
-	table(pdf, []string{"No", "Barcode", "Produk", "Dept", "Qty", "Harga Satuan"}, rows)
+	table(pdf, []string{"No", "Barcode", "Produk", "Dept", "Qty", "Harga Satuan"}, rows, []int{0, 4, 5})
 
 	data, err := pdfBytes(pdf)
 	if err != nil {
