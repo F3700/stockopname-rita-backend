@@ -783,11 +783,11 @@ func rackRecap(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool)
 
 	headers := []string{"No", "Coordinator", "Rack", "Item", "Qty", "Total Jual"}
 	widths := []float64{10, 35, 40, 12, 20, 69}
-	rightCols := []int{0, 3, 4, 5}
+	rightCols := []int{3, 4, 5}
 	if !withCoordinator {
 		headers = []string{"No", "Rack", "Item", "Qty", "Total Jual"}
 		widths = []float64{10, 60, 15, 20, 81}
-		rightCols = []int{0, 2, 3, 4}
+		rightCols = []int{2, 3, 4}
 	}
 
 	rows := make([][]string, 0, len(groups))
