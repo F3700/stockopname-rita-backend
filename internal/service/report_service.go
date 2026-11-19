@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"slices"
 	"stockopname-rita-backend/internal/dto"
 	"strconv"
 	"strings"
@@ -78,7 +79,7 @@ func (r *ReportServiceImpl) SessionPDF(ctx context.Context, id int, includeCarto
 			rows = append(rows, []string{c.Code, c.Status})
 		}
 		return rows
-	}())
+	}(), nil)
 	section(pdf, "REKAP RAK")
 	rackRecap(pdf, groups, true)
 	if len(groups) > 0 {
@@ -166,7 +167,7 @@ func (r *ReportServiceImpl) CoordinatorUploadSummaryPDF(ctx context.Context, id 
 		formatQty(totalQty),
 		formatMoneyID(totalSell),
 	}
-	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HJ"}, tableRows, total, []float64{30, 25, 25, 106})
+	uploadTable(pdf, []string{"Kode Koor", "Upload No", "Qty", "Total HJ"}, tableRows, total, []int{1, 2, 3}, []float64{30, 25, 25, 106})
 	reportNote(pdf, "Nomor upload dapat memiliki gap karena upload tanpa rak aktif tidak ditampilkan.")
 
 	data, err := pdfBytes(pdf)
@@ -546,7 +547,10 @@ func reportPair(pdf *gofpdf.Fpdf, label, value string) {
 	pdf.SetFont("Arial", "", 8)
 	pdf.CellFormat(42, 4.6, value, "", 0, "L", false, 0, "")
 }
-func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float64) {
+
+// table menggambar tabel teks. rightCols berisi indeks kolom yang isinya angka:
+// kolom itu rata kanan supaya digit sejajar dan mudah dibandingkan.
+func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, rightCols []int, widths ...float64) {
 	cols := len(headers)
 	colWidths := make([]float64, cols)
 	if len(widths) == cols {
@@ -557,10 +561,16 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 			colWidths[i] = even
 		}
 	}
+	alignOf := func(index int) string {
+		if slices.Contains(rightCols, index) {
+			return "R"
+		}
+		return "L"
+	}
 	drawHeader := func() {
 		pdf.SetFont("Arial", "B", 7)
 		for i, header := range headers {
-			pdf.CellFormat(colWidths[i], 5, header, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(colWidths[i], 5, header, "1", 0, alignOf(i), false, 0, "")
 		}
 		pdf.Ln(-1)
 	}
@@ -586,7 +596,7 @@ func table(pdf *gofpdf.Fpdf, headers []string, rows [][]string, widths ...float6
 				x += colWidths[j]
 			}
 			pdf.SetXY(x, startY)
-			pdf.MultiCell(colWidths[index], 4.6, value, "1", "L", false)
+			pdf.MultiCell(colWidths[index], 4.6, value, "1", alignOf(index), false)
 			pdf.SetXY(x+colWidths[index], startY)
 		}
 		pdf.SetXY(startX, startY+rowHeight)
@@ -651,6 +661,7 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 	}
 	headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Satuan"}
 	widths := []float64{24, 12, 83, 13, 14, 40}
+	rightCols := []int{4, 5}
 	if includeCarton {
 		cartonTotal := "-"
 		if hasCarton {
@@ -667,17 +678,24 @@ func uploadRackSection(pdf *gofpdf.Fpdf, rack dto.UploadDetailRackResponse, incl
 		}
 		headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Satuan"}
 		widths = []float64{24, 12, 73, 13, 14, 14, 36}
+		rightCols = []int{4, 5, 6}
 	}
-	uploadTable(pdf, headers, rows, total, widths)
+	uploadTable(pdf, headers, rows, total, rightCols, widths)
 	pdf.Ln(1)
 }
 
-func uploadTable(pdf *gofpdf.Fpdf, headers []string, rows [][]string, total []string, widths []float64) {
+func uploadTable(pdf *gofpdf.Fpdf, headers []string, rows [][]string, total []string, rightCols []int, widths []float64) {
 	const lineHeight = 4.6
+	alignOf := func(index int) string {
+		if slices.Contains(rightCols, index) {
+			return "R"
+		}
+		return "L"
+	}
 	drawHeader := func() {
 		pdf.SetFont("Arial", "B", 7)
 		for i, header := range headers {
-			pdf.CellFormat(widths[i], 5, header, "1", 0, "L", false, 0, "")
+			pdf.CellFormat(widths[i], 5, header, "1", 0, alignOf(i), false, 0, "")
 		}
 		pdf.Ln(-1)
 	}
@@ -711,7 +729,7 @@ func uploadTable(pdf *gofpdf.Fpdf, headers []string, rows [][]string, total []st
 				x += widths[j]
 			}
 			pdf.SetXY(x, startY)
-			pdf.MultiCell(widths[index], lineHeight, value, "1", "L", false)
+			pdf.MultiCell(widths[index], lineHeight, value, "1", alignOf(index), false)
 			pdf.SetXY(x+widths[index], startY)
 		}
 		pdf.SetXY(startX, startY+rowHeight)
@@ -765,9 +783,11 @@ func rackRecap(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool)
 
 	headers := []string{"No", "Coordinator", "Rack", "Item", "Qty", "Total Jual"}
 	widths := []float64{10, 35, 40, 12, 20, 69}
+	rightCols := []int{0, 3, 4, 5}
 	if !withCoordinator {
 		headers = []string{"No", "Rack", "Item", "Qty", "Total Jual"}
 		widths = []float64{10, 60, 15, 20, 81}
+		rightCols = []int{0, 2, 3, 4}
 	}
 
 	rows := make([][]string, 0, len(groups))
@@ -778,7 +798,7 @@ func rackRecap(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool)
 		}
 		rows = append(rows, row)
 	}
-	table(pdf, headers, rows, widths...)
+	table(pdf, headers, rows, rightCols, widths...)
 }
 
 func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator bool, includeCarton bool) {
@@ -830,6 +850,7 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 		}
 		headers := []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Harga Satuan"}
 		widths := []float64{24, 12, 83, 13, 14, 40}
+		rightCols := []int{4, 5}
 		if includeCarton {
 			cartonTotal := "-"
 			if hasCarton {
@@ -846,8 +867,9 @@ func rackDetails(pdf *gofpdf.Fpdf, groups []rackReportGroup, withCoordinator boo
 			}
 			headers = []string{"Barcode", "PLU", "Produk", "Dept", "Qty", "Karton", "Harga Satuan"}
 			widths = []float64{24, 12, 73, 13, 14, 14, 36}
+			rightCols = []int{4, 5, 6}
 		}
-		uploadTable(pdf, headers, rows, total, widths)
+		uploadTable(pdf, headers, rows, total, rightCols, widths)
 		pdf.Ln(1)
 	}
 }
